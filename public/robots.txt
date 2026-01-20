@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://graphikrafts.vercel.app/sitemap.xml

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kartcade | Racing & Flight Simulator Lounge | West Linn, Oregon</title>
+  <meta name="description"
+    content="Oregon's premier racing simulator lounge featuring 10 state-of-the-art simulators. Experience racing, drifting, flying and more. Book your session today!" />
+  <meta name="keywords" content="racing simulator, flight simulator, West Linn Oregon, gaming lounge, birthday parties, corporate events, sim racing" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Kartcade | Racing & Flight Simulator Lounge" />
+  <meta property="og:description"
+    content="Oregon's premier racing simulator lounge. Race, fly, win. 10 simulators, massive game library." />
+  <meta property="og:type" content="website" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
+
+  <!-- Google Fonts - Outfit (matches their current branding) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            display: ['Outfit', 'sans-serif'],
+          },
+          colors: {
+            'racing-green': '#2D9E49',
+            'racing-red': '#D42428',
+            'dark-bg': '#0A0A0A',
+            'dark-surface': '#141414',
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background-color: #0A0A0A;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Hide scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .lenis.lenis-smooth {
+      scroll-behavior: auto !important;
+    }
+
+    .lenis.lenis-smooth [data-lenis-prevent] {
+      overscroll-behavior: contain;
+    }
+
+    .lenis.lenis-stopped {
+      overflow: hidden;
+    }
+
+    .lenis.lenis-scrolling iframe {
+      pointer-events: none;
+    }
+
+    /* Video Background */
+    .video-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    }
+
+    /* Racing accent underline */
+    .racing-underline {
+      position: relative;
+    }
+    .racing-underline::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, #2D9E49 0%, #FFFFFF 50%, #D42428 100%);
+    }
+
+    /* Subtle accent glow */
+    .accent-glow {
+      box-shadow: 0 0 20px rgba(45, 158, 73, 0.2);
+    }
+
+    /* CTA Button hover */
+    .cta-btn {
+      background: linear-gradient(135deg, #D42428 0%, #B91C1C 100%);
+      transition: all 0.3s ease;
+    }
+    .cta-btn:hover {
+      box-shadow: 0 0 30px rgba(212, 36, 40, 0.4);
+      transform: translateY(-2px);
+    }
+
+    /* Green accent hover */
+    .green-accent-hover:hover {
+      color: #2D9E49;
+    }
+  </style>
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "Kartcade",
+    "url": "https://kartcade.com",
+    "logo": "https://kartcade.com/logo.png",
+    "description": "Oregon's premier racing simulator lounge featuring 10 state-of-the-art simulators including racing rigs, karts, and flight sim.",
+    "email": "info@kartcade.com",
+    "telephone": "+1-503-490-9194",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "West Linn",
+      "addressRegion": "OR",
+      "addressCountry": "US"
+    },
+    "sameAs": [
+      "https://maps.app.goo.gl/KkMsyMYUE1E1H9Z36"
+    ],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+1-503-490-9194",
+      "contactType": "customer service",
+      "availableLanguage": ["English"]
+    },
+    "priceRange": "$20 - $400+",
+    "openingHoursSpecification": {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AmusementPark",
+    "name": "Kartcade",
+    "description": "Racing and flight simulator lounge with 10 simulators, private events, birthday parties, and corporate team building.",
+    "url": "https://kartcade.com",
+    "telephone": "+1-503-490-9194",
+    "email": "info@kartcade.com",
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Simulator Experiences",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Racing Simulator Sessions"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Flight Simulator Experience"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Birthday Party Packages"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Corporate Team Building"
+          }
+        }
+      ]
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
