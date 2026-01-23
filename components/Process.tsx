@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
 import { Calendar, Gamepad2, Flag, Coffee } from 'lucide-react';
 
@@ -68,6 +69,14 @@ const Process: React.FC = () => {
     });
 
   }, { scope: triggerRef });
+
+  // Refresh ScrollTrigger after mount to recalculate positions
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, []);
 
   return (
     <section ref={sectionRef} className="bg-[#0A0A0A] text-white relative z-20">

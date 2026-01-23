@@ -83,15 +83,22 @@ const Navbar: React.FC = () => {
   }, [isScrolled, location.pathname, isMenuOpen]);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const navLinks = [
+  // Main nav links (shown directly)
+  const mainLinks = [
     { name: 'Home', path: '/' },
-    { name: 'About', path: '/about' },
     { name: 'Events', path: '/events' },
     { name: 'Pricing', path: '/pricing' },
+    { name: 'Gallery', path: '/gallery' },
+    { name: 'Contact', path: '/contact' },
+  ];
+
+  // Dropdown links under "Experience"
+  const experienceLinks = [
+    { name: 'About Us', path: '/about' },
     { name: 'Equipment', path: '/equipment' },
     { name: 'FAQ', path: '/faq' },
-    { name: 'Contact', path: '/contact' },
   ];
 
   return (
@@ -111,8 +118,8 @@ const Navbar: React.FC = () => {
         </Link>
 
         {/* Desktop Menu */}
-        <div className="hidden lg:flex items-center gap-6 xl:gap-10">
-          {navLinks.map((link) => (
+        <div className="hidden lg:flex items-center gap-6 xl:gap-8">
+          {mainLinks.map((link) => (
             <Link
               key={link.name}
               to={link.path}
@@ -122,6 +129,37 @@ const Navbar: React.FC = () => {
               <span className={`absolute -bottom-2 left-0 w-full h-[2px] bg-[#2D9E49] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left ${location.pathname === link.path ? 'scale-x-100' : ''}`}></span>
             </Link>
           ))}
+
+          {/* Experience Dropdown */}
+          <div
+            className="relative"
+            onMouseEnter={() => setDropdownOpen(true)}
+            onMouseLeave={() => setDropdownOpen(false)}
+          >
+            <button
+              className={`font-sans text-xs uppercase tracking-widest transition-colors duration-300 flex items-center gap-1 ${textColorClass} hover:text-[#2D9E49]`}
+            >
+              Experience
+              <svg className={`w-3 h-3 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Dropdown Menu */}
+            <div className={`absolute top-full left-1/2 -translate-x-1/2 pt-4 transition-all duration-200 ${dropdownOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+              <div className="bg-[#141414] border border-white/10 rounded-xl py-2 min-w-[160px] shadow-xl">
+                {experienceLinks.map((link) => (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    className="block px-4 py-2 text-xs uppercase tracking-widest text-white/70 hover:text-[#2D9E49] hover:bg-white/5 transition-colors"
+                  >
+                    {link.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* CTA & Mobile Toggle */}
@@ -167,7 +205,7 @@ const Navbar: React.FC = () => {
 
           {/* Links */}
           <div className="flex flex-col">
-            {navLinks.map((link, index) => (
+            {[...mainLinks, ...experienceLinks].map((link, index) => (
               <Link
                 key={link.name}
                 to={link.path}

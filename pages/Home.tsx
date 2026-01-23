@@ -5,6 +5,7 @@ import Hero from '../components/Hero';
 import Intro from '../components/Intro';
 import Services from '../components/Services';
 import Process from '../components/Process';
+import VideoShowcase from '../components/VideoShowcase';
 import WhyChooseUs from '../components/WhyChooseUs';
 import CTASection from '../components/CTASection';
 
@@ -32,6 +33,9 @@ const Home: React.FC = () => {
 
       {/* Equipment Showcase */}
       <Services />
+
+      {/* Video Showcase */}
+      <VideoShowcase />
 
       {/* How It Works */}
       <Process />

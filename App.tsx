@@ -20,6 +20,7 @@ import EquipmentPage from './pages/EquipmentPage';
 import FAQPage from './pages/FAQPage';
 import BookingPage from './pages/BookingPage';
 import CancelPage from './pages/CancelPage';
+import GalleryPage from './pages/GalleryPage';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -88,6 +89,7 @@ const App: React.FC = () => {
                 <Route path="/faq" element={<FAQPage />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/book" element={<BookingPage />} />
+                <Route path="/gallery" element={<GalleryPage />} />
                 <Route path="/cancel" element={<CancelPage />} />
                 <Route path="*" element={<Home />} />
               </Routes>
