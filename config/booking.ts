@@ -6,8 +6,8 @@
 // ============================================================
 
 export const bookingConfig = {
-    // ✅ LIVE - Connected to Google Sheets
-    API_URL: 'https://script.google.com/macros/s/AKfycbwjGP_yvXS0Q1p-m2O6M7b3KsYYDI-3B7UL08cmhcfLzwqgdCwE834weULb3gBhWfjPUw/exec',
+    // ✅ LIVE - Connected to kartcade.website@gmail.com Google Sheets
+    API_URL: 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec',
 
     // Station types and their properties
     stations: {

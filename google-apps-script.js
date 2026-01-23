@@ -96,6 +96,24 @@ function doGet(e) {
             return createBooking(bookingData);
         }
 
+        // Cancel booking action
+        if (action === 'cancel') {
+            const bookingId = e.parameter.id;
+            if (!bookingId) {
+                return createResponse({ error: 'Missing booking ID' }, 400);
+            }
+            return cancelBooking(bookingId);
+        }
+
+        // Get booking details (for cancel page)
+        if (action === 'getBooking') {
+            const bookingId = e.parameter.id;
+            if (!bookingId) {
+                return createResponse({ error: 'Missing booking ID' }, 400);
+            }
+            return getBookingDetails(bookingId);
+        }
+
         return createResponse({ error: 'Invalid action' }, 400);
     } catch (error) {
         return createResponse({ error: error.message }, 500);
@@ -274,9 +292,18 @@ function createBooking(data) {
         console.error('Owner notification failed:', emailError);
     }
 
+    // Create Google Calendar event
+    var calendarEventId = null;
+    try {
+        calendarEventId = createCalendarEvent(data, bookingId, station.name);
+    } catch (calError) {
+        console.error('Calendar event failed:', calError);
+    }
+
     return createResponse({
         success: true,
         bookingId: bookingId,
+        calendarEventId: calendarEventId,
         message: 'Booking confirmed!'
     });
 }
@@ -286,6 +313,7 @@ function sendConfirmationEmail(data, bookingId, stationName) {
     const station = STATIONS[data.station];
     const price = getSetting(station.priceKey);
     const total = price * data.drivers;
+    const cancelUrl = `https://kartcade.vercel.app/cancel?id=${bookingId}`;
 
     const subject = `Kartcade Booking Confirmation - ${bookingId}`;
     const body = `
@@ -313,7 +341,12 @@ IMPORTANT INFO
 📞 Questions? Call 503-490-9194
 ⏰ Please arrive 10 minutes early
 
-Cancellation Policy: 24 hours notice required
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEED TO CANCEL?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click here to cancel: ${cancelUrl}
+(24 hours notice required)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -331,8 +364,8 @@ function sendOwnerNotification(data, bookingId, stationName) {
     const price = getSetting(station.priceKey);
     const total = price * data.drivers;
 
-    // UPDATE THIS EMAIL ADDRESS (Set to Kartcade owner's email for production)
-    const ownerEmail = 'devansh7704patel@gmail.com'; // Booking notifications sent here
+    // Owner notification email - UPDATE THIS FOR PRODUCTION
+    const ownerEmail = 'kartcade.website@gmail.com'; // Booking notifications sent here
 
     const subject = `🏎️ New Booking: ${data.name} - ${bookingId}`;
     const body = `
@@ -358,6 +391,63 @@ View all bookings in Google Sheets
     MailApp.sendEmail(ownerEmail, subject, body);
 }
 
+// Create Google Calendar event for the booking
+function createCalendarEvent(data, bookingId, stationName) {
+    // Use default calendar (owner's primary calendar)
+    var calendar = CalendarApp.getDefaultCalendar();
+
+    // Parse date and time
+    var dateParts = data.date.split('-'); // yyyy-MM-dd
+    var timeParts = data.time.split(':'); // HH:mm
+
+    var year = parseInt(dateParts[0]);
+    var month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
+    var day = parseInt(dateParts[2]);
+    var hour = parseInt(timeParts[0]);
+    var minute = parseInt(timeParts[1]) || 0;
+
+    var startTime = new Date(year, month, day, hour, minute, 0);
+    var endTime = new Date(startTime.getTime() + (60 * 60 * 1000)); // 1 hour session
+
+    // Create event title
+    var title = '🏎️ ' + data.name + ' - ' + stationName + ' (' + data.drivers + ' driver' + (data.drivers > 1 ? 's' : '') + ')';
+
+    // Create event description
+    var description = 'KARTCADE BOOKING\n\n' +
+        'Booking ID: ' + bookingId + '\n' +
+        'Customer: ' + data.name + '\n' +
+        'Email: ' + data.email + '\n' +
+        'Phone: ' + data.phone + '\n\n' +
+        'Station: ' + stationName + '\n' +
+        'Drivers: ' + data.drivers + '\n' +
+        'Payment: ' + (data.paymentMethod || 'At venue') + '\n';
+
+    if (data.notes) {
+        description += '\nNotes: ' + data.notes;
+    }
+
+    // Create the calendar event
+    var event = calendar.createEvent(title, startTime, endTime, {
+        description: description,
+        location: 'Kartcade, West Linn, Oregon'
+    });
+
+    // Set event color based on station type
+    // 1=Blue, 2=Green, 3=Purple, 4=Red, 5=Yellow, 6=Orange, 7=Turquoise, 8=Gray, 9=Bold Blue, 10=Bold Green, 11=Bold Red
+    var colorMap = {
+        'Racing Karts': '2',       // Green
+        'Full-Size Rigs': '9',     // Bold Blue
+        'Motion Simulator': '11',  // Bold Red
+        'Flight Simulator': '5'    // Yellow
+    };
+
+    if (colorMap[stationName]) {
+        event.setColor(colorMap[stationName]);
+    }
+
+    return event.getId();
+}
+
 // Create JSON response with CORS headers
 function createResponse(data, status = 200) {
     const output = ContentService.createTextOutput(JSON.stringify(data));
@@ -365,8 +455,222 @@ function createResponse(data, status = 200) {
     return output;
 }
 
+// ============================================================
+// CANCELLATION FUNCTIONS
+// ============================================================
+
+// Get booking details by ID (for cancel page)
+function getBookingDetails(bookingId) {
+    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
+
+    for (let i = 1; i < bookings.length; i++) {
+        if (bookings[i][0] === bookingId) {
+            const row = bookings[i];
+            return createResponse({
+                success: true,
+                booking: {
+                    id: row[0],
+                    date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
+                    time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
+                    station: row[3],
+                    drivers: row[4],
+                    name: row[5],
+                    email: row[6],
+                    phone: row[7],
+                    status: row[9]
+                }
+            });
+        }
+    }
+
+    return createResponse({ error: 'Booking not found' }, 404);
+}
+
+// Cancel a booking
+function cancelBooking(bookingId) {
+    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
+
+    for (let i = 1; i < bookings.length; i++) {
+        if (bookings[i][0] === bookingId) {
+            const row = bookings[i];
+            const currentStatus = row[9];
+
+            // Check if already cancelled
+            if (currentStatus === 'Cancelled') {
+                return createResponse({ error: 'Booking already cancelled' }, 400);
+            }
+
+            // Update status to Cancelled
+            BOOKINGS_SHEET.getRange(i + 1, 10).setValue('Cancelled');
+
+            // Get booking details for email
+            const bookingData = {
+                id: row[0],
+                date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
+                time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
+                station: row[3],
+                drivers: row[4],
+                name: row[5],
+                email: row[6],
+                phone: row[7]
+            };
+
+            // Try to delete calendar event (if exists)
+            try {
+                deleteCalendarEvent(bookingData);
+            } catch (calError) {
+                console.error('Failed to delete calendar event:', calError);
+            }
+
+            // Send cancellation email to customer
+            try {
+                sendCancellationEmail(bookingData);
+            } catch (emailError) {
+                console.error('Failed to send cancellation email:', emailError);
+            }
+
+            // Notify owner
+            try {
+                sendOwnerCancellationNotification(bookingData);
+            } catch (emailError) {
+                console.error('Failed to notify owner:', emailError);
+            }
+
+            return createResponse({
+                success: true,
+                message: 'Booking cancelled successfully',
+                bookingId: bookingId
+            });
+        }
+    }
+
+    return createResponse({ error: 'Booking not found' }, 404);
+}
+
+// Delete calendar event for cancelled booking
+function deleteCalendarEvent(bookingData) {
+    const calendar = CalendarApp.getDefaultCalendar();
+
+    // Parse date and time
+    const dateParts = bookingData.date.split('-');
+    const timeParts = bookingData.time.split(':');
+
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1;
+    const day = parseInt(dateParts[2]);
+    const hour = parseInt(timeParts[0]);
+
+    const startTime = new Date(year, month, day, hour, 0, 0);
+    const endTime = new Date(startTime.getTime() + (60 * 60 * 1000));
+
+    // Find and delete events in this time range
+    const events = calendar.getEvents(startTime, endTime);
+    for (let event of events) {
+        if (event.getTitle().includes(bookingData.name) || event.getDescription().includes(bookingData.id)) {
+            event.deleteEvent();
+            break;
+        }
+    }
+}
+
+// Send cancellation email to customer
+function sendCancellationEmail(bookingData) {
+    const subject = `Kartcade Booking Cancelled - ${bookingData.id}`;
+    const body = `
+BOOKING CANCELLATION CONFIRMATION
+
+Your booking has been cancelled.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CANCELLED BOOKING DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Booking ID: ${bookingData.id}
+Station: ${bookingData.station}
+Date: ${bookingData.date}
+Time: ${bookingData.time}
+Drivers: ${bookingData.drivers}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If this was a mistake or you'd like to rebook,
+visit kartcade.vercel.app/book or call 503-490-9194.
+
+- The Kartcade Team
+`;
+
+    MailApp.sendEmail(bookingData.email, subject, body);
+}
+
+// Notify owner of cancellation
+function sendOwnerCancellationNotification(bookingData) {
+    const ownerEmail = 'kartcade.website@gmail.com';
+
+    const subject = `❌ Booking Cancelled: ${bookingData.name} - ${bookingData.id}`;
+    const body = `
+BOOKING CANCELLED
+
+Booking ID: ${bookingData.id}
+Customer: ${bookingData.name}
+Email: ${bookingData.email}
+Phone: ${bookingData.phone}
+
+Station: ${bookingData.station}
+Date: ${bookingData.date}
+Time: ${bookingData.time}
+Drivers: ${bookingData.drivers}
+
+This time slot is now available for other bookings.
+`;
+
+    MailApp.sendEmail(ownerEmail, subject, body);
+}
+
+// Admin menu for Google Sheets
+function onOpen() {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu('🏎️ Kartcade')
+        .addItem('Cancel Selected Booking', 'cancelSelectedBooking')
+        .addToUi();
+}
+
+// Cancel booking from selected row in sheet
+function cancelSelectedBooking() {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const row = sheet.getActiveRange().getRow();
+
+    if (row < 2) {
+        SpreadsheetApp.getUi().alert('Please select a booking row (not the header)');
+        return;
+    }
+
+    const bookingId = sheet.getRange(row, 1).getValue();
+
+    if (!bookingId) {
+        SpreadsheetApp.getUi().alert('No booking ID found in selected row');
+        return;
+    }
+
+    const ui = SpreadsheetApp.getUi();
+    const response = ui.alert(
+        'Cancel Booking?',
+        `Are you sure you want to cancel booking ${bookingId}?`,
+        ui.ButtonSet.YES_NO
+    );
+
+    if (response === ui.Button.YES) {
+        const result = JSON.parse(cancelBooking(bookingId).getContent());
+        if (result.success) {
+            ui.alert('Booking cancelled successfully!');
+        } else {
+            ui.alert('Error: ' + result.error);
+        }
+    }
+}
+
 // Test function (run this in Apps Script to test)
 function testAvailability() {
     const result = getAvailability('2026-01-25', 'rigs');
     console.log(result.getContent());
 }
+
