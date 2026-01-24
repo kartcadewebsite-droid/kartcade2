@@ -1,35 +1,26 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Check, Zap, Crown, Star, Clock, Users, Gift, AlertCircle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Check, Zap, Crown, Star, Clock, Users, Gift, AlertCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { MEMBERSHIP_TIERS, getMembershipById } from '../config/membership';
+import { isStripeConfigured } from '../config/stripe';
 
-// Membership tier data
+// Group tiers by equipment type
 const membershipTiers = {
     kart: {
         name: 'Kart',
         description: 'Perfect for casual racers and beginners',
-        tiers: [
-            { level: 'bronze', price: 75, credits: 5 },
-            { level: 'silver', price: 150, credits: 10 },
-            { level: 'gold', price: 300, credits: 20 },
-        ],
+        tiers: MEMBERSHIP_TIERS.filter(t => t.equipmentType === 'kart'),
     },
     rig: {
         name: 'Rig',
         description: 'For dedicated sim racers who want the full experience',
-        tiers: [
-            { level: 'bronze', price: 100, credits: 5 },
-            { level: 'silver', price: 200, credits: 10 },
-            { level: 'gold', price: 400, credits: 20 },
-        ],
+        tiers: MEMBERSHIP_TIERS.filter(t => t.equipmentType === 'rig'),
     },
     motion: {
         name: 'Motion',
         description: 'The ultimate experience with our motion simulator',
-        tiers: [
-            { level: 'bronze', price: 125, credits: 5 },
-            { level: 'silver', price: 250, credits: 10 },
-            { level: 'gold', price: 500, credits: 20 },
-        ],
+        tiers: MEMBERSHIP_TIERS.filter(t => t.equipmentType === 'motion'),
     },
 };
 
@@ -48,12 +39,60 @@ const levelIcons = {
 type EquipmentType = 'kart' | 'rig' | 'motion';
 
 const MembershipPage: React.FC = () => {
+    const navigate = useNavigate();
+    const { currentUser, userProfile } = useAuth();
     const [selectedType, setSelectedType] = useState<EquipmentType>('rig');
+    const [loadingTier, setLoadingTier] = useState<string | null>(null);
+
+    // Check if user already has an active membership
+    const activeMembership = userProfile?.membership?.active ? userProfile.membership : null;
+    const activeTier = activeMembership ? getMembershipById(activeMembership.tier) : null;
+
+    const handleSelectPlan = async (tierId: string) => {
+        // If not logged in, redirect to signup
+        if (!currentUser) {
+            navigate('/signup', { state: { from: '/membership', selectedTier: tierId } });
+            return;
+        }
+
+        // If already has this membership
+        if (activeMembership?.tier === tierId) {
+            alert('You already have this membership!');
+            return;
+        }
+
+        // If Stripe not configured, show message
+        if (!isStripeConfigured()) {
+            alert('Payment system coming soon! We\'ll notify you when memberships are available for purchase.');
+            return;
+        }
+
+        // Proceed to checkout
+        setLoadingTier(tierId);
+        try {
+            // Navigate to checkout with tier info
+            navigate(`/checkout?tier=${tierId}`);
+        } catch (error) {
+            console.error('Failed to start checkout:', error);
+            alert('Failed to start checkout. Please try again.');
+        } finally {
+            setLoadingTier(null);
+        }
+    };
+
+    const handleManageSubscription = () => {
+        // In the future, this would open Stripe Customer Portal
+        if (!isStripeConfigured()) {
+            alert('Subscription management coming soon!');
+            return;
+        }
+        // TODO: Open Stripe Customer Portal
+    };
 
     const features = [
         { icon: Clock, text: '1 credit = 1 hour at 50% off' },
         { icon: Users, text: 'Credits are personal (not shareable)' },
-        { icon: AlertCircle, text: 'Credits expire at end of month' },
+        { icon: AlertCircle, text: 'Credits reset each billing cycle' },
         { icon: Gift, text: 'Cancel anytime, no commitment' },
     ];
 
@@ -77,8 +116,45 @@ const MembershipPage: React.FC = () => {
                     <p className="font-sans text-base md:text-xl text-white/60 max-w-2xl mx-auto text-center leading-relaxed px-4">
                         Join Kartcade and get exclusive member pricing. Choose your equipment type and commitment level.
                     </p>
+
+                    {/* Current Membership Banner */}
+                    {activeMembership && activeTier && (
+                        <div className="mt-8 max-w-md mx-auto">
+                            <div className="bg-[#2D9E49]/10 border border-[#2D9E49]/30 rounded-xl p-4 text-center">
+                                <p className="text-[#2D9E49] text-sm font-bold uppercase mb-1">
+                                    Current Membership
+                                </p>
+                                <p className="text-white text-lg font-display uppercase">
+                                    {activeTier.name}
+                                </p>
+                                <p className="text-white/60 text-sm mt-1">
+                                    {activeTier.credits} credits/month • ${activeTier.price}/mo
+                                </p>
+                                <button
+                                    onClick={handleManageSubscription}
+                                    className="mt-3 text-[#2D9E49] text-sm hover:underline"
+                                >
+                                    Manage Subscription →
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </section>
+
+            {/* Stripe Not Configured Banner */}
+            {!isStripeConfigured() && (
+                <section className="py-4">
+                    <div className="container mx-auto px-4 md:px-6 lg:px-12 max-w-4xl">
+                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-center">
+                            <p className="text-yellow-500 text-sm">
+                                <AlertCircle className="w-4 h-4 inline mr-2" />
+                                Membership purchases coming soon! Browse plans below.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* How It Works */}
             <section className="py-8 md:py-12">
@@ -130,17 +206,24 @@ const MembershipPage: React.FC = () => {
                         {membershipTiers[selectedType].tiers.map((tier) => {
                             const colors = levelColors[tier.level as keyof typeof levelColors];
                             const LevelIcon = levelIcons[tier.level as keyof typeof levelIcons];
-                            const isPopular = tier.level === 'silver';
+                            const isPopular = tier.popular;
+                            const isCurrentPlan = activeMembership?.tier === tier.id;
+                            const isLoading = loadingTier === tier.id;
 
                             return (
                                 <div
-                                    key={tier.level}
-                                    className={`relative ${colors.bg} border ${colors.border} rounded-2xl p-6 md:p-8 transition-all hover:scale-[1.02] hover:shadow-2xl ${colors.glow} ${isPopular ? 'md:-mt-4 md:mb-4' : ''
-                                        }`}
+                                    key={tier.id}
+                                    className={`relative ${colors.bg} border ${colors.border} rounded-2xl p-6 md:p-8 transition-all hover:scale-[1.02] hover:shadow-2xl ${colors.glow} ${isPopular ? 'md:-mt-4 md:mb-4' : ''} ${isCurrentPlan ? 'ring-2 ring-[#2D9E49]' : ''}`}
                                 >
-                                    {isPopular && (
+                                    {isPopular && !isCurrentPlan && (
                                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#2D9E49] text-white text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full">
                                             Most Popular
+                                        </div>
+                                    )}
+
+                                    {isCurrentPlan && (
+                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#2D9E49] text-white text-xs font-bold uppercase tracking-widest px-4 py-1 rounded-full">
+                                            Current Plan
                                         </div>
                                     )}
 
@@ -154,7 +237,7 @@ const MembershipPage: React.FC = () => {
                                                 {tier.level}
                                             </h3>
                                             <p className="text-white/40 text-xs uppercase tracking-wider">
-                                                {membershipTiers[selectedType].name}
+                                                {tier.equipmentName}
                                             </p>
                                         </div>
                                     </div>
@@ -177,14 +260,14 @@ const MembershipPage: React.FC = () => {
                                             = {tier.credits} hours at 50% off
                                         </div>
                                         <div className="mt-2 text-[#2D9E49] text-sm font-medium">
-                                            Save ${(tier.credits * (selectedType === 'kart' ? 15 : selectedType === 'rig' ? 20 : 25)).toFixed(0)}/month
+                                            Save ${tier.savings * tier.credits}/month
                                         </div>
                                     </div>
 
                                     {/* Features */}
                                     <ul className="space-y-3 mb-6">
                                         <li className="flex items-center gap-2 text-white/70 text-sm">
-                                            <Check className="w-4 h-4 text-[#2D9E49]" /> Access to {membershipTiers[selectedType].name.toLowerCase()} simulators
+                                            <Check className="w-4 h-4 text-[#2D9E49]" /> Access to {tier.equipmentName.toLowerCase()}
                                         </li>
                                         <li className="flex items-center gap-2 text-white/70 text-sm">
                                             <Check className="w-4 h-4 text-[#2D9E49]" /> Priority booking
@@ -201,12 +284,27 @@ const MembershipPage: React.FC = () => {
 
                                     {/* CTA Button */}
                                     <button
-                                        className={`w-full py-4 rounded-full font-display uppercase tracking-widest font-bold text-sm transition-all flex items-center justify-center gap-2 ${isPopular
-                                            ? 'bg-[#2D9E49] text-white hover:bg-[#248a3f] hover:shadow-lg hover:shadow-[#2D9E49]/30'
-                                            : 'bg-white/10 text-white hover:bg-white/20'
+                                        onClick={() => handleSelectPlan(tier.id)}
+                                        disabled={isLoading || isCurrentPlan}
+                                        className={`w-full py-4 rounded-full font-display uppercase tracking-widest font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isCurrentPlan
+                                            ? 'bg-[#2D9E49]/20 text-[#2D9E49] border border-[#2D9E49]/30'
+                                            : isPopular
+                                                ? 'bg-[#2D9E49] text-white hover:bg-[#248a3f] hover:shadow-lg hover:shadow-[#2D9E49]/30'
+                                                : 'bg-white/10 text-white hover:bg-white/20'
                                             }`}
                                     >
-                                        Get Started <ArrowRight className="w-4 h-4" />
+                                        {isLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Loading...
+                                            </>
+                                        ) : isCurrentPlan ? (
+                                            'Current Plan'
+                                        ) : (
+                                            <>
+                                                Get Started <ArrowRight className="w-4 h-4" />
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             );

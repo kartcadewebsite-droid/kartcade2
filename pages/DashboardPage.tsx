@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle } from 'lucide-react';
+import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
+import { getMembershipById } from '../config/membership';
 
 interface Booking {
     id: string;
@@ -17,16 +18,32 @@ interface Booking {
 
 const DashboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, logout, isAdmin } = useAuth();
+    const { currentUser, userProfile, logout, isAdmin, getCredits } = useAuth();
 
     const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
     const [loadingBookings, setLoadingBookings] = useState(true);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
     const [error, setError] = useState('');
 
-    // Placeholder data - will be replaced with real Firestore data
-    const membership = null;
-    const credits = 0;
+    // Get real membership and credits from user profile
+    const membership = userProfile?.membership?.active ? userProfile.membership : null;
+    const membershipTier = membership ? getMembershipById(membership.tier) : null;
+
+    // Get credits for each equipment type
+    const kartCredits = getCredits('kart');
+    const rigCredits = getCredits('rig');
+    const motionCredits = getCredits('motion');
+    const totalCredits = kartCredits + rigCredits + motionCredits;
+
+    // Calculate days until next billing
+    const getDaysUntilBilling = () => {
+        if (!membership?.nextBillingDate) return null;
+        const nextBilling = new Date(membership.nextBillingDate);
+        const now = new Date();
+        const diffTime = nextBilling.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays > 0 ? diffDays : 0;
+    };
 
     // Fetch user's bookings
     useEffect(() => {
@@ -67,7 +84,6 @@ const DashboardPage: React.FC = () => {
             const response = await bookingApi.cancelBooking(bookingId);
 
             if (response.success) {
-                // Remove from local state
                 setUpcomingBookings(prev => prev.filter(b => b.id !== bookingId));
             } else {
                 setError(response.error || 'Failed to cancel booking');
@@ -191,14 +207,43 @@ const DashboardPage: React.FC = () => {
                             <div>
                                 <h2 className="font-display text-lg font-bold text-white uppercase">Membership</h2>
                                 <p className="text-white/60 text-sm">
-                                    {membership ? 'Active' : 'No active membership'}
+                                    {membership ? membershipTier?.name || 'Active' : 'No active membership'}
                                 </p>
                             </div>
                         </div>
 
-                        {membership ? (
+                        {membership && membershipTier ? (
                             <div className="space-y-4">
-                                {/* Credits display would go here */}
+                                {/* Membership Details */}
+                                <div className="p-4 rounded-xl" style={{ backgroundColor: `${membershipTier.color}20` }}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: membershipTier.color }}
+                                        ></div>
+                                        <span className="font-display font-bold text-white uppercase text-sm">
+                                            {membershipTier.name}
+                                        </span>
+                                    </div>
+                                    <div className="text-white/60 text-xs">
+                                        {membershipTier.credits} credits/month • ${membershipTier.price}/mo
+                                    </div>
+                                </div>
+
+                                {/* Next Billing */}
+                                {getDaysUntilBilling() !== null && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-white/60">Next billing</span>
+                                        <span className="text-white">{getDaysUntilBilling()} days</span>
+                                    </div>
+                                )}
+
+                                <Link
+                                    to="/membership"
+                                    className="block text-center text-sm text-[#D42428] hover:underline"
+                                >
+                                    Manage subscription →
+                                </Link>
                             </div>
                         ) : (
                             <div className="text-center py-4">
@@ -227,10 +272,54 @@ const DashboardPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="text-center py-4">
-                            <div className="text-5xl font-bold text-white mb-2">{credits}</div>
-                            <p className="text-white/40 text-sm">hours available</p>
-                        </div>
+                        {totalCredits > 0 ? (
+                            <div className="space-y-3">
+                                {/* Kart Credits */}
+                                {kartCredits > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-[#2D9E49]/10 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <Gauge className="w-4 h-4 text-[#2D9E49]" />
+                                            <span className="text-white text-sm">Kart Credits</span>
+                                        </div>
+                                        <span className="font-bold text-[#2D9E49]">{kartCredits} hrs</span>
+                                    </div>
+                                )}
+
+                                {/* Rig Credits */}
+                                {rigCredits > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <Monitor className="w-4 h-4 text-white" />
+                                            <span className="text-white text-sm">Rig Credits</span>
+                                        </div>
+                                        <span className="font-bold text-white">{rigCredits} hrs</span>
+                                    </div>
+                                )}
+
+                                {/* Motion Credits */}
+                                {motionCredits > 0 && (
+                                    <div className="flex items-center justify-between p-3 bg-[#D42428]/10 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <Rocket className="w-4 h-4 text-[#D42428]" />
+                                            <span className="text-white text-sm">Motion Credits</span>
+                                        </div>
+                                        <span className="font-bold text-[#D42428]">{motionCredits} hrs</span>
+                                    </div>
+                                )}
+
+                                <p className="text-white/40 text-xs text-center pt-2">
+                                    1 credit = 1 hour (50% off)
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <div className="text-5xl font-bold text-white/20 mb-2">0</div>
+                                <p className="text-white/40 text-sm">No credits available</p>
+                                <p className="text-white/30 text-xs mt-2">
+                                    Get a membership to earn credits
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 

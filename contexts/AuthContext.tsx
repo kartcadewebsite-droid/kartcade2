@@ -8,8 +8,9 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
+import { UserCredits, UserMembership, DEFAULT_CREDITS, DEFAULT_MEMBERSHIP } from '../config/membership';
 
 // Types
 interface UserProfile {
@@ -22,6 +23,9 @@ interface UserProfile {
     rulesAccepted: boolean;
     waiverAcceptedAt?: Date;
     createdAt?: Date;
+    // NEW: Credits and Membership
+    credits: UserCredits;
+    membership: UserMembership;
 }
 
 interface AuthContextType {
@@ -34,6 +38,12 @@ interface AuthContextType {
     loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
+    // NEW: Credits functions
+    useCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<boolean>;
+    addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<void>;
+    getCredits: (equipmentType: 'kart' | 'rig' | 'motion') => number;
+    hasEnoughCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => boolean;
+    refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -67,10 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userDoc = await getDoc(userRef);
 
         if (!userDoc.exists()) {
-            const profileData: Omit<UserProfile, 'createdAt' | 'waiverAcceptedAt'> & {
-                createdAt: ReturnType<typeof serverTimestamp>;
-                waiverAcceptedAt: ReturnType<typeof serverTimestamp>;
-            } = {
+            const profileData = {
                 uid: user.uid,
                 email: user.email || '',
                 name: additionalData.name || user.displayName || '',
@@ -79,6 +86,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 rulesAccepted: true,
                 waiverAcceptedAt: serverTimestamp(),
                 createdAt: serverTimestamp(),
+                // Initialize with empty credits and no membership
+                credits: DEFAULT_CREDITS,
+                membership: DEFAULT_MEMBERSHIP,
             };
 
             await setDoc(userRef, profileData);
@@ -91,8 +101,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userDoc = await getDoc(userRef);
 
         if (userDoc.exists()) {
-            setUserProfile(userDoc.data() as UserProfile);
+            const data = userDoc.data();
+            // Ensure credits and membership fields exist (for existing users)
+            const profile: UserProfile = {
+                ...data,
+                credits: data.credits || DEFAULT_CREDITS,
+                membership: data.membership || DEFAULT_MEMBERSHIP,
+            } as UserProfile;
+            setUserProfile(profile);
         }
+    };
+
+    // Refresh user profile (useful after actions like using credits)
+    const refreshUserProfile = async () => {
+        if (currentUser) {
+            await fetchUserProfile(currentUser.uid);
+        }
+    };
+
+    // Get credits for a specific equipment type
+    const getCredits = (equipmentType: 'kart' | 'rig' | 'motion'): number => {
+        return userProfile?.credits?.[equipmentType] || 0;
+    };
+
+    // Check if user has enough credits
+    const hasEnoughCredits = (equipmentType: 'kart' | 'rig' | 'motion', amount: number): boolean => {
+        return getCredits(equipmentType) >= amount;
+    };
+
+    // Use credits for a booking
+    const useCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<boolean> => {
+        if (!currentUser || !userProfile) return false;
+
+        const currentCredits = getCredits(equipmentType);
+        if (currentCredits < amount) return false;
+
+        const userRef = doc(db, 'users', currentUser.uid);
+        const newCredits = { ...userProfile.credits };
+        newCredits[equipmentType] = currentCredits - amount;
+
+        await updateDoc(userRef, { credits: newCredits });
+        await refreshUserProfile();
+
+        return true;
+    };
+
+    // Add credits (called by webhook or admin)
+    const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<void> => {
+        if (!currentUser || !userProfile) return;
+
+        const userRef = doc(db, 'users', currentUser.uid);
+        const newCredits = { ...userProfile.credits };
+        newCredits[equipmentType] = (newCredits[equipmentType] || 0) + amount;
+
+        await updateDoc(userRef, { credits: newCredits });
+        await refreshUserProfile();
     };
 
     // Sign up with email/password
@@ -150,6 +213,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loginWithGoogle,
         logout,
         resetPassword,
+        // Credits functions
+        useCredits,
+        addCredits,
+        getCredits,
+        hasEnoughCredits,
+        refreshUserProfile,
     };
 
     return (

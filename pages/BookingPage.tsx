@@ -10,6 +10,7 @@ import {
 import siteConfig from '../config/site';
 import { bookingConfig, bookingApi, isApiConfigured } from '../config/booking';
 import { useAuth } from '../contexts/AuthContext';
+import { getEquipmentTypeFromStation } from '../config/membership';
 
 // Station Types Configuration
 const stationTypes = [
@@ -113,7 +114,7 @@ const generateDates = () => {
 const BookingPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isLiveMode, setIsLiveMode] = useState(isApiConfigured());
-    const { currentUser, userProfile, isAdmin } = useAuth();
+    const { currentUser, userProfile, isAdmin, getCredits, useCredits, hasEnoughCredits } = useAuth();
 
     // Booking state
     const [step, setStep] = useState(1);
@@ -121,7 +122,7 @@ const BookingPage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [drivers, setDrivers] = useState(1);
-    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit'>('venue');
+    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits'>('venue');
     const [availability, setAvailability] = useState<{ [key: string]: { booked: number; available: number; total: number } }>({});
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,6 +136,11 @@ const BookingPage: React.FC = () => {
         phone: '',
         notes: ''
     });
+
+    // Get equipment type for credits
+    const equipmentType = selectedStation ? getEquipmentTypeFromStation(selectedStation) : null;
+    const availableCredits = equipmentType ? getCredits(equipmentType) : 0;
+    const canUseCredits = equipmentType && hasEnoughCredits(equipmentType, drivers);
 
     // Auto-fill user details if logged in
     useEffect(() => {
@@ -218,6 +224,16 @@ const BookingPage: React.FC = () => {
         setError(null);
 
         try {
+            // If paying with credits, deduct them first
+            if (paymentMethod === 'credits' && equipmentType) {
+                const creditsUsed = await useCredits(equipmentType, drivers);
+                if (!creditsUsed) {
+                    setError('Failed to use credits. Please try again or choose a different payment method.');
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
             const result = await bookingApi.createBooking({
                 date: formatDateForApi(selectedDate),
                 time: selectedTime,
@@ -226,8 +242,8 @@ const BookingPage: React.FC = () => {
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
-                paymentMethod: paymentMethod,
-                notes: formData.notes
+                paymentMethod: paymentMethod === 'credits' ? 'credits' : paymentMethod,
+                notes: paymentMethod === 'credits' ? `${formData.notes} [Paid with ${drivers} credit(s)]` : formData.notes
             });
 
             if (result.success) {
@@ -689,6 +705,46 @@ const BookingPage: React.FC = () => {
                                             <h3 className="font-display text-lg font-bold uppercase mb-4">Payment Option</h3>
 
                                             <div className="space-y-3">
+                                                {/* Use Credits - Only if user has enough */}
+                                                {canUseCredits && (
+                                                    <button
+                                                        onClick={() => setPaymentMethod('credits')}
+                                                        className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'credits'
+                                                            ? 'border-yellow-500 bg-yellow-500/10'
+                                                            : 'border-yellow-500/30 hover:border-yellow-500/50 bg-yellow-500/5'
+                                                            }`}
+                                                    >
+                                                        <Zap className="w-6 h-6 text-yellow-500" />
+                                                        <div className="flex-1">
+                                                            <div className="font-bold flex items-center gap-2 text-yellow-400">
+                                                                Use {drivers} Credit{drivers > 1 ? 's' : ''}
+                                                                <span className="text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full uppercase font-bold">
+                                                                    50% OFF
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm text-white/50">
+                                                                You have {availableCredits} {equipmentType} credit{availableCredits !== 1 ? 's' : ''} available
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-yellow-400 font-bold">FREE</div>
+                                                    </button>
+                                                )}
+
+                                                {/* Show credits info if not enough */}
+                                                {equipmentType && availableCredits > 0 && !canUseCredits && (
+                                                    <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-4">
+                                                        <Zap className="w-6 h-6 text-yellow-500/50" />
+                                                        <div className="flex-1">
+                                                            <div className="font-bold text-white/50">
+                                                                Not enough credits
+                                                            </div>
+                                                            <div className="text-sm text-white/40">
+                                                                You have {availableCredits} but need {drivers} credits
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {/* Pay at Venue - Admin Only (or everyone for now until Stripe) */}
                                                 <button
                                                     onClick={() => setPaymentMethod('venue')}
@@ -707,7 +763,7 @@ const BookingPage: React.FC = () => {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="text-sm text-white/50">Pay when you arrive</div>
+                                                        <div className="text-sm text-white/50">Pay ${calculateTotal()} when you arrive</div>
                                                     </div>
                                                 </button>
 
