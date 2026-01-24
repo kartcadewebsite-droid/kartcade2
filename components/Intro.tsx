@@ -42,12 +42,12 @@ const Intro: React.FC = () => {
   }, { scope: containerRef });
 
   return (
-    <section ref={containerRef} className="relative z-10 bg-white text-black py-16 md:py-48 rounded-t-[2rem] md:rounded-t-[4rem] -mt-10 shadow-[0_-20px_60px_rgba(0,0,0,0.3)]">
-      <div className="container mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-12 gap-12">
+    <section ref={containerRef} className="relative z-10 bg-white text-black py-12 md:py-48 rounded-t-[1.5rem] md:rounded-t-[4rem] -mt-10 shadow-[0_-20px_60px_rgba(0,0,0,0.3)]">
+      <div className="container mx-auto px-4 sm:px-6 md:px-12 grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
 
         {/* Editorial Text */}
         <div className="md:col-span-7">
-          <h2 className="font-display text-4xl md:text-7xl font-semibold leading-[1.1] uppercase tracking-tight">
+          <h2 className="font-display text-3xl sm:text-4xl md:text-7xl font-semibold leading-[1.1] uppercase tracking-tight">
             <div className="overflow-hidden">
               <span ref={el => textLinesRef.current[0] = el} className="block">Not Just</span>
             </div>
@@ -65,34 +65,34 @@ const Intro: React.FC = () => {
 
         {/* Small Description */}
         <div className="md:col-span-5 flex flex-col justify-end">
-          <p className="font-sans text-black/60 text-lg leading-relaxed max-w-sm mb-6">
-            Kartcade is Oregon's premier racing simulator lounge, featuring 10 state-of-the-art simulators. Unlike traditional sim racing centers, we offer an incredible variety of games—from ultra-realistic racing sims to arcade classics and everything in between.
+          <p className="font-sans text-black/60 text-base md:text-lg leading-relaxed max-w-sm mb-6">
+            Kartcade is Oregon's premier racing simulator lounge, featuring 10 state-of-the-art simulators. We offer an incredible variety of games—from ultra-realistic racing sims to arcade classics.
           </p>
-          <div className="flex gap-8">
+          <div className="flex gap-6 sm:gap-8">
             <div>
-              <div className="text-4xl font-bold text-[#D42428]">10</div>
-              <div className="text-xs uppercase tracking-widest text-black/40">Simulators</div>
+              <div className="text-2xl sm:text-4xl font-bold text-[#D42428]">10</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-black/40">Simulators</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-[#2D9E49]">40+</div>
-              <div className="text-xs uppercase tracking-widest text-black/40">Games</div>
+              <div className="text-2xl sm:text-4xl font-bold text-[#2D9E49]">40+</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-black/40">Games</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-black">All</div>
-              <div className="text-xs uppercase tracking-widest text-black/40">Skill Levels</div>
+              <div className="text-2xl sm:text-4xl font-bold text-black">All</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-black/40">Skill Levels</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Games Ticker */}
-      <div className="mt-16 md:mt-32 overflow-hidden w-full border-t border-b border-black/10 py-8 bg-white">
+      <div className="mt-10 md:mt-32 overflow-hidden w-full border-t border-b border-black/10 py-6 md:py-8 bg-white">
         <div className="flex w-[300%] animate-marquee">
           {[...Array(2)].map((_, i) => (
             <div key={i} className="flex justify-around w-full">
               {gamesList.map((game, idx) => (
-                <span key={idx} className="text-xl md:text-2xl font-display font-medium uppercase tracking-wide text-black mx-12 whitespace-nowrap flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#D42428]"></span>
+                <span key={idx} className="text-base sm:text-xl md:text-2xl font-display font-medium uppercase tracking-wide text-black mx-6 sm:mx-12 whitespace-nowrap flex items-center gap-2 sm:gap-3">
+                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#D42428]"></span>
                   {game}
                 </span>
               ))}

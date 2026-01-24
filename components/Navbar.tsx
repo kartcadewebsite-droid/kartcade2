@@ -84,12 +84,14 @@ const Navbar: React.FC = () => {
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileExperienceOpen, setMobileExperienceOpen] = useState(false);
 
   // Main nav links (shown directly)
   const mainLinks = [
     { name: 'Home', path: '/' },
     { name: 'Events', path: '/events' },
     { name: 'Pricing', path: '/pricing' },
+    { name: 'Membership', path: '/membership' },
     { name: 'Gallery', path: '/gallery' },
     { name: 'Contact', path: '/contact' },
   ];
@@ -98,6 +100,9 @@ const Navbar: React.FC = () => {
   const experienceLinks = [
     { name: 'About Us', path: '/about' },
     { name: 'Equipment', path: '/equipment' },
+    { name: 'Games', path: '/experiences' },
+    { name: 'Rules', path: '/rules' },
+    { name: 'Waiver', path: '/waiver' },
     { name: 'FAQ', path: '/faq' },
   ];
 
@@ -199,28 +204,71 @@ const Navbar: React.FC = () => {
       {/* Mobile Menu Overlay */}
       <div
         ref={menuRef}
-        className={`fixed inset-0 bg-[#0A0A0A] z-40 transform transition-transform duration-[0.8s] ease-[cubic-bezier(0.22,1,0.36,1)] ${isMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}
+        className={`fixed inset-0 bg-[#0A0A0A] z-40 transform transition-transform duration-[0.8s] ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden ${isMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}
       >
         <div className="h-full flex flex-col justify-between px-6 pb-8 pt-24">
 
           {/* Links */}
-          <div className="flex flex-col">
-            {[...mainLinks, ...experienceLinks].map((link, index) => (
+          <div className="flex flex-col overflow-y-auto max-h-[calc(100vh-280px)]">
+            {/* Main Links */}
+            {mainLinks.map((link, index) => (
               <Link
                 key={link.name}
                 to={link.path}
                 onClick={toggleMenu}
                 className="mobile-nav-item group flex items-baseline justify-between py-3 border-b border-white/10"
               >
-                <div className="flex items-baseline gap-4">
+                <div className="flex items-baseline gap-3">
                   <span className="font-mono text-[10px] text-[#2D9E49]/60 group-hover:text-[#2D9E49] transition-colors">0{index + 1}</span>
-                  <span className="font-display text-2xl font-bold uppercase text-white group-hover:text-[#2D9E49] transition-colors leading-none">
+                  <span className="font-display text-xl font-bold uppercase text-white group-hover:text-[#2D9E49] transition-colors leading-none">
                     {link.name}
                   </span>
                 </div>
-                <ArrowUpRight className="w-4 h-4 text-white/20 group-hover:text-[#2D9E49] group-hover:translate-x-1 group-hover:-translate-y-1 transition-all opacity-0 group-hover:opacity-100" />
+                <ArrowUpRight className="w-4 h-4 text-white/20 group-hover:text-[#2D9E49] transition-all" />
               </Link>
             ))}
+
+            {/* Experience Accordion */}
+            <div className="border-b border-white/10">
+              <button
+                onClick={() => setMobileExperienceOpen(!mobileExperienceOpen)}
+                className="mobile-nav-item group flex items-baseline justify-between py-3 w-full"
+              >
+                <div className="flex items-baseline gap-3">
+                  <span className="font-mono text-[10px] text-[#2D9E49]/60">0{mainLinks.length + 1}</span>
+                  <span className="font-display text-xl font-bold uppercase text-white leading-none">
+                    Experience
+                  </span>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-[#2D9E49] transition-transform duration-300 ${mobileExperienceOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Experience Sub-links */}
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${mobileExperienceOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="pl-8 pb-2 space-y-1">
+                  {experienceLinks.map((link) => (
+                    <Link
+                      key={link.name}
+                      to={link.path}
+                      onClick={toggleMenu}
+                      className="group flex items-center justify-between py-2 pr-2"
+                    >
+                      <span className="font-sans text-sm text-white/70 group-hover:text-[#2D9E49] transition-colors">
+                        {link.name}
+                      </span>
+                      <ArrowUpRight className="w-3 h-3 text-white/20 group-hover:text-[#2D9E49] transition-all" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Footer / Info */}

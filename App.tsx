@@ -21,6 +21,10 @@ import FAQPage from './pages/FAQPage';
 import BookingPage from './pages/BookingPage';
 import CancelPage from './pages/CancelPage';
 import GalleryPage from './pages/GalleryPage';
+import RulesPage from './pages/RulesPage';
+import ExperiencesPage from './pages/ExperiencesPage';
+import WaiverPage from './pages/WaiverPage';
+import MembershipPage from './pages/MembershipPage';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -91,6 +95,10 @@ const App: React.FC = () => {
                 <Route path="/book" element={<BookingPage />} />
                 <Route path="/gallery" element={<GalleryPage />} />
                 <Route path="/cancel" element={<CancelPage />} />
+                <Route path="/rules" element={<RulesPage />} />
+                <Route path="/experiences" element={<ExperiencesPage />} />
+                <Route path="/waiver" element={<WaiverPage />} />
+                <Route path="/membership" element={<MembershipPage />} />
                 <Route path="*" element={<Home />} />
               </Routes>
             </div>

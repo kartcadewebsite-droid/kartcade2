@@ -3,14 +3,11 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { ArrowDownRight, Play } from 'lucide-react';
-import MagneticButton from './ui/MagneticButton';
 
 const Hero: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
     // 1. Initial Load Animation
@@ -66,7 +63,6 @@ const Hero: React.FC = () => {
           poster="/images/kartcade/hero.png"
           className="w-full h-full object-cover opacity-50"
         >
-          {/* Placeholder - replace with actual racing video */}
           <source src="" type="video/mp4" />
         </video>
         {/* Fallback image if video doesn't load */}
@@ -90,48 +86,46 @@ const Hero: React.FC = () => {
           <img
             src="/logo.png"
             alt="Kartcade"
-            className="w-64 md:w-96 lg:w-[500px] h-auto drop-shadow-[0_0_50px_rgba(45,158,73,0.3)]"
+            className="w-48 sm:w-64 md:w-96 lg:w-[500px] h-auto drop-shadow-[0_0_50px_rgba(45,158,73,0.3)]"
           />
         </div>
 
         {/* Tagline */}
-        <div className="mt-6 hero-text-char">
-          <p className="text-xl md:text-3xl lg:text-4xl font-light tracking-[0.3em] uppercase text-white/80">
+        <div className="mt-4 sm:mt-6 hero-text-char">
+          <p className="text-lg sm:text-xl md:text-3xl lg:text-4xl font-light tracking-[0.2em] sm:tracking-[0.3em] uppercase text-white/80">
             Race<span className="text-[#2D9E49]">.</span> Fly<span className="text-[#D42428]">.</span> Win<span className="text-white">.</span>
           </p>
         </div>
 
-        <div className="mt-6 flex items-center gap-6 text-white/60 font-sans tracking-[0.3em] text-xs md:text-sm uppercase hero-text-char">
-          <span className="w-12 md:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#2D9E49] to-transparent"></span>
-          <span>Oregon's Premier Simulator Lounge</span>
-          <span className="w-12 md:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#D42428] to-transparent"></span>
+        <div className="mt-4 sm:mt-6 flex items-center gap-3 sm:gap-6 text-white/60 font-sans tracking-[0.15em] sm:tracking-[0.3em] text-[10px] sm:text-xs md:text-sm uppercase hero-text-char">
+          <span className="w-8 sm:w-12 md:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#2D9E49] to-transparent"></span>
+          <span className="text-center">Oregon's Premier Simulator Lounge</span>
+          <span className="w-8 sm:w-12 md:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#D42428] to-transparent"></span>
         </div>
 
         {/* Stats Row */}
-        <div className="mt-12 flex items-center gap-8 md:gap-16 hero-text-char">
+        <div className="mt-8 sm:mt-12 flex items-center gap-4 sm:gap-8 md:gap-16 hero-text-char">
           <div className="text-center">
-            <div className="text-3xl md:text-4xl font-bold text-white">10</div>
-            <div className="text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Simulators</div>
+            <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">10</div>
+            <div className="text-[8px] sm:text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Sims</div>
           </div>
-          <div className="w-[1px] h-12 bg-white/20"></div>
+          <div className="w-[1px] h-8 sm:h-12 bg-white/20"></div>
           <div className="text-center">
-            <div className="text-3xl md:text-4xl font-bold text-white">40+</div>
-            <div className="text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Games</div>
+            <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">40+</div>
+            <div className="text-[8px] sm:text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Games</div>
           </div>
-          <div className="w-[1px] h-12 bg-white/20"></div>
+          <div className="w-[1px] h-8 sm:h-12 bg-white/20"></div>
           <div className="text-center">
-            <div className="text-3xl md:text-4xl font-bold text-white">1</div>
-            <div className="text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Epic Time</div>
+            <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">1</div>
+            <div className="text-[8px] sm:text-[10px] md:text-xs uppercase tracking-widest text-white/50 mt-1">Epic Time</div>
           </div>
         </div>
       </div>
 
-
-
       {/* Scroll Indicator */}
-      <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 z-20 flex flex-col items-center gap-2">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">Scroll</span>
-        <div className="w-[1px] h-8 bg-gradient-to-b from-white/40 to-transparent animate-pulse"></div>
+      <div className="absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 z-20 flex flex-col items-center gap-2">
+        <span className="text-[8px] sm:text-[10px] uppercase tracking-[0.3em] text-white/40">Scroll</span>
+        <div className="w-[1px] h-6 sm:h-8 bg-gradient-to-b from-white/40 to-transparent animate-pulse"></div>
       </div>
     </div>
   );
