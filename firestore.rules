@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - each user can only read/write their own document
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can create their own profile (on signup)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Users can update their own profile, but CANNOT change the 'role' field
+      allow update: if request.auth != null 
+                    && request.auth.uid == userId
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      
+      // No one can delete user profiles (admin does this manually if needed)
+      allow delete: if false;
+    }
+    
+    // Memberships collection (future)
+    match /memberships/{membershipId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only admin/backend can write - for now manual
+    }
+    
+    // Transactions collection (future)
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only admin/backend can write
+    }
+    
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

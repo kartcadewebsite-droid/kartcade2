@@ -114,6 +114,15 @@ function doGet(e) {
             return getBookingDetails(bookingId);
         }
 
+        // Get user's bookings by email
+        if (action === 'userBookings') {
+            const email = e.parameter.email;
+            if (!email) {
+                return createResponse({ error: 'Missing email' }, 400);
+            }
+            return getUserBookings(email);
+        }
+
         return createResponse({ error: 'Invalid action' }, 400);
     } catch (error) {
         return createResponse({ error: error.message }, 500);
@@ -484,6 +493,55 @@ function getBookingDetails(bookingId) {
     }
 
     return createResponse({ error: 'Booking not found' }, 404);
+}
+
+// Get all bookings for a specific user email
+function getUserBookings(email) {
+    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
+    const userBookings = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i < bookings.length; i++) {
+        const row = bookings[i];
+        const bookingEmail = row[6];
+        const status = row[9];
+
+        // Match email (case-insensitive)
+        if (bookingEmail && bookingEmail.toString().toLowerCase() === email.toLowerCase()) {
+            // Parse date
+            let bookingDate;
+            if (row[1] instanceof Date) {
+                bookingDate = row[1];
+            } else {
+                bookingDate = new Date(row[1]);
+            }
+
+            // Only include future bookings that are not cancelled
+            if (bookingDate >= today && status !== 'Cancelled') {
+                userBookings.push({
+                    id: row[0],
+                    date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
+                    time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
+                    station: row[3],
+                    drivers: row[4],
+                    name: row[5],
+                    email: row[6],
+                    phone: row[7],
+                    status: row[9]
+                });
+            }
+        }
+    }
+
+    // Sort by date (earliest first)
+    userBookings.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
+
+    return createResponse({
+        success: true,
+        bookings: userBookings,
+        count: userBookings.length
+    });
 }
 
 // Cancel a booking

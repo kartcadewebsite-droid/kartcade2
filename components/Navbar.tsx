@@ -1,17 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { Menu, X, Phone, ArrowUpRight, Gift } from 'lucide-react';
+import { Menu, X, Phone, ArrowUpRight, Gift, User, LogOut, ChevronDown } from 'lucide-react';
 import siteConfig from '../config/site';
+import { useAuth } from '../contexts/AuthContext';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { currentUser, userProfile, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
+  };
 
   // All pages dark themed for Kartcade
   const textColorClass = 'text-white';
@@ -86,24 +99,17 @@ const Navbar: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileExperienceOpen, setMobileExperienceOpen] = useState(false);
 
-  // Main nav links (shown directly)
+  // Main nav links (ultra-clean: only 3)
   const mainLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Events', path: '/events' },
     { name: 'Pricing', path: '/pricing' },
-    { name: 'Membership', path: '/membership' },
-    { name: 'Gallery', path: '/gallery' },
-    { name: 'Contact', path: '/contact' },
+    { name: 'Events', path: '/events' },
   ];
 
-  // Dropdown links under "Experience"
+  // Dropdown links under "Experiences"
   const experienceLinks = [
-    { name: 'About Us', path: '/about' },
-    { name: 'Equipment', path: '/equipment' },
     { name: 'Games', path: '/experiences' },
-    { name: 'Rules', path: '/rules' },
-    { name: 'Waiver', path: '/waiver' },
-    { name: 'FAQ', path: '/faq' },
+    { name: 'Equipment', path: '/equipment' },
+    { name: 'About Us', path: '/about' },
   ];
 
   return (
@@ -124,18 +130,7 @@ const Navbar: React.FC = () => {
 
         {/* Desktop Menu */}
         <div className="hidden lg:flex items-center gap-6 xl:gap-8">
-          {mainLinks.map((link) => (
-            <Link
-              key={link.name}
-              to={link.path}
-              className={`font-sans text-xs uppercase tracking-widest transition-colors duration-300 relative group ${textColorClass} hover:text-[#2D9E49]`}
-            >
-              {link.name}
-              <span className={`absolute -bottom-2 left-0 w-full h-[2px] bg-[#2D9E49] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left ${location.pathname === link.path ? 'scale-x-100' : ''}`}></span>
-            </Link>
-          ))}
-
-          {/* Experience Dropdown */}
+          {/* Experiences Dropdown - First */}
           <div
             className="relative"
             onMouseEnter={() => setDropdownOpen(true)}
@@ -144,7 +139,7 @@ const Navbar: React.FC = () => {
             <button
               className={`font-sans text-xs uppercase tracking-widest transition-colors duration-300 flex items-center gap-1 ${textColorClass} hover:text-[#2D9E49]`}
             >
-              Experience
+              Experiences
               <svg className={`w-3 h-3 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
@@ -165,19 +160,59 @@ const Navbar: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Main Links */}
+          {mainLinks.map((link) => (
+            <Link
+              key={link.name}
+              to={link.path}
+              className={`font-sans text-xs uppercase tracking-widest transition-colors duration-300 relative group ${textColorClass} hover:text-[#2D9E49]`}
+            >
+              {link.name}
+              <span className={`absolute -bottom-2 left-0 w-full h-[2px] bg-[#2D9E49] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left ${location.pathname === link.path ? 'scale-x-100' : ''}`}></span>
+            </Link>
+          ))}
         </div>
 
         {/* CTA & Mobile Toggle */}
         <div className="flex items-center gap-3 z-50">
-          {/* Gift Cards - Desktop */}
-          <a
-            href={siteConfig.giftCardsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full font-sans text-xs uppercase tracking-widest font-medium transition-all duration-300 border border-[#2D9E49]/50 text-[#2D9E49] hover:bg-[#2D9E49] hover:text-white"
-          >
-            <Gift className="w-3 h-3" /> Gift Cards
-          </a>
+          {/* Auth - Desktop */}
+          {currentUser ? (
+            <div
+              className="hidden md:block relative"
+              onMouseEnter={() => setUserDropdownOpen(true)}
+              onMouseLeave={() => setUserDropdownOpen(false)}
+            >
+              <button className="flex items-center gap-2 px-4 py-2 rounded-full font-sans text-xs uppercase tracking-widest font-medium transition-all duration-300 border border-white/20 text-white hover:border-white/40">
+                <User className="w-3 h-3" />
+                {userProfile?.name?.split(' ')[0] || 'Account'}
+                <ChevronDown className={`w-3 h-3 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <div className={`absolute top-full right-0 pt-2 transition-all duration-200 ${userDropdownOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                <div className="bg-[#141414] border border-white/10 rounded-xl py-2 min-w-[160px] shadow-xl">
+                  <Link
+                    to="/dashboard"
+                    className="block px-4 py-2 text-xs uppercase tracking-widest text-white/70 hover:text-[#2D9E49] hover:bg-white/5 transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-xs uppercase tracking-widest text-white/70 hover:text-[#D42428] hover:bg-white/5 transition-colors flex items-center gap-2"
+                  >
+                    <LogOut className="w-3 h-3" /> Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full font-sans text-xs uppercase tracking-widest font-medium transition-all duration-300 border border-white/20 text-white hover:border-white/40"
+            >
+              Sign In
+            </Link>
+          )}
 
           {/* Book Now - Desktop */}
           <Link
@@ -186,14 +221,6 @@ const Navbar: React.FC = () => {
           >
             Book Now <ArrowUpRight className="w-3 h-3" />
           </Link>
-
-          {/* Phone - Desktop */}
-          <a
-            href={`tel:${siteConfig.phone}`}
-            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full font-sans text-xs uppercase tracking-widest transition-all duration-300 border border-white/20 text-white hover:border-white/40"
-          >
-            <Phone className="w-3 h-3" /> {siteConfig.phone}
-          </a>
 
           <button onClick={toggleMenu} className={`lg:hidden focus:outline-none transition-colors duration-300 ${textColorClass}`}>
             {isMenuOpen ? <X className="w-8 h-8" /> : <Menu className="w-8 h-8" />}
@@ -237,7 +264,7 @@ const Navbar: React.FC = () => {
                 <div className="flex items-baseline gap-3">
                   <span className="font-mono text-[10px] text-[#2D9E49]/60">0{mainLinks.length + 1}</span>
                   <span className="font-display text-xl font-bold uppercase text-white leading-none">
-                    Experience
+                    Experiences
                   </span>
                 </div>
                 <svg
@@ -295,6 +322,33 @@ const Navbar: React.FC = () => {
               <Gift className="w-4 h-4" /> Gift Cards
             </a>
 
+            {/* Auth - Mobile */}
+            {currentUser ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  onClick={toggleMenu}
+                  className="w-full bg-white/10 border border-white/20 text-white font-display uppercase font-bold text-center py-3 rounded-lg hover:bg-white/20 transition-colors tracking-widest text-xs mb-2 flex items-center justify-center gap-2"
+                >
+                  <User className="w-4 h-4" /> Dashboard
+                </Link>
+                <button
+                  onClick={() => { handleLogout(); toggleMenu(); }}
+                  className="w-full border border-white/20 text-white/70 font-display uppercase font-bold text-center py-3 rounded-lg hover:bg-white/10 transition-colors tracking-widest text-xs mb-2 flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/signup"
+                onClick={toggleMenu}
+                className="w-full bg-white/10 border border-white/20 text-white font-display uppercase font-bold text-center py-3 rounded-lg hover:bg-white/20 transition-colors tracking-widest text-xs mb-2 flex items-center justify-center gap-2"
+              >
+                <User className="w-4 h-4" /> Create Driver Profile
+              </Link>
+            )}
+
             <Link
               to="/book"
               onClick={toggleMenu}
@@ -304,7 +358,7 @@ const Navbar: React.FC = () => {
             </Link>
           </div>
         </div>
-      </div>
+      </div >
     </>
   );
 };

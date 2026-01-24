@@ -73,6 +73,8 @@ const Footer: React.FC = () => {
                 >
                   <Gift className="w-3 h-3" /> Gift Cards
                 </a>
+                <Link to="/gallery" className="block text-white/70 hover:text-[#2D9E49] text-sm transition-colors">Gallery</Link>
+                <Link to="/membership" className="block text-white/70 hover:text-[#2D9E49] text-sm transition-colors">Membership</Link>
                 <Link to="/rules" className="block text-white/70 hover:text-[#2D9E49] text-sm transition-colors">Rules</Link>
                 <Link to="/waiver" className="block text-white/70 hover:text-[#2D9E49] text-sm transition-colors">Waiver</Link>
                 <Link to="/experiences" className="block text-white/70 hover:text-[#2D9E49] text-sm transition-colors">Games</Link>

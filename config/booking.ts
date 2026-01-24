@@ -145,6 +145,50 @@ export const bookingApi = {
             console.error('Failed to create booking:', error);
             throw error;
         }
+    },
+
+    // Get user's bookings by email
+    async getUserBookings(email: string) {
+        try {
+            const params = new URLSearchParams({
+                action: 'userBookings',
+                email: email
+            });
+
+            const url = `${bookingConfig.API_URL}?${params.toString()}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                redirect: 'follow'
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Failed to fetch user bookings:', error);
+            throw error;
+        }
+    },
+
+    // Cancel a booking
+    async cancelBooking(bookingId: string) {
+        try {
+            const params = new URLSearchParams({
+                action: 'cancel',
+                id: bookingId
+            });
+
+            const url = `${bookingConfig.API_URL}?${params.toString()}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                redirect: 'follow'
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Failed to cancel booking:', error);
+            throw error;
+        }
     }
 };
 

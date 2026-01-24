@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import CustomCursor from './components/CustomCursor';
 import FloatingCallButton from './components/FloatingCallButton';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import Home from './pages/Home';
@@ -25,6 +26,13 @@ import RulesPage from './pages/RulesPage';
 import ExperiencesPage from './pages/ExperiencesPage';
 import WaiverPage from './pages/WaiverPage';
 import MembershipPage from './pages/MembershipPage';
+import SignUpPage from './pages/SignUpPage';
+import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import DashboardPage from './pages/DashboardPage';
+
+// Context
+import { AuthProvider } from './contexts/AuthContext';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -73,42 +81,48 @@ const App: React.FC = () => {
   });
 
   return (
-    <ReactLenis root ref={lenisRef} options={{ duration: 1.2, smoothWheel: true }}>
-      <Router>
-        <ScrollToTop />
-        <div className="relative min-h-screen">
-          <CustomCursor />
-          <Navbar />
-          <FloatingCallButton />
+    <AuthProvider>
+      <ReactLenis root ref={lenisRef} options={{ duration: 1.2, smoothWheel: true }}>
+        <Router>
+          <ScrollToTop />
+          <div className="relative min-h-screen">
+            <CustomCursor />
+            <Navbar />
+            <FloatingCallButton />
 
-          {/* Main Content Wrapper */}
-          <main className="relative z-10 w-full">
-            <div className="min-h-screen">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/events" element={<EventsPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="/equipment" element={<EquipmentPage />} />
-                <Route path="/faq" element={<FAQPage />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/book" element={<BookingPage />} />
-                <Route path="/gallery" element={<GalleryPage />} />
-                <Route path="/cancel" element={<CancelPage />} />
-                <Route path="/rules" element={<RulesPage />} />
-                <Route path="/experiences" element={<ExperiencesPage />} />
-                <Route path="/waiver" element={<WaiverPage />} />
-                <Route path="/membership" element={<MembershipPage />} />
-                <Route path="*" element={<Home />} />
-              </Routes>
-            </div>
-          </main>
+            {/* Main Content Wrapper */}
+            <main className="relative z-10 w-full">
+              <div className="min-h-screen">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/events" element={<EventsPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/equipment" element={<EquipmentPage />} />
+                  <Route path="/faq" element={<FAQPage />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
+                  <Route path="/gallery" element={<GalleryPage />} />
+                  <Route path="/cancel" element={<CancelPage />} />
+                  <Route path="/rules" element={<RulesPage />} />
+                  <Route path="/experiences" element={<ExperiencesPage />} />
+                  <Route path="/waiver" element={<WaiverPage />} />
+                  <Route path="/membership" element={<MembershipPage />} />
+                  <Route path="/signup" element={<SignUpPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                  <Route path="*" element={<Home />} />
+                </Routes>
+              </div>
+            </main>
 
-          {/* Fixed Footer */}
-          <Footer />
-        </div>
-      </Router>
-    </ReactLenis>
+            {/* Fixed Footer */}
+            <Footer />
+          </div>
+        </Router>
+      </ReactLenis>
+    </AuthProvider>
   );
 };
 

@@ -5,10 +5,11 @@ import { useGSAP } from '@gsap/react';
 import {
     Calendar, Clock, Users, Phone, ArrowRight, ArrowLeft,
     CheckCircle, CreditCard, Wallet, Info, AlertTriangle,
-    Gauge, Monitor, Plane, Zap, Loader2
+    Gauge, Monitor, Plane, Zap, Loader2, Shield
 } from 'lucide-react';
 import siteConfig from '../config/site';
 import { bookingConfig, bookingApi, isApiConfigured } from '../config/booking';
+import { useAuth } from '../contexts/AuthContext';
 
 // Station Types Configuration
 const stationTypes = [
@@ -112,6 +113,7 @@ const generateDates = () => {
 const BookingPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isLiveMode, setIsLiveMode] = useState(isApiConfigured());
+    const { currentUser, userProfile, isAdmin } = useAuth();
 
     // Booking state
     const [step, setStep] = useState(1);
@@ -133,6 +135,18 @@ const BookingPage: React.FC = () => {
         phone: '',
         notes: ''
     });
+
+    // Auto-fill user details if logged in
+    useEffect(() => {
+        if (userProfile && currentUser) {
+            setFormData(prev => ({
+                ...prev,
+                name: userProfile.name || '',
+                email: currentUser.email || '',
+                phone: userProfile.phone || ''
+            }));
+        }
+    }, [userProfile, currentUser]);
 
     // Dates for calendar
     const dates = generateDates();
@@ -257,13 +271,21 @@ const BookingPage: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Admin Mode Indicator */}
+                    {isAdmin && (
+                        <div className="inline-flex items-center gap-2 bg-[#D42428]/10 border border-[#D42428]/30 text-[#D42428] px-4 py-2 rounded-full text-sm mb-4 ml-2">
+                            <Shield className="w-4 h-4" />
+                            Admin Mode - Pay at Venue enabled
+                        </div>
+                    )}
+
                     {/* Progress Steps */}
                     <div className="flex items-center justify-center gap-2 mt-8">
                         {[1, 2, 3, 4].map((s) => (
                             <div key={s} className="flex items-center">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${step >= s
-                                        ? 'bg-[#2D9E49] text-white'
-                                        : 'bg-white/10 text-white/40'
+                                    ? 'bg-[#2D9E49] text-white'
+                                    : 'bg-white/10 text-white/40'
                                     }`}>
                                     {step > s ? <CheckCircle className="w-5 h-5" /> : s}
                                 </div>
@@ -362,8 +384,8 @@ const BookingPage: React.FC = () => {
                                                 key={station.id}
                                                 onClick={() => setSelectedStation(station.id)}
                                                 className={`p-6 rounded-2xl border text-left transition-all hover:scale-[1.02] ${selectedStation === station.id
-                                                        ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                        : 'border-white/10 bg-[#141414] hover:border-white/30'
+                                                    ? 'border-[#2D9E49] bg-[#2D9E49]/10'
+                                                    : 'border-white/10 bg-[#141414] hover:border-white/30'
                                                     }`}
                                             >
                                                 <div className="flex items-start gap-4">
@@ -428,8 +450,8 @@ const BookingPage: React.FC = () => {
                                                             setDrivers(1);
                                                         }}
                                                         className={`flex-shrink-0 w-16 py-4 rounded-xl text-center transition-all ${isSelected
-                                                                ? 'bg-[#2D9E49] text-white'
-                                                                : 'bg-[#141414] border border-white/10 hover:border-white/30'
+                                                            ? 'bg-[#2D9E49] text-white'
+                                                            : 'bg-[#141414] border border-white/10 hover:border-white/30'
                                                             }`}
                                                     >
                                                         <div className="text-xs text-white/50">{dayName}</div>
@@ -471,10 +493,10 @@ const BookingPage: React.FC = () => {
                                                                 }}
                                                                 disabled={isFull}
                                                                 className={`p-4 rounded-xl text-center transition-all ${isSelected
-                                                                        ? 'bg-[#2D9E49] text-white'
-                                                                        : isFull
-                                                                            ? 'bg-[#1a1a1a] text-white/20 cursor-not-allowed'
-                                                                            : 'bg-[#141414] border border-white/10 hover:border-[#2D9E49]/50'
+                                                                    ? 'bg-[#2D9E49] text-white'
+                                                                    : isFull
+                                                                        ? 'bg-[#1a1a1a] text-white/20 cursor-not-allowed'
+                                                                        : 'bg-[#141414] border border-white/10 hover:border-[#2D9E49]/50'
                                                                     }`}
                                                             >
                                                                 <div className="font-bold">{time}</div>
@@ -504,8 +526,8 @@ const BookingPage: React.FC = () => {
                                                             key={i + 1}
                                                             onClick={() => setDrivers(i + 1)}
                                                             className={`w-12 h-12 rounded-lg font-bold transition-all flex-shrink-0 ${drivers === i + 1
-                                                                    ? 'bg-[#2D9E49] text-white'
-                                                                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                                                                ? 'bg-[#2D9E49] text-white'
+                                                                : 'bg-white/5 text-white/60 hover:bg-white/10'
                                                                 }`}
                                                         >
                                                             {i + 1}
@@ -667,45 +689,59 @@ const BookingPage: React.FC = () => {
                                             <h3 className="font-display text-lg font-bold uppercase mb-4">Payment Option</h3>
 
                                             <div className="space-y-3">
+                                                {/* Pay at Venue - Admin Only (or everyone for now until Stripe) */}
                                                 <button
                                                     onClick={() => setPaymentMethod('venue')}
                                                     className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'venue'
-                                                            ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                            : 'border-white/10 hover:border-white/30'
+                                                        ? 'border-[#2D9E49] bg-[#2D9E49]/10'
+                                                        : 'border-white/10 hover:border-white/30'
                                                         }`}
                                                 >
                                                     <Wallet className="w-6 h-6 text-[#2D9E49]" />
-                                                    <div>
-                                                        <div className="font-bold">Pay at Venue</div>
+                                                    <div className="flex-1">
+                                                        <div className="font-bold flex items-center gap-2">
+                                                            Pay at Venue
+                                                            {isAdmin && (
+                                                                <span className="text-[10px] bg-[#D42428] text-white px-2 py-0.5 rounded-full uppercase">
+                                                                    Admin
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="text-sm text-white/50">Pay when you arrive</div>
                                                     </div>
                                                 </button>
 
+                                                {/* Deposit - Coming Soon */}
                                                 <button
-                                                    onClick={() => setPaymentMethod('deposit')}
-                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'deposit'
-                                                            ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                            : 'border-white/10 hover:border-white/30'
-                                                        }`}
+                                                    disabled
+                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4"
                                                 >
                                                     <CreditCard className="w-6 h-6 text-[#D42428]" />
                                                     <div className="flex-1">
-                                                        <div className="font-bold">Pay Deposit</div>
-                                                        <div className="text-sm text-white/50">50% now (${Math.round(calculateTotal() / 2)}), rest at venue</div>
+                                                        <div className="font-bold flex items-center gap-2">
+                                                            Pay Deposit
+                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
+                                                                Coming Soon
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm text-white/50">50% now, rest at venue</div>
                                                     </div>
                                                 </button>
 
+                                                {/* Pay in Full - Coming Soon */}
                                                 <button
-                                                    onClick={() => setPaymentMethod('now')}
-                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'now'
-                                                            ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                            : 'border-white/10 hover:border-white/30'
-                                                        }`}
+                                                    disabled
+                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4"
                                                 >
-                                                    <CreditCard className="w-6 h-6 text-white" />
+                                                    <CreditCard className="w-6 h-6 text-white/50" />
                                                     <div>
-                                                        <div className="font-bold">Pay in Full</div>
-                                                        <div className="text-sm text-white/50">Complete payment now</div>
+                                                        <div className="font-bold flex items-center gap-2">
+                                                            Pay in Full
+                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
+                                                                Coming Soon
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm text-white/50">Complete payment online</div>
                                                     </div>
                                                 </button>
                                             </div>
@@ -732,9 +768,7 @@ const BookingPage: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    {paymentMethod === 'venue' && 'Confirm Booking'}
-                                                    {paymentMethod === 'deposit' && `Pay $${Math.round(calculateTotal() / 2)} Deposit`}
-                                                    {paymentMethod === 'now' && `Pay $${calculateTotal()} Now`}
+                                                    Confirm Booking
                                                     <ArrowRight className="w-5 h-5" />
                                                 </>
                                             )}
@@ -764,3 +798,4 @@ const BookingPage: React.FC = () => {
 };
 
 export default BookingPage;
+
