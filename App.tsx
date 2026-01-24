@@ -33,6 +33,7 @@ import DashboardPage from './pages/DashboardPage';
 import CheckoutPage from './pages/CheckoutPage';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
+import OnboardingPage from './pages/OnboardingPage';
 
 // Context
 import { AuthProvider } from './contexts/AuthContext';
@@ -113,6 +114,7 @@ const App: React.FC = () => {
                   <Route path="/membership" element={<MembershipPage />} />
                   <Route path="/signup" element={<SignUpPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                   <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />

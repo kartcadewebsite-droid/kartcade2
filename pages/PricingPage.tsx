@@ -25,31 +25,31 @@ const PricingPage: React.FC = () => {
 
     const sessionPricing = [
         {
-            title: "Adult Session",
-            subtitle: "Full-Size Rigs & Motion Sim",
+            title: "Full Sim Rig",
+            subtitle: "Motion & Static Simulators",
             price: "$25",
             period: "/hour",
             features: [
-                "Access to full-size racing rigs",
-                "Motion simulator available",
+                "Professional direct-drive wheels",
+                "Motion platform available",
                 "Full game library access",
                 "Staff assistance & setup",
-                "No taking turns—race together!"
+                "Race against friends"
             ],
             color: "#D42428",
             popular: true
         },
         {
-            title: "Youth Session",
-            subtitle: "Racing Karts",
+            title: "Racing Kart",
+            subtitle: "Junior Simulators",
             price: "$20",
             period: "/hour",
             features: [
-                "Racing karts (5 available)",
-                "Ages 5+ welcome",
+                "Dedicated racing karts",
+                "Perfect for ages 5+",
                 "Beginner-friendly games",
                 "Staff supervision",
-                "Perfect for kids & teens"
+                "Fun for all skill levels"
             ],
             color: "#2D9E49",
             popular: false

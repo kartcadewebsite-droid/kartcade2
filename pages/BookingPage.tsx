@@ -142,9 +142,9 @@ const BookingPage: React.FC = () => {
     const availableCredits = equipmentType ? getCredits(equipmentType) : 0;
     const canUseCredits = equipmentType && hasEnoughCredits(equipmentType, drivers);
 
-    // Auto-fill user details if logged in
+    // Auto-fill user details if logged in (but NOT for admins, so they can enter customer data)
     useEffect(() => {
-        if (userProfile && currentUser) {
+        if (userProfile && currentUser && !isAdmin) {
             setFormData(prev => ({
                 ...prev,
                 name: userProfile.name || '',
@@ -152,7 +152,7 @@ const BookingPage: React.FC = () => {
                 phone: userProfile.phone || ''
             }));
         }
-    }, [userProfile, currentUser]);
+    }, [userProfile, currentUser, isAdmin]);
 
     // Dates for calendar
     const dates = generateDates();
@@ -234,6 +234,27 @@ const BookingPage: React.FC = () => {
                 }
             }
 
+            // Construct notes with credit info AND driver specs
+            let finalNotes = formData.notes;
+
+            // Add credit info if applicable
+            if (paymentMethod === 'credits') {
+                finalNotes += ` [Paid with ${drivers} credit(s)]`;
+            }
+
+            // Add Driver Tech Specs (for Adam's reference)
+            if (userProfile) {
+                const specs: string[] = [];
+                if (userProfile.favCar) specs.push(`Car: ${userProfile.favCar}`);
+                if (userProfile.favTrack) specs.push(`Track: ${userProfile.favTrack}`);
+                if (userProfile.favRig) specs.push(`Rig: ${userProfile.favRig}`);
+                if (userProfile.settings) specs.push(`Settings: ${userProfile.settings}`);
+
+                if (specs.length > 0) {
+                    finalNotes += ` \n[DRIVER SPECS: ${specs.join(' | ')}]`;
+                }
+            }
+
             const result = await bookingApi.createBooking({
                 date: formatDateForApi(selectedDate),
                 time: selectedTime,
@@ -243,7 +264,7 @@ const BookingPage: React.FC = () => {
                 email: formData.email,
                 phone: formData.phone,
                 paymentMethod: paymentMethod === 'credits' ? 'credits' : paymentMethod,
-                notes: paymentMethod === 'credits' ? `${formData.notes} [Paid with ${drivers} credit(s)]` : formData.notes
+                notes: finalNotes
             });
 
             if (result.success) {
@@ -636,6 +657,14 @@ const BookingPage: React.FC = () => {
                                                 placeholder="Any special requests, ages of drivers, games you'd like to play..."
                                             />
                                         </div>
+
+                                        <div className="flex items-start gap-3 p-4 bg-[#2D9E49]/10 border border-[#2D9E49]/30 rounded-xl">
+                                            <Info className="w-5 h-5 text-[#2D9E49] flex-shrink-0 mt-0.5" />
+                                            <div className="text-sm text-white/80">
+                                                <p className="font-bold text-white mb-1">Tip for Groups</p>
+                                                For the best experience, we recommend all drivers create a profile before arriving so we can set up their rigs with their preferences.
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="flex justify-between mt-8">
@@ -784,6 +813,25 @@ const BookingPage: React.FC = () => {
                                                     </div>
                                                 </button>
 
+                                                {/* PayPal - Coming Soon */}
+                                                <button
+                                                    disabled
+                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4 bg-[#003087]/5"
+                                                >
+                                                    <div className="w-6 h-6 flex items-center justify-center">
+                                                        <span className="font-bold text-[#003087] text-lg italic">P</span>
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold flex items-center gap-2">
+                                                            PayPal
+                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
+                                                                Coming Soon
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-sm text-white/50">Pay securely with PayPal</div>
+                                                    </div>
+                                                </button>
+
                                                 {/* Pay in Full - Coming Soon */}
                                                 <button
                                                     disabled
@@ -803,19 +851,11 @@ const BookingPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Cancellation Policy */}
-                                        <div className="bg-[#1a1a1a] border border-white/5 rounded-xl p-4 mb-8 flex items-start gap-3">
-                                            <Info className="w-5 h-5 text-white/40 flex-shrink-0 mt-0.5" />
-                                            <div className="text-sm text-white/50">
-                                                <strong className="text-white/70">Cancellation Policy:</strong> Please cancel at least 24 hours in advance. Late cancellations may be subject to a fee.
-                                            </div>
-                                        </div>
-
                                         {/* Submit */}
                                         <button
                                             onClick={handleSubmit}
                                             disabled={isSubmitting}
-                                            className="w-full flex items-center justify-center gap-3 py-5 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-all disabled:opacity-70"
+                                            className="w-full py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                         >
                                             {isSubmitting ? (
                                                 <>
@@ -824,11 +864,21 @@ const BookingPage: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    Confirm Booking
-                                                    <ArrowRight className="w-5 h-5" />
+                                                    Confirm Booking <ArrowRight className="w-5 h-5" />
                                                 </>
                                             )}
                                         </button>
+
+                                        <div className="mt-6 text-center">
+                                            <div className="text-white/40 text-xs leading-relaxed max-w-md mx-auto">
+                                                <p className="font-bold text-white/60 mb-1 pointer-events-none">Cancellation Policy</p>
+                                                <ul className="space-y-1">
+                                                    <li>• No refunds for cancellations within 48 hours of booking.</li>
+                                                    <li>• 50% account credit for cancellations less than 1 week in advance.</li>
+                                                    <li>• Full refund for cancellations more than 1 week in advance.</li>
+                                                </ul>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

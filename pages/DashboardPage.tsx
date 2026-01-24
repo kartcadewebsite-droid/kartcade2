@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket } from 'lucide-react';
+import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
 import { getMembershipById } from '../config/membership';
@@ -18,12 +18,24 @@ interface Booking {
 
 const DashboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, logout, isAdmin, getCredits } = useAuth();
+    const { currentUser, userProfile, logout, isAdmin, getCredits, updateProfile } = useAuth();
 
     const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
     const [loadingBookings, setLoadingBookings] = useState(true);
     const [cancellingId, setCancellingId] = useState<string | null>(null);
     const [error, setError] = useState('');
+
+    // Edit Profile State
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editFormData, setEditFormData] = useState({
+        favDiscipline: '',
+        favTrack: '',
+        favCar: '',
+        favRig: '',
+        settings: '',
+    });
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
 
     // Get real membership and credits from user profile
     const membership = userProfile?.membership?.active ? userProfile.membership : null;
@@ -64,7 +76,21 @@ const DashboardPage: React.FC = () => {
         };
 
         fetchBookings();
+        fetchBookings();
     }, [currentUser?.email]);
+
+    // Populate edit form when profile loads or modal opens
+    useEffect(() => {
+        if (userProfile) {
+            setEditFormData({
+                favDiscipline: userProfile.favDiscipline || '',
+                favTrack: userProfile.favTrack || '',
+                favCar: userProfile.favCar || '',
+                favRig: userProfile.favRig || '',
+                settings: userProfile.settings || '',
+            });
+        }
+    }, [userProfile, showEditModal]);
 
     const handleLogout = async () => {
         try {
@@ -92,6 +118,22 @@ const DashboardPage: React.FC = () => {
             setError('Failed to cancel booking. Please try again.');
         } finally {
             setCancellingId(null);
+        }
+    };
+
+    const handleSaveProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        setSaveError('');
+
+        try {
+            await updateProfile(editFormData);
+            setShowEditModal(false);
+        } catch (err) {
+            console.error(err);
+            setSaveError('Failed to update profile');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -182,7 +224,7 @@ const DashboardPage: React.FC = () => {
                                 <p className="text-white/60 text-sm">{currentUser?.email}</p>
                             </div>
                         </div>
-                        <div className="space-y-3 text-sm">
+                        <div className="space-y-3 text-sm border-b border-white/10 pb-4 mb-4">
                             <div className="flex justify-between">
                                 <span className="text-white/60">Phone</span>
                                 <span className="text-white">{userProfile?.phone || 'Not set'}</span>
@@ -194,6 +236,45 @@ const DashboardPage: React.FC = () => {
                             <div className="flex justify-between">
                                 <span className="text-white/60">Rules</span>
                                 <span className="text-[#2D9E49]">✓ Accepted</span>
+                            </div>
+                        </div>
+
+                        {/* Driver Specs */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-display text-white/50 text-xs uppercase tracking-widest">Driver Specs</h3>
+                                <button
+                                    onClick={() => setShowEditModal(true)}
+                                    className="text-[#2D9E49] hover:text-white transition-colors text-xs flex items-center gap-1"
+                                >
+                                    <Edit2 className="w-3 h-3" /> Edit
+                                </button>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <span className="block text-white/40 text-[10px] uppercase">Fav Car</span>
+                                        <span className="text-white truncate block" title={userProfile?.favCar}>{userProfile?.favCar || '-'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-white/40 text-[10px] uppercase">Fav Track</span>
+                                        <span className="text-white truncate block" title={userProfile?.favTrack}>{userProfile?.favTrack || '-'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-white/40 text-[10px] uppercase">Discipline</span>
+                                        <span className="text-white truncate block" title={userProfile?.favDiscipline}>{userProfile?.favDiscipline || '-'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-white/40 text-[10px] uppercase">Rig</span>
+                                        <span className="text-white truncate block" title={userProfile?.favRig}>{userProfile?.favRig || '-'}</span>
+                                    </div>
+                                </div>
+                                {userProfile?.settings && (
+                                    <div className="pt-2">
+                                        <span className="block text-white/40 text-[10px] uppercase">Notes</span>
+                                        <span className="text-white/80 italic text-xs block">{userProfile.settings}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -406,6 +487,103 @@ const DashboardPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+            {/* Edit Profile Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#141414] border border-white/10 rounded-2xl p-6 w-full max-w-lg relative">
+                        <button
+                            onClick={() => setShowEditModal(false)}
+                            className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <h2 className="font-display text-xl font-bold uppercase text-white mb-6">Edit Driver Profile</h2>
+
+                        {saveError && (
+                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
+                                {saveError}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSaveProfile} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Discipline</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.favDiscipline}
+                                        onChange={(e) => setEditFormData({ ...editFormData, favDiscipline: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                        placeholder="e.g. GT3"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Track</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.favTrack}
+                                        onChange={(e) => setEditFormData({ ...editFormData, favTrack: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                        placeholder="e.g. Spa"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Car</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.favCar}
+                                        onChange={(e) => setEditFormData({ ...editFormData, favCar: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                        placeholder="e.g. Ferrari 296"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Rig</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.favRig}
+                                        onChange={(e) => setEditFormData({ ...editFormData, favRig: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                        placeholder="e.g. Motion"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Settings / Notes</label>
+                                <textarea
+                                    value={editFormData.settings}
+                                    onChange={(e) => setEditFormData({ ...editFormData, settings: e.target.value })}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none resize-none"
+                                    rows={3}
+                                    placeholder="Force feedback preferences, etc."
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditModal(false)}
+                                    className="px-4 py-2 text-white/60 hover:text-white transition-colors text-sm font-bold uppercase tracking-wider"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSaving}
+                                    className="flex items-center gap-2 px-6 py-2 bg-[#2D9E49] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-[#248a3f] transition-colors disabled:opacity-50"
+                                >
+                                    {isSaving ? 'Saving...' : (
+                                        <>
+                                            <Save className="w-3 h-3" /> Save Changes
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

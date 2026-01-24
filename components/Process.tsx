@@ -15,7 +15,7 @@ const steps = [
     id: "02",
     title: "Choose Your Experience",
     icon: <Gamepad2 className="w-12 h-12 text-white mb-6" />,
-    desc: "Pick from our massive game library spanning arcade to simulation. Our staff will help you find the perfect game for your skill level and interests."
+    desc: "Pick from our massive demo game library spanning arcade to simulation. Our staff will help you find the perfect game for your skill level and interests."
   },
   {
     id: "03",

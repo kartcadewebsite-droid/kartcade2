@@ -5,7 +5,7 @@ import { useGSAP } from '@gsap/react';
 const cards = [
   {
     title: "Massive Game Library",
-    desc: "From hardcore sims like Le Mans Ultimate to arcade fun like Wreckfest. If it has wheels, we can run it.",
+    desc: "From hardcore sims like Le Mans Ultimate to arcade fun like Wreckfest. If it has wheels, we can run it. Find what you love to play, then use your personal game license to track your campaign progress and lap times.",
     bg: "bg-[#0A0A0A]",
     text: "text-white",
     accent: "text-[#2D9E49]"

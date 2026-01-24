@@ -13,6 +13,11 @@ const SignUpPage: React.FC = () => {
         phone: '',
         password: '',
         confirmPassword: '',
+        favDiscipline: '',
+        favTrack: '',
+        favCar: '',
+        favRig: '',
+        settings: '',
     });
     const [acceptRules, setAcceptRules] = useState(false);
     const [acceptWaiver, setAcceptWaiver] = useState(false);
@@ -49,7 +54,20 @@ const SignUpPage: React.FC = () => {
 
         try {
             setLoading(true);
-            await signUp(formData.email, formData.password, formData.name, formData.phone);
+            await signUp(
+                formData.email,
+                formData.password,
+                formData.name,
+                formData.phone,
+                {
+                    favDiscipline: formData.favDiscipline,
+                    favTrack: formData.favTrack,
+                    favCar: formData.favCar,
+                    favRig: formData.favRig,
+                    settings: formData.settings
+                }
+            );
+            // Email sign up collects data inline, so go straight to dashboard
             navigate('/dashboard');
         } catch (err: any) {
             if (err.code === 'auth/email-already-in-use') {
@@ -79,8 +97,13 @@ const SignUpPage: React.FC = () => {
         try {
             setLoading(true);
             setShowModal(false);
-            await loginWithGoogle();
-            navigate('/dashboard');
+            const { isNewUser } = await loginWithGoogle();
+
+            if (isNewUser) {
+                navigate('/onboarding');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (err: any) {
             setError('Failed to sign in with Google. Please try again.');
         } finally {
@@ -147,8 +170,8 @@ const SignUpPage: React.FC = () => {
                                         className="sr-only"
                                     />
                                     <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${modalAcceptRules
-                                            ? 'bg-[#2D9E49] border-[#2D9E49]'
-                                            : 'border-white/30 group-hover:border-white/50'
+                                        ? 'bg-[#2D9E49] border-[#2D9E49]'
+                                        : 'border-white/30 group-hover:border-white/50'
                                         }`}>
                                         {modalAcceptRules && <CheckCircle className="w-4 h-4 text-white" />}
                                     </div>
@@ -174,8 +197,8 @@ const SignUpPage: React.FC = () => {
                                         className="sr-only"
                                     />
                                     <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${modalAcceptWaiver
-                                            ? 'bg-[#2D9E49] border-[#2D9E49]'
-                                            : 'border-white/30 group-hover:border-white/50'
+                                        ? 'bg-[#2D9E49] border-[#2D9E49]'
+                                        : 'border-white/30 group-hover:border-white/50'
                                         }`}>
                                         {modalAcceptWaiver && <CheckCircle className="w-4 h-4 text-white" />}
                                     </div>
@@ -317,6 +340,82 @@ const SignUpPage: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Driver Details Section */}
+                            <div className="pt-4 pb-2">
+                                <h3 className="text-white font-display text-lg uppercase mb-4 flex items-center gap-2">
+                                    <span className="w-1 h-6 bg-[#2D9E49]"></span>
+                                    Driver Details
+                                    <span className="text-xs font-sans text-white/40 normal-case ml-2">(Help us set up your rig!)</span>
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Fav Discipline */}
+                                    <div>
+                                        <label className="block text-white/60 text-sm mb-2">Favorite Discipline</label>
+                                        <input
+                                            type="text"
+                                            name="favDiscipline"
+                                            value={formData.favDiscipline}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                            placeholder="e.g. Formula, GT3, Rally..."
+                                        />
+                                    </div>
+
+                                    {/* Fav Track */}
+                                    <div>
+                                        <label className="block text-white/60 text-sm mb-2">Favorite Track</label>
+                                        <input
+                                            type="text"
+                                            name="favTrack"
+                                            value={formData.favTrack}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                            placeholder="e.g. Spa, Nordschleife..."
+                                        />
+                                    </div>
+
+                                    {/* Fav Car */}
+                                    <div>
+                                        <label className="block text-white/60 text-sm mb-2">Favorite Car</label>
+                                        <input
+                                            type="text"
+                                            name="favCar"
+                                            value={formData.favCar}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                            placeholder="e.g. Porsche 911 GT3..."
+                                        />
+                                    </div>
+
+                                    {/* Fav Rig */}
+                                    <div>
+                                        <label className="block text-white/60 text-sm mb-2">Preferred Rig</label>
+                                        <input
+                                            type="text"
+                                            name="favRig"
+                                            value={formData.favRig}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                            placeholder="e.g. Motion, Static..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Settings Note */}
+                                <div className="mt-4">
+                                    <label className="block text-white/60 text-sm mb-2">Force Feedback / Settings Notes</label>
+                                    <input
+                                        type="text"
+                                        name="settings"
+                                        value={formData.settings}
+                                        onChange={handleChange}
+                                        className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                        placeholder="e.g. Strong FFB, Left Foot Braking..."
+                                    />
+                                </div>
+                            </div>
+
                             {/* Password */}
                             <div>
                                 <label className="block text-white/60 text-sm mb-2">Password</label>
@@ -369,8 +468,8 @@ const SignUpPage: React.FC = () => {
                                             className="sr-only"
                                         />
                                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${acceptRules
-                                                ? 'bg-[#2D9E49] border-[#2D9E49]'
-                                                : 'border-white/30 group-hover:border-white/50'
+                                            ? 'bg-[#2D9E49] border-[#2D9E49]'
+                                            : 'border-white/30 group-hover:border-white/50'
                                             }`}>
                                             {acceptRules && <CheckCircle className="w-3 h-3 text-white" />}
                                         </div>
@@ -395,8 +494,8 @@ const SignUpPage: React.FC = () => {
                                             className="sr-only"
                                         />
                                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${acceptWaiver
-                                                ? 'bg-[#2D9E49] border-[#2D9E49]'
-                                                : 'border-white/30 group-hover:border-white/50'
+                                            ? 'bg-[#2D9E49] border-[#2D9E49]'
+                                            : 'border-white/30 group-hover:border-white/50'
                                             }`}>
                                             {acceptWaiver && <CheckCircle className="w-3 h-3 text-white" />}
                                         </div>

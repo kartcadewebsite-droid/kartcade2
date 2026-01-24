@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
     User,
@@ -23,7 +24,13 @@ interface UserProfile {
     rulesAccepted: boolean;
     waiverAcceptedAt?: Date;
     createdAt?: Date;
-    // NEW: Credits and Membership
+    // Driver Details
+    favDiscipline?: string;
+    favTrack?: string;
+    favCar?: string;
+    favRig?: string;
+    settings?: string;
+    // Credits and Membership
     credits: UserCredits;
     membership: UserMembership;
 }
@@ -33,12 +40,25 @@ interface AuthContextType {
     userProfile: UserProfile | null;
     loading: boolean;
     isAdmin: boolean;
-    signUp: (email: string, password: string, name: string, phone: string) => Promise<void>;
+    signUp: (
+        email: string,
+        password: string,
+        name: string,
+        phone: string,
+        driverDetails?: {
+            favDiscipline?: string;
+            favTrack?: string;
+            favCar?: string;
+            favRig?: string;
+            settings?: string;
+        }
+    ) => Promise<void>;
     login: (email: string, password: string) => Promise<void>;
-    loginWithGoogle: () => Promise<void>;
+    loginWithGoogle: () => Promise<{ isNewUser: boolean }>;
+    updateProfile: (data: Partial<UserProfile>) => Promise<void>;
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
-    // NEW: Credits functions
+    // Credits functions
     useCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<boolean>;
     addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<void>;
     getCredits: (equipmentType: 'kart' | 'rig' | 'motion') => number;
@@ -68,11 +88,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check if current user is admin - ONLY from Firestore role (no hardcoded email)
     const isAdmin = userProfile?.role === 'admin';
 
-    // Create user profile in Firestore
+    // Create user profile in Firestore - Returns true if new user created
     const createUserProfile = async (
         user: User,
-        additionalData: { name: string; phone?: string }
-    ) => {
+        additionalData: {
+            name: string;
+            phone?: string;
+        }
+    ): Promise<boolean> => {
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
 
@@ -82,9 +105,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 email: user.email || '',
                 name: additionalData.name || user.displayName || '',
                 phone: additionalData.phone || '',
-                waiverAccepted: true,
-                rulesAccepted: true,
-                waiverAcceptedAt: serverTimestamp(),
+                waiverAccepted: false, // Will be set in Onboarding
+                rulesAccepted: false,  // Will be set in Onboarding
                 createdAt: serverTimestamp(),
                 // Initialize with empty credits and no membership
                 credits: DEFAULT_CREDITS,
@@ -92,7 +114,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             };
 
             await setDoc(userRef, profileData);
+            return true; // New user created
         }
+        return false; // User already existed
     };
 
     // Fetch user profile from Firestore
@@ -159,9 +183,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Sign up with email/password
-    const signUp = async (email: string, password: string, name: string, phone: string) => {
+    const signUp = async (
+        email: string,
+        password: string,
+        name: string,
+        phone: string,
+        driverDetails?: {
+            favDiscipline?: string;
+            favTrack?: string;
+            favCar?: string;
+            favRig?: string;
+            settings?: string;
+        }
+    ) => {
         const { user } = await createUserWithEmailAndPassword(auth, email, password);
-        await createUserProfile(user, { name, phone });
+        // For email signup, we might still want to capture details inline or redirect. 
+        // For consistency, let's keep the details here IF passed, but normally we'd redirect too.
+        // Actually, let's keep email signup as is (all in one), but Google as two-step.
+
+        const userRef = doc(db, 'users', user.uid);
+        const profileData = {
+            uid: user.uid,
+            email: user.email || '',
+            name: name,
+            phone: phone,
+            ...driverDetails,
+            waiverAccepted: true, // Email form has checkbox
+            rulesAccepted: true,  // Email form has checkbox
+            waiverAcceptedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            credits: DEFAULT_CREDITS,
+            membership: DEFAULT_MEMBERSHIP,
+        };
+        await setDoc(userRef, profileData);
+
         await fetchUserProfile(user.uid);
     };
 
@@ -170,11 +225,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await signInWithEmailAndPassword(auth, email, password);
     };
 
-    // Login with Google
-    const loginWithGoogle = async () => {
+    // Login with Google - Returns isNewUser
+    const loginWithGoogle = async (): Promise<{ isNewUser: boolean }> => {
         const { user } = await signInWithPopup(auth, googleProvider);
-        await createUserProfile(user, { name: user.displayName || '' });
+        const isNewUser = await createUserProfile(user, { name: user.displayName || '' });
         await fetchUserProfile(user.uid);
+        return { isNewUser };
+    };
+
+    // Update profile
+    const updateProfile = async (data: Partial<UserProfile>) => {
+        if (!currentUser) return;
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, data);
+        await refreshUserProfile();
     };
 
     // Logout
@@ -211,6 +275,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signUp,
         login,
         loginWithGoogle,
+        updateProfile,
         logout,
         resetPassword,
         // Credits functions
