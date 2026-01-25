@@ -33,6 +33,7 @@ const DashboardPage: React.FC = () => {
         favCar: '',
         favRig: '',
         settings: '',
+        phone: '', // Add phone field
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
@@ -88,6 +89,7 @@ const DashboardPage: React.FC = () => {
                 favCar: userProfile.favCar || '',
                 favRig: userProfile.favRig || '',
                 settings: userProfile.settings || '',
+                phone: userProfile.phone || '',
             });
         }
     }, [userProfile, showEditModal]);
@@ -263,7 +265,18 @@ const DashboardPage: React.FC = () => {
                                         <span className="text-white truncate block" title={userProfile?.favTrack}>{userProfile?.favTrack || '-'}</span>
                                     </div>
                                     <div>
-                                        <span className="block text-white/40 text-[10px] uppercase">Discipline</span>
+                                        <label className="block text-white/60 text-sm mb-1">Phone</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.phone}
+                                            onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                                            className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#2D9E49]"
+                                            placeholder="555-0123"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-white/60 text-sm mb-1">Favorite Discipline</label>
                                         <span className="text-white truncate block" title={userProfile?.favDiscipline}>{userProfile?.favDiscipline || '-'}</span>
                                     </div>
                                     <div>
@@ -579,6 +592,16 @@ const DashboardPage: React.FC = () => {
                                         onChange={(e) => setEditFormData({ ...editFormData, favTrack: e.target.value })}
                                         className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
                                         placeholder="e.g. Spa"
+                                    />
+                                </div>
+                                <div className="col-span-2 md:col-span-1">
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Mobile Number</label>
+                                    <input
+                                        type="tel"
+                                        value={editFormData.phone}
+                                        onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                        placeholder="555-123-4567"
                                     />
                                 </div>
                                 <div>

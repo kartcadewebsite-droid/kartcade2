@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
@@ -117,10 +117,30 @@ const BookingPage: React.FC = () => {
     const { currentUser, userProfile, isAdmin, getCredits, useCredits, hasEnoughCredits } = useAuth();
 
     // Booking state
-    const [step, setStep] = useState(1);
-    const [selectedStation, setSelectedStation] = useState<string | null>(null);
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [searchParams] = useSearchParams();
+
+    // Booking state - Initialize from URL params if available
+    const [step, setStep] = useState(() => {
+        const hasStation = searchParams.get('station');
+        const hasDate = searchParams.get('date');
+        const hasTime = searchParams.get('time');
+
+        if (hasStation && hasDate && hasTime) return 3;
+        if (hasStation && hasDate) return 2;
+        return 1;
+    });
+
+    const [selectedStation, setSelectedStation] = useState<string | null>(searchParams.get('station') || null);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+        const d = searchParams.get('date');
+        // Handle timezone issues by treating date as local YYYY-MM-DD
+        if (d) {
+            const parts = d.split('-');
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+        return null;
+    });
+    const [selectedTime, setSelectedTime] = useState<string | null>(searchParams.get('time') || null);
     const [drivers, setDrivers] = useState(1);
     const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits'>('venue');
     const [availability, setAvailability] = useState<{ [key: string]: { booked: number; available: number; total: number } }>({});
@@ -851,8 +871,8 @@ const BookingPage: React.FC = () => {
                                                 <button
                                                     onClick={() => setPaymentMethod('now')}
                                                     className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'now'
-                                                            ? 'bg-[#2D9E49]/20 border-[#2D9E49] shadow-lg shadow-[#2D9E49]/20'
-                                                            : 'border-white/10 hover:bg-white/5'
+                                                        ? 'bg-[#2D9E49]/20 border-[#2D9E49] shadow-lg shadow-[#2D9E49]/20'
+                                                        : 'border-white/10 hover:bg-white/5'
                                                         }`}
                                                 >
                                                     <CreditCard className={`w-6 h-6 ${paymentMethod === 'now' ? 'text-[#2D9E49]' : 'text-white/50'}`} />

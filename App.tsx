@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import CustomCursor from './components/CustomCursor';
 import FloatingCallButton from './components/FloatingCallButton';
 import ProtectedRoute from './components/ProtectedRoute';
+import Chatbot from './components/Chatbot';
 
 // Pages
 import Home from './pages/Home';
@@ -93,6 +94,7 @@ const App: React.FC = () => {
             <CustomCursor />
             <Navbar />
             <FloatingCallButton />
+            <Chatbot />
 
             {/* Main Content Wrapper */}
             <main className="relative z-10 w-full">
