@@ -517,28 +517,43 @@ const BookingPage: React.FC = () => {
                                                     {timeSlots.map((time) => {
                                                         const available = getAvailableUnits(time);
                                                         const isSelected = selectedTime === time;
-                                                        const isFull = available <= 0;
+
+                                                        // Check if time is in the past (Oregon Time)
+                                                        const now = new Date();
+                                                        // Convert current browser time to Oregon time
+                                                        const oregonNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+
+                                                        // Check if selected date matches Oregon's today
+                                                        const isToday = selectedDate?.getDate() === oregonNow.getDate() &&
+                                                            selectedDate?.getMonth() === oregonNow.getMonth() &&
+                                                            selectedDate?.getFullYear() === oregonNow.getFullYear();
+
+                                                        const slotHour = parseInt(time.split(':')[0]);
+                                                        const currentHour = oregonNow.getHours();
+                                                        const isPast = isToday && slotHour <= currentHour;
+
+                                                        const isDisabled = available <= 0 || isPast;
 
                                                         return (
                                                             <button
                                                                 key={time}
                                                                 onClick={() => {
-                                                                    if (!isFull) {
+                                                                    if (!isDisabled) {
                                                                         setSelectedTime(time);
                                                                         setDrivers(1);
                                                                     }
                                                                 }}
-                                                                disabled={isFull}
+                                                                disabled={isDisabled}
                                                                 className={`p-4 rounded-xl text-center transition-all ${isSelected
                                                                     ? 'bg-[#2D9E49] text-white'
-                                                                    : isFull
-                                                                        ? 'bg-[#1a1a1a] text-white/20 cursor-not-allowed'
+                                                                    : isDisabled
+                                                                        ? 'bg-[#1a1a1a] text-white/20 cursor-not-allowed border border-transparent'
                                                                         : 'bg-[#141414] border border-white/10 hover:border-[#2D9E49]/50'
                                                                     }`}
                                                             >
                                                                 <div className="font-bold">{time}</div>
-                                                                <div className={`text-xs mt-1 ${isFull ? 'text-[#D42428]' : 'text-[#2D9E49]'}`}>
-                                                                    {isFull ? 'FULL' : `${available} left`}
+                                                                <div className={`text-xs mt-1 ${isPast ? 'text-white/20' : available <= 0 ? 'text-[#D42428]' : 'text-[#2D9E49]'}`}>
+                                                                    {isPast ? 'PASSED' : available <= 0 ? 'FULL' : `${available} left`}
                                                                 </div>
                                                             </button>
                                                         );
@@ -832,17 +847,20 @@ const BookingPage: React.FC = () => {
                                                     </div>
                                                 </button>
 
-                                                {/* Pay in Full - Coming Soon */}
+                                                {/* Pay in Full - TEST MODE */}
                                                 <button
-                                                    disabled
-                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4"
+                                                    onClick={() => setPaymentMethod('now')}
+                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'now'
+                                                            ? 'bg-[#2D9E49]/20 border-[#2D9E49] shadow-lg shadow-[#2D9E49]/20'
+                                                            : 'border-white/10 hover:bg-white/5'
+                                                        }`}
                                                 >
-                                                    <CreditCard className="w-6 h-6 text-white/50" />
+                                                    <CreditCard className={`w-6 h-6 ${paymentMethod === 'now' ? 'text-[#2D9E49]' : 'text-white/50'}`} />
                                                     <div>
                                                         <div className="font-bold flex items-center gap-2">
                                                             Pay in Full
-                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
-                                                                Coming Soon
+                                                            <span className="text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full uppercase font-bold">
+                                                                Test Mode
                                                             </span>
                                                         </div>
                                                         <div className="text-sm text-white/50">Complete payment online</div>

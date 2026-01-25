@@ -104,6 +104,53 @@ const RulesPage: React.FC = () => {
                 </div>
             </section>
 
+            {/* Booking & Cancellation Policy */}
+            <section className="py-8 md:py-16 bg-[#141414]/30 border-y border-white/5">
+                <div className="container mx-auto px-4 md:px-6 lg:px-12 max-w-4xl">
+                    <div className="flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h2 className="font-display text-xl md:text-3xl lg:text-4xl font-bold uppercase text-white">Booking Terms</h2>
+                    </div>
+
+                    <div className="bg-[#0A0A0A] rounded-xl border border-white/10 p-6 md:p-8 space-y-6">
+                        <div>
+                            <h3 className="font-display text-lg font-bold uppercase text-[#2D9E49] mb-2">Advance Cancellations ({'>'} 1 Week)</h3>
+                            <p className="text-white/70 text-sm">
+                                Life happens. If you cancel or adjust your booking more than <strong>7 days in advance</strong>, you receive a full refund with no penalty.
+                            </p>
+                        </div>
+
+                        <div className="w-full h-px bg-white/10" />
+
+                        <div>
+                            <h3 className="font-display text-lg font-bold uppercase text-yellow-500 mb-2">Short Notice (48 Hours - 1 Week)</h3>
+                            <p className="text-white/70 text-sm">
+                                Cancellations made between <strong>48 hours and 7 days</strong> before the appointment will receive a <strong>50% refund</strong> credited to your Kartcade account for future use.
+                            </p>
+                        </div>
+
+                        <div className="w-full h-px bg-white/10" />
+
+                        <div>
+                            <h3 className="font-display text-lg font-bold uppercase text-[#D42428] mb-2">Late Cancellations ({'<'} 48 Hours)</h3>
+                            <p className="text-white/70 text-sm">
+                                Cancellations made within <strong>48 hours</strong> of the appointment (or no-shows) are non-refundable.
+                            </p>
+                        </div>
+
+                        <div className="bg-[#D42428]/5 border border-[#D42428]/20 rounded-lg p-4 mt-4">
+                            <p className="text-white/60 text-xs">
+                                <strong>Party Bookings:</strong> Parties require full payment upfront. The same 7-day policy applies (Full refund {'>'} 7 days, 50% credit {'<'} 7 days).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* CTA Section - Matching Homepage */}
             <section className="relative py-16 md:py-32 bg-[#0A0A0A] text-white overflow-hidden">
                 <div className="absolute inset-0 overflow-hidden opacity-10">

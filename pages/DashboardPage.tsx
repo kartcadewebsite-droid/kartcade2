@@ -101,24 +101,9 @@ const DashboardPage: React.FC = () => {
         }
     };
 
-    const handleCancelBooking = async (bookingId: string) => {
-        if (!confirm('Are you sure you want to cancel this booking?')) return;
-
-        try {
-            setCancellingId(bookingId);
-            setError('');
-            const response = await bookingApi.cancelBooking(bookingId);
-
-            if (response.success) {
-                setUpcomingBookings(prev => prev.filter(b => b.id !== bookingId));
-            } else {
-                setError(response.error || 'Failed to cancel booking');
-            }
-        } catch (error) {
-            setError('Failed to cancel booking. Please try again.');
-        } finally {
-            setCancellingId(null);
-        }
+    const handleCancelBooking = (bookingId: string) => {
+        // Redirect to cancel page to handle refunds/credits logic
+        navigate(`/cancel?id=${bookingId}`);
     };
 
     const handleSaveProfile = async (e: React.FormEvent) => {
@@ -156,6 +141,23 @@ const DashboardPage: React.FC = () => {
         const displayHour = hour % 12 || 12;
         return `${displayHour}:${minutes} ${ampm}`;
     };
+
+    // Filter bookings
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Include today in upcoming
+
+    const upcomingList = upcomingBookings.filter(b => {
+        const bookingDate = new Date(b.date);
+        // Correct timezone offset issue by treating the YYYY-MM-DD as local
+        const localDate = new Date(bookingDate.valueOf() + bookingDate.getTimezoneOffset() * 60000);
+        return localDate >= now;
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const historyList = upcomingBookings.filter(b => {
+        const bookingDate = new Date(b.date);
+        const localDate = new Date(bookingDate.valueOf() + bookingDate.getTimezoneOffset() * 60000);
+        return localDate < now;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Get station color
     const getStationColor = (station: string) => {
@@ -416,9 +418,9 @@ const DashboardPage: React.FC = () => {
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#2D9E49] mx-auto mb-4"></div>
                                 <p className="text-white/60">Loading bookings...</p>
                             </div>
-                        ) : upcomingBookings.length > 0 ? (
+                        ) : upcomingList.length > 0 ? (
                             <div className="space-y-4">
-                                {upcomingBookings.map((booking) => (
+                                {upcomingList.map((booking) => (
                                     <div
                                         key={booking.id}
                                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-black/30 rounded-xl border border-white/5"
@@ -427,10 +429,10 @@ const DashboardPage: React.FC = () => {
                                             {/* Date/Time */}
                                             <div className="text-center min-w-[60px]">
                                                 <div className="text-2xl font-bold text-white">
-                                                    {new Date(booking.date).getDate()}
+                                                    {new Date(booking.date).getUTCDate()}
                                                 </div>
                                                 <div className="text-xs text-white/60 uppercase">
-                                                    {new Date(booking.date).toLocaleDateString('en-US', { month: 'short' })}
+                                                    {new Date(booking.date).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })}
                                                 </div>
                                             </div>
 
@@ -486,6 +488,57 @@ const DashboardPage: React.FC = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Booking History */}
+                {historyList.length > 0 && (
+                    <div className="mt-12 opacity-80 hover:opacity-100 transition-opacity">
+                        <h2 className="font-display text-lg font-bold text-white/40 uppercase mb-4 flex items-center gap-2">
+                            <Clock className="w-5 h-5" />
+                            Booking History
+                        </h2>
+                        <div className="bg-[#141414]/50 rounded-2xl p-6 border border-white/5">
+                            <div className="space-y-4">
+                                {historyList.map((booking) => (
+                                    <div
+                                        key={booking.id}
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-black/20 rounded-xl"
+                                    >
+                                        <div className="flex items-start gap-4 opacity-60">
+                                            {/* Date/Time */}
+                                            <div className="text-center min-w-[60px]">
+                                                <div className="text-xl font-bold text-white">
+                                                    {new Date(booking.date).getUTCDate()}
+                                                </div>
+                                                <div className="text-xs text-white/60 uppercase">
+                                                    {new Date(booking.date).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })}
+                                                </div>
+                                            </div>
+
+                                            {/* Details */}
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span
+                                                        className="w-2 h-2 rounded-full bg-white/40"
+                                                    ></span>
+                                                    <span className="font-display text-white font-bold uppercase text-sm">
+                                                        {booking.station}
+                                                    </span>
+                                                </div>
+                                                <div className="text-white/60 text-sm">
+                                                    {formatDate(booking.date)} at {formatTime(booking.time)}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-2 sm:mt-0 text-white/20 text-xs font-mono">
+                                            COMPLETED
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             {/* Edit Profile Modal */}
             {showEditModal && (

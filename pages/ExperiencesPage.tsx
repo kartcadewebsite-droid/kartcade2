@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Gamepad2, Plane, Settings, X } from 'lucide-react';
 
@@ -117,7 +118,7 @@ const ExperiencesPage: React.FC = () => {
                     <div className="bg-[#141414] rounded-xl md:rounded-2xl p-5 md:p-8 lg:p-12 border border-white/10">
                         <h2 className="font-display text-lg md:text-2xl lg:text-3xl font-bold uppercase mb-4 md:mb-6 text-center text-white">Our Gaming Philosophy</h2>
                         <p className="text-white/70 font-sans text-sm md:text-lg text-center leading-relaxed max-w-3xl mx-auto">
-                            Kartcade isn't just about sim racing—it's about celebrating every type of driving experience. We've curated a library that spans the full spectrum from arcade fun to hardcore simulation, including games you won't find at any other racing lounge.
+                            Kartcade isn't just about sim racing—it's about celebrating every type of driving experience. We've curated a library that spans the full spectrum from arcade fun to hardcore simulation, including games you won't find at any other racing lounge. Each of the games below is fully configured and available to demo on a selected machine. Monthly members are able to load their own games from their steam profile and our staff will help you configure the components to your liking.
                         </p>
                     </div>
                 </div>
@@ -293,112 +294,115 @@ const ExperiencesPage: React.FC = () => {
             </section>
 
             {/* Video Preview Modal */}
-            <div
-                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 transition-all duration-300 ${selectedGame ? 'visible opacity-100' : 'invisible opacity-0'}`}
-            >
-                {/* Backdrop */}
+            {createPortal(
                 <div
-                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
-                    onClick={closeGame}
-                ></div>
-
-                {/* Modal Card */}
-                <div
-                    className={`relative w-full max-w-5xl h-[85vh] md:h-[600px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
+                    className={`fixed inset-0 z-[100000] flex items-center justify-center p-4 md:p-8 transition-all duration-300 ${selectedGame ? 'visible opacity-100' : 'invisible opacity-0'}`}
                 >
-                    {/* Close Button */}
-                    <button
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/90 backdrop-blur-md"
                         onClick={closeGame}
-                        className="absolute top-4 right-4 z-20 bg-black/40 hover:bg-[#D42428] p-2 rounded-full text-white transition-all backdrop-blur-md border border-white/10 group"
+                    ></div>
+
+                    {/* Modal Card */}
+                    <div
+                        className={`relative w-full max-w-5xl h-[85vh] md:h-[600px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
                     >
-                        <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                    </button>
+                        {/* Close Button */}
+                        <button
+                            onClick={closeGame}
+                            className="absolute top-4 right-4 z-20 bg-black/40 hover:bg-[#D42428] p-2 rounded-full text-white transition-all backdrop-blur-md border border-white/10 group"
+                        >
+                            <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                        </button>
 
-                    {selectedGame && (
-                        <>
-                            {/* Video / Media Section */}
-                            {/* Mobile: Absolute Background. Desktop: Right Side Block */}
-                            <div className="absolute inset-0 md:relative md:w-[55%] md:order-2 bg-black h-full md:h-full">
-                                {selectedGame.videoUrl ? (
-                                    <video
-                                        src={selectedGame.videoUrl}
-                                        autoPlay
-                                        muted
-                                        loop
-                                        playsInline
-                                        className="w-full h-full object-cover opacity-60 md:opacity-90 transition-opacity"
-                                    />
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8 bg-zinc-900/50">
-                                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center animate-pulse backdrop-blur-sm">
-                                            <Gamepad2 className="w-10 h-10 text-white/20" />
+                        {selectedGame && (
+                            <>
+                                {/* Video / Media Section */}
+                                {/* Mobile: Absolute Background. Desktop: Right Side Block */}
+                                <div className="absolute inset-0 md:relative md:w-[55%] md:order-2 bg-black h-full md:h-full">
+                                    {selectedGame.videoUrl ? (
+                                        <video
+                                            src={selectedGame.videoUrl}
+                                            autoPlay
+                                            muted
+                                            loop
+                                            playsInline
+                                            className="w-full h-full object-cover opacity-60 md:opacity-90 transition-opacity"
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8 bg-zinc-900/50">
+                                            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center animate-pulse backdrop-blur-sm">
+                                                <Gamepad2 className="w-10 h-10 text-white/20" />
+                                            </div>
+                                            <p className="text-white/40 uppercase tracking-widest text-xs font-medium">Preview coming soon</p>
                                         </div>
-                                        <p className="text-white/40 uppercase tracking-widest text-xs font-medium">Preview coming soon</p>
-                                    </div>
-                                )}
+                                    )}
 
-                                {/* Mobile Gradient Overlay for Text Readability */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent md:hidden"></div>
-                                {/* Desktop Gradient Side Fade */}
-                                <div className="absolute inset-0 bg-gradient-to-l from-[#141414] via-transparent to-transparent pointer-events-none hidden md:block"></div>
-                            </div>
-
-                            {/* Content Section */}
-                            {/* Mobile: Bottom Overlay. Desktop: Left Side Block */}
-                            <div className="relative z-10 mt-auto md:mt-0 w-full md:w-[45%] md:order-1 p-6 md:p-10 flex flex-col justify-end md:justify-between h-auto md:h-full overflow-y-auto custom-scrollbar">
-
-                                <div className="mb-4 md:mb-0">
-                                    <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
-                                        {selectedGame.tags?.map(tag => (
-                                            <span key={tag} className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-[#2D9E49] bg-black/50 md:bg-[#2D9E49]/10 border border-[#2D9E49]/30 px-2 py-1 rounded-full backdrop-blur-sm">
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-
-                                    <h2 className="font-display text-4xl md:text-5xl font-bold uppercase text-white mb-2 md:mb-4 leading-none shadow-black drop-shadow-lg md:drop-shadow-none">
-                                        {selectedGame.name}
-                                    </h2>
-
-                                    <p className="text-white/80 md:text-white/70 font-sans text-sm md:text-base leading-relaxed mb-6 md:mb-8 text-shadow-sm md:text-shadow-none max-w-md">
-                                        {selectedGame.description}
-                                    </p>
-
-                                    <div className="space-y-3 mb-6 hidden md:block">
-                                        <h3 className="font-display text-xs font-bold uppercase text-white/40 tracking-widest">Highlights</h3>
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-3 text-white/80 text-sm">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#2D9E49]"></div>
-                                                High-Fidelity Graphics
-                                            </div>
-                                            <div className="flex items-center gap-3 text-white/80 text-sm">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#D42428]"></div>
-                                                Force Feedback Compatible
-                                            </div>
-                                            <div className="flex items-center gap-3 text-white/80 text-sm">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                                Pro-Level Physics
-                                            </div>
-                                        </div>
-                                    </div>
+                                    {/* Mobile Gradient Overlay for Text Readability */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent md:hidden"></div>
+                                    {/* Desktop Gradient Side Fade */}
+                                    <div className="absolute inset-0 bg-gradient-to-l from-[#141414] via-transparent to-transparent pointer-events-none hidden md:block"></div>
                                 </div>
 
-                                <div className="pt-4 md:pt-8 md:border-t md:border-white/10">
-                                    <Link
-                                        to={`/book?notes=I want to play ${selectedGame.name}`}
-                                        className="flex items-center justify-center gap-2 w-full py-4 bg-[#D42428] hover:bg-[#B91C1C] text-white font-bold uppercase tracking-widest text-sm rounded-xl transition-all group shadow-lg shadow-red-900/30 backdrop-blur-sm"
-                                    >
-                                        Book This Experience <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                    </Link>
-                                    <p className="text-center text-white/40 md:text-white/30 text-[10px] mt-3 uppercase tracking-wider">
-                                        Reserve your rig to play {selectedGame.name}
-                                    </p>
+                                {/* Content Section */}
+                                {/* Mobile: Bottom Overlay. Desktop: Left Side Block */}
+                                <div className="relative z-10 mt-auto md:mt-0 w-full md:w-[45%] md:order-1 p-6 md:p-10 flex flex-col justify-end md:justify-between h-auto md:h-full overflow-y-auto custom-scrollbar">
+
+                                    <div className="mb-4 md:mb-0">
+                                        <div className="flex flex-wrap gap-2 mb-3 md:mb-4">
+                                            {selectedGame.tags?.map(tag => (
+                                                <span key={tag} className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-[#2D9E49] bg-black/50 md:bg-[#2D9E49]/10 border border-[#2D9E49]/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+
+                                        <h2 className="font-display text-4xl md:text-5xl font-bold uppercase text-white mb-2 md:mb-4 leading-none shadow-black drop-shadow-lg md:drop-shadow-none">
+                                            {selectedGame.name}
+                                        </h2>
+
+                                        <p className="text-white/80 md:text-white/70 font-sans text-sm md:text-base leading-relaxed mb-6 md:mb-8 text-shadow-sm md:text-shadow-none max-w-md">
+                                            {selectedGame.description}
+                                        </p>
+
+                                        <div className="space-y-3 mb-6 hidden md:block">
+                                            <h3 className="font-display text-xs font-bold uppercase text-white/40 tracking-widest">Highlights</h3>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-3 text-white/80 text-sm">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#2D9E49]"></div>
+                                                    High-Fidelity Graphics
+                                                </div>
+                                                <div className="flex items-center gap-3 text-white/80 text-sm">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#D42428]"></div>
+                                                    Force Feedback Compatible
+                                                </div>
+                                                <div className="flex items-center gap-3 text-white/80 text-sm">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+                                                    Pro-Level Physics
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 md:pt-8 md:border-t md:border-white/10">
+                                        <Link
+                                            to={`/book?notes=I want to play ${selectedGame.name}`}
+                                            className="flex items-center justify-center gap-2 w-full py-4 bg-[#D42428] hover:bg-[#B91C1C] text-white font-bold uppercase tracking-widest text-sm rounded-xl transition-all group shadow-lg shadow-red-900/30 backdrop-blur-sm"
+                                        >
+                                            Book This Experience <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                        </Link>
+                                        <p className="text-center text-white/40 md:text-white/30 text-[10px] mt-3 uppercase tracking-wider">
+                                            Reserve your rig to play {selectedGame.name}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </div>
+                            </>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

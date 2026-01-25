@@ -25,31 +25,61 @@ const PricingPage: React.FC = () => {
 
     const sessionPricing = [
         {
-            title: "Full Sim Rig",
-            subtitle: "Motion & Static Simulators",
-            price: "$25",
-            period: "/hour",
-            features: [
-                "Professional direct-drive wheels",
-                "Motion platform available",
-                "Full game library access",
-                "Staff assistance & setup",
-                "Race against friends"
-            ],
-            color: "#D42428",
-            popular: true
-        },
-        {
-            title: "Racing Kart",
-            subtitle: "Junior Simulators",
-            price: "$20",
+            title: "Racing Karts",
+            subtitle: "Ages 5+ (Kids & Teens)",
+            price: "$30",
             period: "/hour",
             features: [
                 "Dedicated racing karts",
-                "Perfect for ages 5+",
+                "Intermediate speed",
                 "Beginner-friendly games",
                 "Staff supervision",
                 "Fun for all skill levels"
+            ],
+            color: "#2D9E49",
+            popular: false
+        },
+        {
+            title: "Full Sim Rig",
+            subtitle: "Direct Drive (Ages 10+)",
+            price: "$40",
+            period: "/hour",
+            features: [
+                "Professional direct-drive wheels",
+                "High-fidelity pedals",
+                "Full game library access",
+                "Race against friends",
+                "Staff assistance & setup"
+            ],
+            color: "#FFFFFF",
+            popular: true
+        },
+        {
+            title: "Motion Simulator",
+            subtitle: "Full Motion (Ages 14+)",
+            price: "$50",
+            period: "/hour",
+            features: [
+                "Full motion platform",
+                "Triple screen immersion",
+                "Ultimate racing realism",
+                "Advanced force feedback",
+                "Pro-level experience"
+            ],
+            color: "#D42428",
+            popular: false
+        },
+        {
+            title: "Flight Simulator",
+            subtitle: "HOTAS Setup (All Ages)",
+            price: "$40",
+            period: "/hour",
+            features: [
+                "Detailed flight controls",
+                "Wide ultrawide monitor",
+                "Space & Atmo flight sims",
+                "Immersive experience",
+                "Beginner to Pro"
             ],
             color: "#2D9E49",
             popular: false
@@ -110,54 +140,80 @@ const PricingPage: React.FC = () => {
 
             {/* Session Pricing Cards */}
             <section className="py-16 px-6 md:px-12">
-                <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {sessionPricing.map((plan, index) => (
                         <div
                             key={index}
-                            className={`relative p-8 md:p-10 rounded-3xl border transition-all duration-300 hover:scale-[1.02] ${plan.popular
+                            className={`relative p-6 rounded-2xl border transition-all duration-300 hover:scale-[1.02] flex flex-col h-full ${plan.popular
                                 ? 'bg-gradient-to-b from-[#D42428]/20 to-[#141414] border-[#D42428]/50'
                                 : 'bg-[#141414] border-white/10 hover:border-[#2D9E49]/50'
                                 }`}
                         >
                             {plan.popular && (
-                                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                                    <span className="bg-[#D42428] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                    <span className="bg-[#D42428] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full whitespace-nowrap">
                                         Most Popular
                                     </span>
                                 </div>
                             )}
 
-                            <div className="mb-6">
-                                <h3 className="font-display text-2xl font-bold uppercase">{plan.title}</h3>
-                                <p className="text-white/50 text-sm">{plan.subtitle}</p>
+                            <div className="mb-4">
+                                <h3 className="font-display text-xl font-bold uppercase truncate" title={plan.title}>{plan.title}</h3>
+                                <p className="text-white/50 text-xs">{plan.subtitle}</p>
                             </div>
 
-                            <div className="flex items-baseline gap-2 mb-8">
-                                <span className="font-display text-6xl font-bold" style={{ color: plan.color }}>{plan.price}</span>
-                                <span className="text-white/40">{plan.period}</span>
+                            <div className="flex items-baseline gap-1 mb-6">
+                                <span className="font-display text-4xl font-bold" style={{ color: plan.color }}>{plan.price}</span>
+                                <span className="text-white/40 text-sm">{plan.period}</span>
                             </div>
 
-                            <ul className="space-y-4 mb-8">
+                            <ul className="space-y-3 mb-8 flex-grow">
                                 {plan.features.map((feature, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-white/70">
-                                        <Check className="w-5 h-5" style={{ color: plan.color }} />
-                                        {feature}
+                                    <li key={i} className="flex items-start gap-2 text-white/70 text-xs">
+                                        <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: plan.color }} />
+                                        <span className="leading-tight">{feature}</span>
                                     </li>
                                 ))}
                             </ul>
 
-                            <Link
-                                to="/book"
-                                className="block text-center py-4 rounded-full font-bold uppercase tracking-widest text-sm transition-all"
-                                style={{
-                                    backgroundColor: plan.color,
-                                    color: 'white'
-                                }}
-                            >
-                                Book Now
-                            </Link>
+                            <div className="grid grid-cols-1 gap-3 mt-auto">
+                                <Link
+                                    to="/book"
+                                    className="block text-center py-3 rounded-xl font-bold uppercase tracking-widest text-xs transition-all hover:brightness-110"
+                                    style={{
+                                        backgroundColor: plan.color,
+                                        color: plan.color === '#FFFFFF' ? 'black' : 'white'
+                                    }}
+                                >
+                                    Book Now
+                                </Link>
+                                <Link
+                                    to="/equipment"
+                                    className="block text-center py-3 rounded-xl font-bold uppercase tracking-widest text-xs transition-all border border-white/10 hover:bg-white/5 text-white/60 hover:text-white"
+                                >
+                                    View Equipment
+                                </Link>
+                            </div>
                         </div>
                     ))}
+                </div>
+
+                {/* Sharing Policy Disclaimer */}
+                <div className="max-w-4xl mx-auto mt-16 p-8 bg-[#141414] border border-white/10 rounded-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-[#2D9E49]"></div>
+                    <div className="relative z-10 flex flex-col md:flex-row gap-6 items-start md:items-center">
+                        <div className="p-3 bg-white/5 rounded-full text-[#2D9E49]">
+                            <Users className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <h3 className="font-display text-xl font-bold uppercase mb-2">Machine Sharing Policy</h3>
+                            <p className="text-white/70 leading-relaxed text-sm md:text-base">
+                                If you book multiple rigs, you and a friend are able to freely trade machines back and forth to sample the different components,
+                                but <strong>all drivers must have a paid entry and driver profile</strong>.
+                                Spectators are welcome to watch, but may only drive if they have a paid entry and driver profile.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </section>
 

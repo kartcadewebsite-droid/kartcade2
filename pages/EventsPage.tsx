@@ -24,8 +24,8 @@ const eventPackages = [
         title: "Corporate Team Building",
         price: "Custom Pricing",
         features: [
-            "Custom time blocks (2-4 hours)",
-            "Flexible scheduling",
+            "Custom time blocks (2-4 hours recommended)",
+            "Flexible scheduling for your team",
             "Tournament organization with leaderboards",
             "Perfect for building camaraderie",
             "Friendly competition setup"
@@ -38,9 +38,9 @@ const eventPackages = [
         price: "Contact for Details",
         features: [
             "Multi-race tournaments with brackets",
-            "Custom game selection",
+            "Custom game selection across our library",
             "Leaderboard tracking",
-            "Trophy/prizes available",
+            "Trophy/prizes (you provide or we can arrange)",
             "Championship atmosphere"
         ],
         highlight: false
@@ -97,8 +97,8 @@ const EventsPage: React.FC = () => {
                         <span className="text-[#D42428]">Event</span> Here
                     </h1>
                     <p className="event-hero-text text-lg md:text-xl text-white/70 max-w-md leading-relaxed">
-                        Birthday parties, corporate team building, bachelor/bachelorette parties.
-                        Up to 10 drivers racing simultaneously.
+                        Kartcade is the perfect venue for birthday parties, corporate team building, bachelor/bachelorette parties.
+                        We can accommodate up to 10 people simultaneously with our full fleet of simulators.
                     </p>
                 </div>
             </section>
@@ -176,7 +176,7 @@ const EventsPage: React.FC = () => {
                     </h2>
                     <p className="text-white/60 text-xl mb-12 max-w-2xl mx-auto">
                         Contact us at least 2 weeks in advance for private events.
-                        We'll help customize your experience.
+                        Call 503-490-9194 or email info@kartcade.com to discuss your needs and customize your experience.
                     </p>
 
                     <div className="flex flex-col md:flex-row gap-6 justify-center">

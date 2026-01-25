@@ -231,7 +231,7 @@ const Navbar: React.FC = () => {
       {/* Mobile Menu Overlay */}
       <div
         ref={menuRef}
-        className={`fixed inset-0 bg-[#0A0A0A] z-[150] transform transition-transform duration-[0.8s] ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden ${isMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}
+        className={`fixed inset-0 h-[100dvh] bg-[#0A0A0A] z-[150] transform transition-transform duration-[0.8s] ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden ${isMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}
       >
         <div className="h-full flex flex-col justify-between px-6 pb-8 pt-24">
 

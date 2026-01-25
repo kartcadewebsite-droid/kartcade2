@@ -486,6 +486,7 @@ function getBookingDetails(bookingId) {
                     name: row[5],
                     email: row[6],
                     phone: row[7],
+                    paymentMethod: row[8],
                     status: row[9]
                 }
             });
