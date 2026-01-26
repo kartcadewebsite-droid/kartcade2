@@ -7,7 +7,7 @@ interface VideoCardProps {
 
 const VideoCard: React.FC<VideoCardProps> = ({ src, poster }) => {
     return (
-        <div className="relative overflow-hidden rounded-3xl border-4 border-white shadow-2xl aspect-[4/5]">
+        <div className="relative overflow-hidden rounded-3xl border-4 border-white shadow-2xl aspect-[4/5] bg-black">
             <video
                 src={src}
                 poster={poster}
@@ -23,10 +23,10 @@ const VideoCard: React.FC<VideoCardProps> = ({ src, poster }) => {
 
 const VideoShowcase: React.FC = () => {
     const videos = [
-        { src: "/videos/racing1.mp4", poster: "/images/kartcade/karts.png" },
-        { src: "/videos/motion.mp4", poster: "/images/kartcade/motion.png" },
-        { src: "/videos/rigs.mp4", poster: "/images/kartcade/rigs.png" },
-        { src: "/videos/flight.mp4", poster: "/images/kartcade/flight.png" }
+        { src: "/videos/showcase-1.mp4" },
+        { src: "/videos/showcase-2.mp4" },
+        { src: "/videos/showcase-3.mp4" },
+        { src: "/videos/showcase-4.mp4" }
     ];
 
     return (

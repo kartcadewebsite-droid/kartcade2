@@ -63,14 +63,10 @@ const Hero: React.FC = () => {
           poster="/images/kartcade/hero.png"
           className="w-full h-full object-cover opacity-50"
         >
-          <source src="" type="video/mp4" />
+          <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
         {/* Fallback image if video doesn't load */}
-        <img
-          src="/images/kartcade/hero.png"
-          alt="Kartcade Racing Lounge"
-          className="absolute inset-0 w-full h-full object-cover opacity-50"
-        />
+        {/* Fallback image removed as per user request to prioritize video */}
         {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />

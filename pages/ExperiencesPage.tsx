@@ -306,7 +306,7 @@ const ExperiencesPage: React.FC = () => {
 
                     {/* Modal Card */}
                     <div
-                        className={`relative w-full max-w-5xl h-[85vh] md:h-[600px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
+                        className={`relative w-full max-w-4xl h-[80vh] md:h-[500px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
                     >
                         {/* Close Button */}
                         <button
@@ -319,26 +319,16 @@ const ExperiencesPage: React.FC = () => {
                         {selectedGame && (
                             <>
                                 {/* Video / Media Section */}
-                                {/* Mobile: Absolute Background. Desktop: Right Side Block */}
-                                <div className="absolute inset-0 md:relative md:w-[55%] md:order-2 bg-black h-full md:h-full">
-                                    {selectedGame.videoUrl ? (
-                                        <video
-                                            src={selectedGame.videoUrl}
-                                            autoPlay
-                                            muted
-                                            loop
-                                            playsInline
-                                            className="w-full h-full object-cover opacity-60 md:opacity-90 transition-opacity"
-                                        />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8 bg-zinc-900/50">
-                                            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center animate-pulse backdrop-blur-sm">
-                                                <Gamepad2 className="w-10 h-10 text-white/20" />
-                                            </div>
-                                            <p className="text-white/40 uppercase tracking-widest text-xs font-medium">Preview coming soon</p>
-                                        </div>
-                                    )}
-
+                                {/* Mobile: Absolute Background. Desktop: Right Side Block (45% width for ~4:5 aspect ratio) */}
+                                <div className="absolute inset-0 md:relative md:w-[45%] md:order-2 bg-black h-full md:h-full">
+                                    <video
+                                        src="/videos/experiences-trailer.mp4"
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        className="w-full h-full object-cover opacity-60 md:opacity-90 transition-opacity"
+                                    />
                                     {/* Mobile Gradient Overlay for Text Readability */}
                                     <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent md:hidden"></div>
                                     {/* Desktop Gradient Side Fade */}
@@ -346,8 +336,9 @@ const ExperiencesPage: React.FC = () => {
                                 </div>
 
                                 {/* Content Section */}
-                                {/* Mobile: Bottom Overlay. Desktop: Left Side Block */}
-                                <div className="relative z-10 mt-auto md:mt-0 w-full md:w-[45%] md:order-1 p-6 md:p-10 flex flex-col justify-end md:justify-between h-auto md:h-full overflow-y-auto custom-scrollbar">
+                                {/* Mobile: Bottom Overlay. Desktop: Left Side Block (55% width) */}
+                                {/* Mobile: Bottom Overlay. Desktop: Left Side Block (55% width) */}
+                                <div className="relative z-10 mt-auto md:mt-0 w-full md:w-[55%] md:order-1 p-6 md:p-10 flex flex-col justify-end md:justify-between h-auto md:h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
 
                                     <div className="mb-4 md:mb-0">
                                         <div className="flex flex-wrap gap-2 mb-3 md:mb-4">

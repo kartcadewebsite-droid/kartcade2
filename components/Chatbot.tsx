@@ -130,7 +130,7 @@ const Chatbot: React.FC = () => {
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
-                    className="fixed bottom-6 left-6 z-50 bg-[#2D9E49] hover:bg-[#248a3f] text-white p-4 rounded-full shadow-lg transition-all hover:scale-110 flex items-center justify-center group"
+                    className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-[9999] bg-[#2D9E49] hover:bg-[#248a3f] text-white p-3 sm:p-4 rounded-full shadow-lg transition-all hover:scale-110 flex items-center justify-center group"
                 >
                     <MessageCircle className="w-6 h-6 group-hover:hidden" />
                     <Sparkles className="w-6 h-6 hidden group-hover:block" />
@@ -139,7 +139,7 @@ const Chatbot: React.FC = () => {
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-6 left-6 z-50 w-[350px] h-[500px] bg-[#141414] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300">
+                <div className="fixed bottom-20 left-4 right-4 sm:left-6 sm:right-auto sm:bottom-24 z-[9999] w-auto sm:w-[350px] h-[60vh] sm:h-[500px] bg-[#141414] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300">
 
                     {/* Header */}
                     <div className="bg-[#1A1A1A] p-4 flex items-center justify-between border-b border-white/5">
