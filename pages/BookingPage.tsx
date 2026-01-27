@@ -857,27 +857,27 @@ const BookingPage: React.FC = () => {
                                                     </div>
                                                 )}
 
-                                                {/* Pay at Venue - Admin Only (or everyone for now until Stripe) */}
-                                                <button
-                                                    onClick={() => setPaymentMethod('venue')}
-                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'venue'
-                                                        ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                        : 'border-white/10 hover:border-white/30'
-                                                        }`}
-                                                >
-                                                    <Wallet className="w-6 h-6 text-[#2D9E49]" />
-                                                    <div className="flex-1">
-                                                        <div className="font-bold flex items-center gap-2">
-                                                            Pay at Venue
-                                                            {isAdmin && (
+                                                {/* Pay at Venue - Admin Only */}
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => setPaymentMethod('venue')}
+                                                        className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'venue'
+                                                            ? 'border-[#2D9E49] bg-[#2D9E49]/10'
+                                                            : 'border-white/10 hover:border-white/30'
+                                                            }`}
+                                                    >
+                                                        <Wallet className="w-6 h-6 text-[#2D9E49]" />
+                                                        <div className="flex-1">
+                                                            <div className="font-bold flex items-center gap-2">
+                                                                Pay at Venue
                                                                 <span className="text-[10px] bg-[#D42428] text-white px-2 py-0.5 rounded-full uppercase">
                                                                     Admin
                                                                 </span>
-                                                            )}
+                                                            </div>
+                                                            <div className="text-sm text-white/50">Pay ${calculateTotal()} when you arrive</div>
                                                         </div>
-                                                        <div className="text-sm text-white/50">Pay ${calculateTotal()} when you arrive</div>
-                                                    </div>
-                                                </button>
+                                                    </button>
+                                                )}
 
                                                 {/* Deposit - Coming Soon */}
                                                 <button
@@ -920,26 +920,6 @@ const BookingPage: React.FC = () => {
                                                             )}
                                                         </div>
                                                         <div className="text-sm text-white/50">Pay securely with PayPal</div>
-                                                    </div>
-                                                </button>
-
-                                                {/* Pay in Full - TEST MODE */}
-                                                <button
-                                                    onClick={() => setPaymentMethod('now')}
-                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'now'
-                                                        ? 'bg-[#2D9E49]/20 border-[#2D9E49] shadow-lg shadow-[#2D9E49]/20'
-                                                        : 'border-white/10 hover:bg-white/5'
-                                                        }`}
-                                                >
-                                                    <CreditCard className={`w-6 h-6 ${paymentMethod === 'now' ? 'text-[#2D9E49]' : 'text-white/50'}`} />
-                                                    <div>
-                                                        <div className="font-bold flex items-center gap-2">
-                                                            Pay in Full
-                                                            <span className="text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full uppercase font-bold">
-                                                                Test Mode
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-sm text-white/50">Complete payment online</div>
                                                     </div>
                                                 </button>
                                             </div>
