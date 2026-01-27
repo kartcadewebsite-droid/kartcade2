@@ -306,7 +306,7 @@ const ExperiencesPage: React.FC = () => {
 
                     {/* Modal Card */}
                     <div
-                        className={`relative w-full max-w-4xl h-[80vh] md:h-[500px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
+                        className={`relative w-full max-w-4xl h-[80vh] md:h-[600px] bg-[#141414] border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-300 flex flex-col md:flex-row mt-16 md:mt-0 ${selectedGame ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-8 opacity-0'}`}
                     >
                         {/* Close Button */}
                         <button
@@ -349,7 +349,7 @@ const ExperiencesPage: React.FC = () => {
                                             ))}
                                         </div>
 
-                                        <h2 className="font-display text-4xl md:text-5xl font-bold uppercase text-white mb-2 md:mb-4 leading-none shadow-black drop-shadow-lg md:drop-shadow-none">
+                                        <h2 className="font-display text-3xl md:text-4xl font-bold uppercase text-white mb-2 md:mb-4 leading-none shadow-black drop-shadow-lg md:drop-shadow-none">
                                             {selectedGame.name}
                                         </h2>
 
