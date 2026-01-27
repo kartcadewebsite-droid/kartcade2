@@ -95,24 +95,84 @@ export const adminService = {
     /**
      * Activate or Update Membership
      */
-    async updateMembership(userId: string, tierId: string, subscriptionId: string, currentPeriodEnd: Date) {
+    async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion', subscriptionId: string, currentPeriodEnd: Date) {
         try {
             const userRef = db.collection('users').doc(userId);
 
-            await userRef.set({
-                membership: {
+            // Use dot notation to update specific map key without overwriting others
+            const updateKey = `memberships.${equipmentType}`;
+
+            await userRef.update({
+                [updateKey]: {
                     active: true,
                     tier: tierId,
+                    type: equipmentType,
                     stripeSubscriptionId: subscriptionId,
                     nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }
-            }, { merge: true });
+            });
 
-            console.log(`Successfully updated membership for user ${userId} to ${tierId}`);
+            console.log(`Successfully updated ${equipmentType} membership for user ${userId} to ${tierId}`);
             return true;
         } catch (error) {
             console.error('Error updating membership:', error);
+            // Fallback for new users who might not have the map yet
+            try {
+                const userRef = db.collection('users').doc(userId);
+                const updateKey = `memberships.${equipmentType}`;
+                await userRef.set({
+                    [updateKey]: {
+                        active: true,
+                        tier: tierId,
+                        type: equipmentType,
+                        stripeSubscriptionId: subscriptionId,
+                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }
+                }, { merge: true });
+                return true;
+            } catch (retryError) {
+                console.error('Retry failed:', retryError);
+                throw retryError;
+            }
+        }
+    },
+
+    /**
+     * Save Stripe Configuration (Product Map)
+     */
+    async saveStripeConfig(config: Record<string, string>) {
+        try {
+            await db.collection('system').doc('stripe_config').set({
+                prices: config,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log('Stripe config saved to Firestore');
+            return true;
+        } catch (error) {
+            console.error('Error saving Stripe config:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Deactivate Membership (Cancellation)
+     */
+    async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion') {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            const updateKey = `memberships.${equipmentType}.active`;
+
+            await userRef.update({
+                [updateKey]: false,
+                [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log(`Successfully deactivated ${equipmentType} membership for user ${userId}`);
+            return true;
+        } catch (error) {
+            console.error('Error deactivating membership:', error);
             throw error;
         }
     }

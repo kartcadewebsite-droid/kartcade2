@@ -11,6 +11,7 @@ import siteConfig from '../config/site';
 import { bookingConfig, bookingApi, isApiConfigured } from '../config/booking';
 import { useAuth } from '../contexts/AuthContext';
 import { getEquipmentTypeFromStation } from '../config/membership';
+import PayPalCheckout from '../components/PayPalCheckout';
 
 // Station Types Configuration
 const stationTypes = [
@@ -142,7 +143,7 @@ const BookingPage: React.FC = () => {
     });
     const [selectedTime, setSelectedTime] = useState<string | null>(searchParams.get('time') || null);
     const [drivers, setDrivers] = useState(1);
-    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits'>('venue');
+    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits' | 'paypal'>('venue');
     const [availability, setAvailability] = useState<{ [key: string]: { booked: number; available: number; total: number } }>({});
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -297,6 +298,53 @@ const BookingPage: React.FC = () => {
             setError('Network error. Please try again.');
         }
 
+        setIsSubmitting(false);
+    };
+
+    const handlePayPalSuccess = async (details: any) => {
+        console.log('PayPal Success:', details);
+        setIsSubmitting(true);
+        setError(null);
+
+        try {
+            // Construct notes with PayPal info
+            let finalNotes = formData.notes;
+            finalNotes += ` [Paid via PayPal: ${details.id}]`;
+
+            // Add Driver Tech Specs
+            if (userProfile) {
+                const specs: string[] = [];
+                if (userProfile.favCar) specs.push(`Car: ${userProfile.favCar}`);
+                if (userProfile.favTrack) specs.push(`Track: ${userProfile.favTrack}`);
+                if (userProfile.favRig) specs.push(`Rig: ${userProfile.favRig}`);
+                if (userProfile.settings) specs.push(`Settings: ${userProfile.settings}`);
+
+                if (specs.length > 0) {
+                    finalNotes += ` \n[DRIVER SPECS: ${specs.join(' | ')}]`;
+                }
+            }
+
+            const result = await bookingApi.createBooking({
+                date: formatDateForApi(selectedDate!),
+                time: selectedTime!,
+                station: selectedStation!,
+                drivers: drivers,
+                name: formData.name,
+                email: formData.email,
+                phone: formData.phone,
+                paymentMethod: 'paypal',
+                notes: finalNotes
+            });
+
+            if (result.success) {
+                setBookingId(result.bookingId);
+                setIsComplete(true);
+            } else {
+                setError(result.error || 'Booking created, but failed to save details. Please contact us.');
+            }
+        } catch (err) {
+            setError('Payment successful, but booking failed to save. Please contact us with your Transaction ID: ' + details.id);
+        }
         setIsSubmitting(false);
     };
 
@@ -848,10 +896,16 @@ const BookingPage: React.FC = () => {
                                                     </div>
                                                 </button>
 
-                                                {/* PayPal - Coming Soon */}
+                                                {/* PayPal */}
                                                 <button
-                                                    disabled
-                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4 bg-[#003087]/5"
+                                                    onClick={() => setPaymentMethod('paypal')}
+                                                    disabled={!bookingConfig.paypalClientId}
+                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'paypal'
+                                                        ? 'bg-[#003087]/10 border-[#003087]'
+                                                        : !bookingConfig.paypalClientId
+                                                            ? 'border-white/10 opacity-50 cursor-not-allowed'
+                                                            : 'border-white/10 hover:border-[#003087]/50'
+                                                        }`}
                                                 >
                                                     <div className="w-6 h-6 flex items-center justify-center">
                                                         <span className="font-bold text-[#003087] text-lg italic">P</span>
@@ -859,9 +913,11 @@ const BookingPage: React.FC = () => {
                                                     <div>
                                                         <div className="font-bold flex items-center gap-2">
                                                             PayPal
-                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
-                                                                Coming Soon
-                                                            </span>
+                                                            {!bookingConfig.paypalClientId && (
+                                                                <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
+                                                                    Not Configured
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="text-sm text-white/50">Pay securely with PayPal</div>
                                                     </div>
@@ -889,34 +945,46 @@ const BookingPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Submit */}
-                                        <button
-                                            onClick={handleSubmit}
-                                            disabled={isSubmitting}
-                                            className="w-full py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                        >
-                                            {isSubmitting ? (
-                                                <>
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Processing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Confirm Booking <ArrowRight className="w-5 h-5" />
-                                                </>
-                                            )}
-                                        </button>
-
-                                        <div className="mt-6 text-center">
-                                            <div className="text-white/40 text-xs leading-relaxed max-w-md mx-auto">
-                                                <p className="font-bold text-white/60 mb-1 pointer-events-none">Cancellation Policy</p>
-                                                <ul className="space-y-1">
-                                                    <li>• No refunds for cancellations within 48 hours of booking.</li>
-                                                    <li>• 50% account credit for cancellations less than 1 week in advance.</li>
-                                                    <li>• Full refund for cancellations more than 1 week in advance.</li>
-                                                </ul>
+                                        {/* Submit or PayPal */}
+                                        {paymentMethod === 'paypal' ? (
+                                            <div className="mt-8">
+                                                <PayPalCheckout
+                                                    amount={calculateTotal()}
+                                                    onSuccess={handlePayPalSuccess}
+                                                    onError={(err) => setError('PayPal Error: ' + err)}
+                                                />
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={handleSubmit}
+                                                    disabled={isSubmitting}
+                                                    className="w-full py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                >
+                                                    {isSubmitting ? (
+                                                        <>
+                                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                                            Processing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            Confirm Booking <ArrowRight className="w-5 h-5" />
+                                                        </>
+                                                    )}
+                                                </button>
+
+                                                <div className="mt-6 text-center">
+                                                    <div className="text-white/40 text-xs leading-relaxed max-w-md mx-auto">
+                                                        <p className="font-bold text-white/60 mb-1 pointer-events-none">Cancellation Policy</p>
+                                                        <ul className="space-y-1">
+                                                            <li>• No refunds for cancellations within 48 hours of booking.</li>
+                                                            <li>• 50% account credit for cancellations less than 1 week in advance.</li>
+                                                            <li>• Full refund for cancellations more than 1 week in advance.</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             )}

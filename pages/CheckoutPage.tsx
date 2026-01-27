@@ -43,6 +43,9 @@ const CheckoutPage: React.FC = () => {
         setLoading(true);
         setError('');
 
+        const queryPriceId = searchParams.get('priceId');
+        const finalPriceId = queryPriceId || tier.stripePriceId;
+
         try {
             if (!isStripeConfigured()) {
                 // Placeholder for when Stripe is not configured
@@ -51,21 +54,37 @@ const CheckoutPage: React.FC = () => {
                 return;
             }
 
-            // TODO: When Stripe is configured, create checkout session here
-            // const response = await fetch('/api/create-checkout-session', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({
-            //         tierId: tier.id,
-            //         userId: currentUser.uid,
-            //         userEmail: currentUser.email,
-            //     }),
-            // });
-            // const { url } = await response.json();
-            // window.location.href = url;
+            // Check if we have a valid price ID (either from URL or config)
+            if (!finalPriceId || finalPriceId.includes('placeholder')) {
+                setError('Configuration Error: Membership Price ID is missing. Please contact support.');
+                setLoading(false);
+                return;
+            }
 
-            // For now, show coming soon message
-            setError('Stripe checkout will be integrated soon. Please check back later!');
+            const response = await fetch('/api/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    priceId: finalPriceId,
+                    tierId: tier.id,
+                    equipmentType: tier.equipmentType,
+                    oldSubscriptionId: searchParams.get('upgradeFrom'),
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Checkout failed');
+            }
+
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                throw new Error('No checkout URL returned');
+            }
         } catch (err) {
             setError('Failed to start checkout. Please try again.');
         } finally {

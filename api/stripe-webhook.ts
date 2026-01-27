@@ -6,7 +6,7 @@ import { MEMBERSHIP_TIERS } from '../config/membership';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2023-10-16',
+    apiVersion: '2023-10-16', // @ts-ignore: Version mismatch with installed types
 });
 
 // Disable body parser for this route (required for signature verification)
@@ -75,8 +75,10 @@ export default async function handler(req: any, res: any) {
  * Handle initial successful checkout
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    const userId = session.metadata?.userId;
-    const tierId = session.metadata?.tierId;
+    const metadata = session.metadata || {};
+    const userId = metadata.userId;
+    const tierId = metadata.tierId;
+    const oldSubscriptionId = metadata.oldSubscriptionId;
     const subscriptionId = session.subscription as string;
 
     if (!userId || !tierId) {
@@ -86,25 +88,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log(`Processing new subscription for user ${userId}, tier ${tierId}`);
 
-    // Get tier details to know credit amount
+    // Get tier details to know credit amount and equipment type
     const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
 
     if (tier) {
-        // Create membership record
+        const equipmentType = tier.equipmentType;
+
+        // 1. Handle Upgrade: Cancel old subscription if ID is provided
+        if (oldSubscriptionId) {
+            try {
+                console.log(`Upgrading: Cancelling old subscription ${oldSubscriptionId}`);
+                await stripe.subscriptions.cancel(oldSubscriptionId);
+            } catch (err) {
+                console.error(`Failed to cancel old subscription ${oldSubscriptionId}:`, err);
+                // Continue anyway to activate new plan
+            }
+        }
+
+        // 2. Create/Update membership record
         // Note: stripe.subscriptions.retrieve returns a Stripe.Subscription object
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
 
         await adminService.updateMembership(
             userId,
             tierId,
+            equipmentType,
             subscriptionId,
-            new Date(subscription.current_period_end * 1000)
+            currentPeriodEnd
         );
 
-        // Add initial credits
-        if (tier.equipmentType) {
-            await adminService.addCredits(userId, tier.equipmentType, tier.credits);
-        }
+        // 3. Add initial credits
+        // For upgrades, we ADD to existing. For new, we ADD (starting from 0).
+        // The logic is unchanged: addCredits adds to current balance.
+        await adminService.addCredits(userId, equipmentType, tier.credits);
     }
 }
 
@@ -119,9 +136,12 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
+    // Explicitly cast to any to access metadata safely if types are outdated
+    const subData = subscription as any;
+
     // Check if metadata exists on subscription (it should propagate from creation)
-    const userId = subscription.metadata?.userId;
-    const tierId = subscription.metadata?.tierId;
+    const userId = subData.metadata?.userId;
+    const tierId = subData.metadata?.tierId;
 
     if (!userId || !tierId || invoice.billing_reason === 'subscription_create') {
         return;
@@ -131,19 +151,21 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 
     const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
     if (tier && userId) {
+        const equipmentType = tier.equipmentType;
+        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+
         // 1. Extend membership date
         await adminService.updateMembership(
             userId,
             tierId,
+            equipmentType,
             subscriptionId,
-            new Date(subscription.current_period_end * 1000)
+            currentPeriodEnd
         );
 
         // 2. Refresh credits (Renewal)
         // Reset balance to tier amount (no rollover)
-        if (tier.equipmentType) {
-            await adminService.setCredits(userId, tier.equipmentType, tier.credits);
-        }
+        await adminService.setCredits(userId, equipmentType, tier.credits);
     }
 }
 
@@ -152,10 +174,15 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
  */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
+    const tierId = subscription.metadata?.tierId;
 
-    if (userId) {
-        console.log(`Processing cancellation for user ${userId}`);
-        // TODO: In future, update DB to mark active: false
-        // For MVP, we'll let it expire naturally based on 'nextBillingDate'
+    if (userId && tierId) {
+        console.log(`Processing cancellation for user ${userId}, tier ${tierId}`);
+        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+        if (tier) {
+            await adminService.deactivateMembership(userId, tier.equipmentType);
+        } else {
+            console.warn(`Could not find tier ${tierId} to deactivate.`);
+        }
     }
 }

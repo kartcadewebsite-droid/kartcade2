@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { priceId, userId, userEmail, tierId } = req.body;
+        const { priceId, userId, userEmail, tierId, oldSubscriptionId, equipmentType } = req.body;
 
         if (!priceId || !userId) {
             return res.status(400).json({ error: 'Missing required parameters' });
@@ -35,12 +35,15 @@ export default async function handler(req: any, res: any) {
             metadata: {
                 userId: userId,
                 tierId: tierId,
-                type: 'membership_purchase'
+                type: 'membership_purchase',
+                oldSubscriptionId: oldSubscriptionId || '',
+                equipmentType: equipmentType || ''
             },
             subscription_data: {
                 metadata: {
                     userId: userId,
-                    tierId: tierId
+                    tierId: tierId,
+                    equipmentType: equipmentType || ''
                 }
             }
         });

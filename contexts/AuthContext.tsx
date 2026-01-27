@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
-import { UserCredits, UserMembership, DEFAULT_CREDITS, DEFAULT_MEMBERSHIP } from '../config/membership';
+import { UserCredits, UserMembership, UserMembershipsMap, DEFAULT_CREDITS, DEFAULT_MEMBERSHIPS } from '../config/membership';
 
 // Types
 interface UserProfile {
@@ -32,7 +32,7 @@ interface UserProfile {
     settings?: string;
     // Credits and Membership
     credits: UserCredits;
-    membership: UserMembership;
+    memberships: UserMembershipsMap;
 }
 
 interface AuthContextType {
@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 createdAt: serverTimestamp(),
                 // Initialize with empty credits and no membership
                 credits: DEFAULT_CREDITS,
-                membership: DEFAULT_MEMBERSHIP,
+                memberships: DEFAULT_MEMBERSHIPS,
             };
 
             await setDoc(userRef, profileData);
@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const profile: UserProfile = {
                 ...data,
                 credits: data.credits || DEFAULT_CREDITS,
-                membership: data.membership || DEFAULT_MEMBERSHIP,
+                memberships: data.memberships || DEFAULT_MEMBERSHIPS,
             } as UserProfile;
             setUserProfile(profile);
         }
@@ -213,7 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             waiverAcceptedAt: serverTimestamp(),
             createdAt: serverTimestamp(),
             credits: DEFAULT_CREDITS,
-            membership: DEFAULT_MEMBERSHIP,
+            memberships: DEFAULT_MEMBERSHIPS,
         };
         await setDoc(userRef, profileData);
 

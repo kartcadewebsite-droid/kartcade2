@@ -18,6 +18,7 @@ export interface MembershipTier {
     savings: number;         // Savings per credit vs regular price
     color: string;           // Display color
     popular?: boolean;       // Highlight as popular
+    stripePriceId?: string;  // Stripe Price ID (e.g., price_12345)
 }
 
 // Regular prices (non-member)
@@ -41,7 +42,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 15,
         regularPrice: 30,
         savings: 15,
-        color: '#CD7F32'
+        color: '#CD7F32',
+        stripePriceId: 'price_placeholder_bronze_kart'
     },
     {
         id: 'silver_kart',
@@ -55,7 +57,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         regularPrice: 30,
         savings: 15,
         color: '#C0C0C0',
-        popular: true
+        popular: true,
+        stripePriceId: 'price_placeholder_silver_kart'
     },
     {
         id: 'gold_kart',
@@ -68,7 +71,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 15,
         regularPrice: 30,
         savings: 15,
-        color: '#FFD700'
+        color: '#FFD700',
+        stripePriceId: 'price_placeholder_gold_kart'
     },
 
     // RIG MEMBERSHIPS
@@ -83,7 +87,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 20,
         regularPrice: 40,
         savings: 20,
-        color: '#CD7F32'
+        color: '#CD7F32',
+        stripePriceId: 'price_placeholder_bronze_rig'
     },
     {
         id: 'silver_rig',
@@ -97,7 +102,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         regularPrice: 40,
         savings: 20,
         color: '#C0C0C0',
-        popular: true
+        popular: true,
+        stripePriceId: 'price_placeholder_silver_rig'
     },
     {
         id: 'gold_rig',
@@ -110,7 +116,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 20,
         regularPrice: 40,
         savings: 20,
-        color: '#FFD700'
+        color: '#FFD700',
+        stripePriceId: 'price_placeholder_gold_rig'
     },
 
     // MOTION MEMBERSHIPS
@@ -125,7 +132,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 25,
         regularPrice: 50,
         savings: 25,
-        color: '#CD7F32'
+        color: '#CD7F32',
+        stripePriceId: 'price_placeholder_bronze_motion'
     },
     {
         id: 'silver_motion',
@@ -139,7 +147,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         regularPrice: 50,
         savings: 25,
         color: '#C0C0C0',
-        popular: true
+        popular: true,
+        stripePriceId: 'price_placeholder_silver_motion'
     },
     {
         id: 'gold_motion',
@@ -152,7 +161,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         pricePerCredit: 25,
         regularPrice: 50,
         savings: 25,
-        color: '#FFD700'
+        color: '#FFD700',
+        stripePriceId: 'price_placeholder_gold_motion'
     }
 ];
 
@@ -195,6 +205,13 @@ export interface UserMembership {
     stripeCustomerId: string | null;
 }
 
+// Map of equipment type to membership details
+export interface UserMembershipsMap {
+    kart?: UserMembership;
+    rig?: UserMembership;
+    motion?: UserMembership;
+}
+
 // Default empty values
 export const DEFAULT_CREDITS: UserCredits = {
     kart: 0,
@@ -202,15 +219,4 @@ export const DEFAULT_CREDITS: UserCredits = {
     motion: 0
 };
 
-export const DEFAULT_MEMBERSHIP: UserMembership = {
-    active: false,
-    tier: '',
-    type: 'kart',
-    creditsPerCycle: 0,
-    pricePerMonth: 0,
-    startDate: null,
-    currentCycleStart: null,
-    nextBillingDate: null,
-    stripeSubscriptionId: null,
-    stripeCustomerId: null
-};
+export const DEFAULT_MEMBERSHIPS: UserMembershipsMap = {};

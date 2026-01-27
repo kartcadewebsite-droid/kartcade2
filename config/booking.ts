@@ -9,6 +9,9 @@ export const bookingConfig = {
     // ✅ LIVE - Connected to kartcade.website@gmail.com Google Sheets
     API_URL: 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec',
 
+    // PayPal Configuration
+    paypalClientId: import.meta.env.VITE_PAYPAL_CLIENT_ID,
+
     // Station types and their properties
     stations: {
         karts: {

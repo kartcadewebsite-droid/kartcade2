@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Zap, Crown, Star, Clock, Users, Gift, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,10 +43,25 @@ const MembershipPage: React.FC = () => {
     const { currentUser, userProfile } = useAuth();
     const [selectedType, setSelectedType] = useState<EquipmentType>('rig');
     const [loadingTier, setLoadingTier] = useState<string | null>(null);
+    const [stripePrices, setStripePrices] = useState<Record<string, string>>({});
 
-    // Check if user already has an active membership
-    const activeMembership = userProfile?.membership?.active ? userProfile.membership : null;
-    const activeTier = activeMembership ? getMembershipById(activeMembership.tier) : null;
+    // Fetch dynamic prices
+    useEffect(() => {
+        fetch('/api/get-stripe-config')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.prices) {
+                    setStripePrices(data.prices);
+                }
+            })
+            .catch(err => console.error('Failed to load prices:', err));
+    }, []);
+
+    // Check if user has an active membership for the SELECTED equipment type
+    const activeMembershipForType = userProfile?.memberships?.[selectedType]?.active
+        ? userProfile.memberships[selectedType]
+        : null;
+    const activeTier = activeMembershipForType ? getMembershipById(activeMembershipForType.tier) : null;
 
     const handleSelectPlan = async (tierId: string) => {
         // If not logged in, redirect to signup
@@ -55,8 +70,8 @@ const MembershipPage: React.FC = () => {
             return;
         }
 
-        // If already has this membership
-        if (activeMembership?.tier === tierId) {
+        // If already has THIS exact membership
+        if (activeMembershipForType?.tier === tierId) {
             alert('You already have this membership!');
             return;
         }
@@ -70,8 +85,18 @@ const MembershipPage: React.FC = () => {
         // Proceed to checkout
         setLoadingTier(tierId);
         try {
-            // Navigate to checkout with tier info
-            navigate(`/checkout?tier=${tierId}`);
+            // Check if this is an upgrade (User has a membership for this TYPE, but different tier)
+            const isUpgrade = !!activeMembershipForType;
+            const upgradeParam = isUpgrade && activeMembershipForType?.stripeSubscriptionId
+                ? `&upgradeFrom=${activeMembershipForType.stripeSubscriptionId}`
+                : '';
+
+            // Get dynamic price ID
+            const priceId = stripePrices[tierId] || '';
+            const priceParam = priceId ? `&priceId=${priceId}` : '';
+
+            // Navigate to checkout with tier info AND upgrade info if applicable
+            navigate(`/checkout?tier=${tierId}${upgradeParam}${priceParam}`);
         } catch (error) {
             console.error('Failed to start checkout:', error);
             alert('Failed to start checkout. Please try again.');
@@ -80,13 +105,38 @@ const MembershipPage: React.FC = () => {
         }
     };
 
-    const handleManageSubscription = () => {
-        // In the future, this would open Stripe Customer Portal
+
+
+    const handleManageSubscription = async () => {
+        if (!currentUser) return;
+
         if (!isStripeConfigured()) {
             alert('Subscription management coming soon!');
             return;
         }
-        // TODO: Open Stripe Customer Portal
+
+        try {
+            const response = await fetch('/api/create-portal-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.url) {
+                window.location.href = data.url;
+            } else {
+                alert('Could not open subscription management at this time.');
+                console.error('Portal Error:', data.error);
+            }
+        } catch (error) {
+            console.error('Portal connection failed:', error);
+            alert('Failed to connect to billing portal.');
+        }
     };
 
     // TEST FUNCTION
@@ -147,7 +197,7 @@ const MembershipPage: React.FC = () => {
                     </p>
 
                     {/* Current Membership Banner */}
-                    {activeMembership && activeTier && (
+                    {activeMembershipForType && activeTier && (
                         <div className="mt-8 max-w-md mx-auto">
                             <div className="bg-[#2D9E49]/10 border border-[#2D9E49]/30 rounded-xl p-4 text-center">
                                 <p className="text-[#2D9E49] text-sm font-bold uppercase mb-1">
@@ -236,7 +286,7 @@ const MembershipPage: React.FC = () => {
                             const colors = levelColors[tier.level as keyof typeof levelColors];
                             const LevelIcon = levelIcons[tier.level as keyof typeof levelIcons];
                             const isPopular = tier.popular;
-                            const isCurrentPlan = activeMembership?.tier === tier.id;
+                            const isCurrentPlan = activeMembershipForType?.tier === tier.id;
                             const isLoading = loadingTier === tier.id;
 
                             return (
