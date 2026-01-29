@@ -6,7 +6,7 @@ import { MEMBERSHIP_TIERS } from '../../config/membership';
 // Initialize Stripe
 // @ts-ignore: Version mismatch with installed types
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2023-10-16',
+    // apiVersion: '2023-10-16', // Default to account version
 });
 
 export default async function handler(req: any, res: any) {
@@ -22,42 +22,74 @@ export default async function handler(req: any, res: any) {
         const config: Record<string, string> = {};
         const createdProducts = [];
 
+        // 0. Fetch existing products to prevent duplicates (Idempotency)
+        const existingProducts = await stripe.products.list({ limit: 100, active: true });
+
         // 1. Loop through defined tiers
         for (const tier of MEMBERSHIP_TIERS) {
             console.log(`Processing tier: ${tier.name}`);
+            const productName = `Kartcade ${tier.name} Membership`;
 
-            // Create Product
-            const product = await stripe.products.create({
-                name: `Kartcade ${tier.name} Membership`,
-                description: `${tier.credits}h of ${tier.equipmentName} time per month`,
-                metadata: {
-                    equipmentType: tier.equipmentType,
-                    level: tier.level,
-                    tierId: tier.id
-                }
-            });
+            let productId: string;
+            let priceId: string | undefined;
 
-            // Create Price
-            const price = await stripe.prices.create({
-                product: product.id,
-                unit_amount: tier.price * 100, // cents
-                currency: 'usd',
-                recurring: {
-                    interval: 'month',
-                },
-                metadata: {
-                    tierId: tier.id
+            // Check if exists
+            const existing = existingProducts.data.find(p => p.name === productName);
+
+            if (existing) {
+                console.log(`✅ Product already exists: ${productName} (${existing.id})`);
+                productId = existing.id;
+                // Try to find a price for it? For simplicity, we assume if product exists, price exists.
+                // We need the PRICE ID for the config.
+                const prices = await stripe.prices.list({ product: productId, limit: 1 });
+                if (prices.data.length > 0) {
+                    priceId = prices.data[0].id;
+                } else {
+                    // Create price if missing
+                    console.log(`⚠️ Product exists but price missing. Creating price...`);
+                    const price = await stripe.prices.create({
+                        product: productId,
+                        unit_amount: tier.price * 100,
+                        currency: 'usd',
+                        recurring: { interval: 'month' },
+                        metadata: { tierId: tier.id }
+                    });
+                    priceId = price.id;
                 }
-            });
+            } else {
+                // Create New Product
+                console.log(`🆕 Creating new product: ${productName}`);
+                const product = await stripe.products.create({
+                    name: productName,
+                    description: `${tier.credits}h of ${tier.equipmentName} time per month`,
+                    metadata: {
+                        equipmentType: tier.equipmentType,
+                        level: tier.level,
+                        tierId: tier.id
+                    }
+                });
+                productId = product.id;
+
+                // Create Price
+                const price = await stripe.prices.create({
+                    product: productId,
+                    unit_amount: tier.price * 100,
+                    currency: 'usd',
+                    recurring: { interval: 'month' },
+                    metadata: { tierId: tier.id }
+                });
+                priceId = price.id;
+            }
 
             // store the mapping
-            config[tier.id] = price.id;
-            createdProducts.push({
-                name: tier.name,
-                priceId: price.id
-            });
-
-            console.log(`Created ${tier.name}: ${price.id}`);
+            if (priceId) {
+                config[tier.id] = priceId;
+                createdProducts.push({
+                    name: tier.name,
+                    priceId: priceId,
+                    status: existing ? 'Found Existing' : 'Created New'
+                });
+            }
         }
 
         // 2. Save mapping to Firestore
