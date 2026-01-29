@@ -7,8 +7,8 @@
 // ============================================================
 
 export const stripeConfig = {
-    // ⚠️ PLACEHOLDER - Replace with real keys from Adam
-    publishableKey: 'pk_test_PLACEHOLDER_REPLACE_WITH_REAL_KEY',
+    // Environment variable is preferred, fall back to placeholder
+    publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_PLACEHOLDER_REPLACE_WITH_REAL_KEY',
 
     // Note: Secret key should NEVER be in frontend code
     // It will be used in Vercel serverless functions / webhooks only
@@ -42,6 +42,9 @@ export const stripeConfig = {
 
 // Check if Stripe is configured with real keys
 export const isStripeConfigured = (): boolean => {
+    // Check environment variable first
+    if (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) return true;
+    // Fallback to checking the hardcoded string
     return !stripeConfig.publishableKey.includes('PLACEHOLDER');
 };
 
