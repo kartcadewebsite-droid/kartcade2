@@ -139,34 +139,7 @@ const MembershipPage: React.FC = () => {
         }
     };
 
-    // TEST FUNCTION
-    const handleTestActivate = async (tierId: string) => {
-        if (!currentUser) {
-            alert('Please login first');
-            navigate('/login');
-            return;
-        }
 
-        if (!confirm('🧪 TEST MODE: Activate this membership for free? (This simulates a successful Stripe payment)')) return;
-
-        try {
-            const response = await fetch('/api/test-membership', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: currentUser.uid, tierId })
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                alert('✅ Success! Membership Activated & Credits Added.\n\nRefreshing page to show changes...');
-                window.location.reload();
-            } else {
-                alert('❌ Error: ' + data.error);
-            }
-        } catch (err) {
-            alert('Network error');
-        }
-    };
 
     const features = [
         { icon: Clock, text: '1 credit = 1 hour at 50% off' },
@@ -386,15 +359,7 @@ const MembershipPage: React.FC = () => {
                                         )}
                                     </button>
 
-                                    {/* Test Verify Button */}
-                                    {!isCurrentPlan && (
-                                        <button
-                                            onClick={() => handleTestActivate(tier.id)}
-                                            className="w-full mt-2 py-2 text-[10px] text-white/20 uppercase tracking-widest hover:text-yellow-500 transition-colors"
-                                        >
-                                            🧪 Test Activate (Dev Only)
-                                        </button>
-                                    )}
+
                                 </div>
                             );
                         })}
