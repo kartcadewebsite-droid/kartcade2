@@ -57,7 +57,14 @@ const getRefundType = (daysUntilBooking: number, isEvent: boolean, paymentMethod
         if (daysUntilBooking > 0) return 'credit50';
         return 'none';
     } else {
-        // Standard bookings: > 7 days = full, 48h-7d = 50% credit, < 48h = none
+        // Standard bookings
+        // If pay with Credits: > 48h = Full Refund, < 48h = No refund
+        if (paymentMethod === 'credits') {
+            if (daysUntilBooking > 2) return 'full'; // > 48 hours
+            return 'none';
+        }
+
+        // If pay with Cash/Card: > 7 days = Full, 48h-7d = 50% Credit
         if (daysUntilBooking > 7) return 'full';
         if (daysUntilBooking > 2) return 'credit50'; // > 48 hours
         return 'none';
@@ -70,22 +77,24 @@ interface CreditRefund {
     motion: number;
 }
 
-// Calculate credits to refund (50% of hour value)
-const calculateCreditRefund = (booking: any): CreditRefund => {
+// Calculate credits to refund
+const calculateCreditRefund = (booking: any, refundType: RefundType): CreditRefund => {
     const station = booking.station || '';
     const drivers = parseInt(booking.drivers) || 1;
-    const hours = booking.hours || 1; // Default to 1 hour if not specified
+    const hours = booking.hours || 1;
 
     // Calculate total value
     const hourlyRate = HOURLY_RATES[station as keyof typeof HOURLY_RATES] || 35;
     const totalValue = hourlyRate * hours * drivers;
-    const refundValue = totalValue * 0.5;
+
+    // Refund Multiplier: Full = 1.0, Credit50 = 0.5
+    const multiplier = refundType === 'full' ? 1.0 : 0.5;
+    const refundValue = totalValue * multiplier;
 
     const equipmentType = getEquipmentType(station);
 
     // For Full Space / Events, split across all types
     if (drivers >= 6 || station.includes('Full Space')) {
-        // Assume roughly equal split
         const creditsPerType = Math.floor(refundValue / 3 / CREDIT_VALUES.rig);
         return {
             kart: creditsPerType,
@@ -157,7 +166,7 @@ const CancelPage: React.FC = () => {
     const isEvent = booking ? isEventBooking(booking) : false;
     const paymentMethod = booking?.paymentMethod || 'venue';
     const refundType = booking ? getRefundType(daysUntilBooking, isEvent, paymentMethod) : 'none';
-    const potentialCredits = booking ? calculateCreditRefund(booking) : null;
+    const potentialCredits = booking ? calculateCreditRefund(booking, refundType) : null;
 
     // DEBUG LOGS
     useEffect(() => {
