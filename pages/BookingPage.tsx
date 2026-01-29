@@ -150,6 +150,8 @@ const BookingPage: React.FC = () => {
     const [isComplete, setIsComplete] = useState(false);
     const [bookingId, setBookingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [loadingStripe, setLoadingStripe] = useState(false);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -241,6 +243,12 @@ const BookingPage: React.FC = () => {
     const handleSubmit = async () => {
         if (!selectedDate || !selectedTime || !selectedStation) return;
 
+        // NEW: If Deposit selected, open the "Choose Method" modal instead of submitting immediately
+        if (paymentMethod === 'deposit') {
+            setShowPaymentModal(true);
+            return;
+        }
+
         setIsSubmitting(true);
         setError(null);
 
@@ -301,6 +309,51 @@ const BookingPage: React.FC = () => {
         setIsSubmitting(false);
     };
 
+    // Handle Stripe Deposit (Redirect to Checkout)
+    const handleStripeDeposit = async () => {
+        if (!currentUser) return alert('Please login to pay');
+
+        setLoadingStripe(true);
+        try {
+            const depositAmount = calculateTotal() / 2 * 100; // 50% in cents
+
+            const response = await fetch('/api/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    amount: depositAmount, // Custom Amount
+                    mode: 'payment',
+                    productName: `50% Deposit: ${selectedStationData?.name} (${formatDate(selectedDate!)})`,
+                    // Pass booking details for Webhook Fulfillment
+                    bookingDetails: {
+                        station: selectedStation,
+                        date: formatDateForApi(selectedDate!),
+                        time: selectedTime,
+                        drivers: drivers,
+                        name: formData.name,
+                        email: formData.email,
+                        phone: formData.phone,
+                        notes: formData.notes
+                    }
+                })
+            });
+
+            const data = await response.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                alert('Stripe Error: ' + data.error);
+                setLoadingStripe(false);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to connect to Stripe');
+            setLoadingStripe(false);
+        }
+    };
+
     const handlePayPalSuccess = async (details: any) => {
         console.log('PayPal Success:', details);
         setIsSubmitting(true);
@@ -309,7 +362,10 @@ const BookingPage: React.FC = () => {
         try {
             // Construct notes with PayPal info
             let finalNotes = formData.notes;
-            finalNotes += ` [Paid via PayPal: ${details.id}]`;
+            const isDeposit = paymentMethod === 'deposit';
+            finalNotes += isDeposit
+                ? ` [PAID 50% DEPOSIT via PayPal: ${details.id}]`
+                : ` [Paid via PayPal: ${details.id}]`;
 
             // Add Driver Tech Specs
             if (userProfile) {
@@ -879,20 +935,23 @@ const BookingPage: React.FC = () => {
                                                     </button>
                                                 )}
 
-                                                {/* Deposit - Coming Soon */}
+                                                {/* Deposit Option */}
                                                 <button
-                                                    disabled
-                                                    className="w-full p-4 rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed flex items-center gap-4"
+                                                    onClick={() => setPaymentMethod('deposit')}
+                                                    className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'deposit'
+                                                        ? 'border-[#D42428] bg-[#D42428]/10'
+                                                        : 'border-white/10 hover:border-white/30'
+                                                        }`}
                                                 >
                                                     <CreditCard className="w-6 h-6 text-[#D42428]" />
                                                     <div className="flex-1">
                                                         <div className="font-bold flex items-center gap-2">
                                                             Pay Deposit
-                                                            <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
-                                                                Coming Soon
+                                                            <span className="text-[10px] bg-[#D42428] text-white px-2 py-0.5 rounded-full uppercase">
+                                                                Popular
                                                             </span>
                                                         </div>
-                                                        <div className="text-sm text-white/50">50% now, rest at venue</div>
+                                                        <div className="text-sm text-white/50">Pay ${Math.round(calculateTotal() / 2)} now, rest at venue</div>
                                                     </div>
                                                 </button>
 
@@ -948,10 +1007,58 @@ const BookingPage: React.FC = () => {
                                                         </>
                                                     ) : (
                                                         <>
-                                                            Confirm Booking <ArrowRight className="w-5 h-5" />
+                                                            {paymentMethod === 'deposit'
+                                                                ? `Pay Deposit ($${Math.round(calculateTotal() / 2)})`
+                                                                : 'Confirm Booking'} <ArrowRight className="w-5 h-5" />
                                                         </>
                                                     )}
                                                 </button>
+
+                                                {/* Payment Selection Modal */}
+                                                {showPaymentModal && (
+                                                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                                                        <div className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-md p-6 relative">
+                                                            <button
+                                                                onClick={() => setShowPaymentModal(false)}
+                                                                className="absolute top-4 right-4 text-white/50 hover:text-white"
+                                                            >
+                                                                ✕
+                                                            </button>
+
+                                                            <h3 className="font-display text-xl font-bold uppercase mb-6 text-center">
+                                                                Choose Payment Method
+                                                            </h3>
+
+                                                            <div className="space-y-4">
+                                                                {/* Option A: Stripe */}
+                                                                <button
+                                                                    onClick={handleStripeDeposit}
+                                                                    disabled={loadingStripe}
+                                                                    className="w-full p-4 bg-[#635BFF] text-white rounded-xl font-bold hover:bg-[#5851E3] transition-colors flex items-center justify-center gap-3"
+                                                                >
+                                                                    {loadingStripe ? <Loader2 className="animate-spin" /> : <CreditCard />}
+                                                                    Pay with Card / G-Pay
+                                                                </button>
+
+                                                                <div className="text-center text-xs text-white/30 uppercase tracking-widest">
+                                                                    - or -
+                                                                </div>
+
+                                                                {/* Option B: PayPal */}
+                                                                <div className="relative z-0">
+                                                                    <PayPalCheckout
+                                                                        amount={calculateTotal() / 2}
+                                                                        onSuccess={(details) => {
+                                                                            setShowPaymentModal(false);
+                                                                            handlePayPalSuccess(details);
+                                                                        }}
+                                                                        onError={(err) => setError('PayPal Error: ' + err)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 <div className="mt-6 text-center">
                                                     <div className="text-white/40 text-xs leading-relaxed max-w-md mx-auto">

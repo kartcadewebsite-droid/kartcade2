@@ -6,8 +6,10 @@ import { MEMBERSHIP_TIERS } from '../config/membership';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2023-10-16', // @ts-ignore: Version mismatch with installed types
+    apiVersion: '2024-06-20' as any, // @ts-ignore: Version mismatch with installed types
 });
+
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
 
 // Disable body parser for this route (required for signature verification)
 export const config = {
@@ -44,7 +46,13 @@ export default async function handler(req: any, res: any) {
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object as Stripe.Checkout.Session;
-                await handleCheckoutCompleted(session);
+                const type = session.metadata?.type;
+
+                if (type === 'booking_deposit') {
+                    await handleBookingDeposit(session);
+                } else {
+                    await handleCheckoutCompleted(session);
+                }
                 break;
             }
 
@@ -184,5 +192,57 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
         } else {
             console.warn(`Could not find tier ${tierId} to deactivate.`);
         }
+    }
+}
+
+/**
+ * Handle individual booking deposit (One-time payment)
+ */
+async function handleBookingDeposit(session: Stripe.Checkout.Session) {
+    const metadata = session.metadata || {};
+
+    // Check if we have enough info to create a booking
+    if (!metadata.bookingStation || !metadata.bookingDate || !metadata.bookingTime) {
+        console.error('Missing booking metadata in checkout session:', session.id);
+        return;
+    }
+
+    console.log(`Processing booking deposit for user ${metadata.userId} (Station: ${metadata.bookingStation}, Date: ${metadata.bookingDate})`);
+
+    try {
+        // Construct URL parameters for Google Apps Script
+        const params = new URLSearchParams({
+            action: 'book',
+            date: metadata.bookingDate,
+            time: metadata.bookingTime,
+            station: metadata.bookingStation,
+            drivers: (metadata.bookingDrivers || '1').toString(),
+            name: metadata.bookingName || 'Guest',
+            email: metadata.bookingEmail || (session.customer_details?.email || ''),
+            phone: metadata.bookingPhone || '',
+            paymentMethod: 'deposit', // Mark as paid deposit
+            notes: (metadata.bookingNotes || '') + ` [Stripe Deposit: ${session.payment_intent}]`
+        });
+
+        const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+
+        // Call Google Apps Script
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log(`Booking created successfully! ID: ${data.bookingId}`);
+        } else {
+            console.error('Google Apps Script returned error:', data.error);
+        }
+
+    } catch (err: any) {
+        console.error('Failed to call Booking API from Webhook:', err.message);
     }
 }
