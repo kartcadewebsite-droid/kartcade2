@@ -49,16 +49,16 @@ const Intro: React.FC = () => {
         <div className="md:col-span-7">
           <h2 className="font-display text-3xl sm:text-4xl md:text-7xl font-semibold leading-[1.1] uppercase tracking-tight">
             <div className="overflow-hidden">
-              <span ref={el => textLinesRef.current[0] = el} className="block">Not Just</span>
+              <span ref={(el) => { textLinesRef.current[0] = el; }} className="block">Not Just</span>
             </div>
             <div className="overflow-hidden">
-              <span ref={el => textLinesRef.current[1] = el} className="block text-[#2D9E49]">Sim Racing.</span>
+              <span ref={(el) => { textLinesRef.current[1] = el; }} className="block text-[#2D9E49]">Sim Racing.</span>
             </div>
             <div className="overflow-hidden">
-              <span ref={el => textLinesRef.current[2] = el} className="block text-black/40">Everything</span>
+              <span ref={(el) => { textLinesRef.current[2] = el; }} className="block text-black/40">Everything</span>
             </div>
             <div className="overflow-hidden">
-              <span ref={el => textLinesRef.current[3] = el} className="block">With Wheels.</span>
+              <span ref={(el) => { textLinesRef.current[3] = el; }} className="block">With Wheels.</span>
             </div>
           </h2>
         </div>
