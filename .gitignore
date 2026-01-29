@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+signup-qr-code.png
+signup-qr-code-prod.png
