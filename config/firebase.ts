@@ -4,12 +4,12 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: "kartcade-website.firebaseapp.com",
-    projectId: "kartcade-website",
-    storageBucket: "kartcade-website.firebasestorage.app",
-    messagingSenderId: "1089395024153",
-    appId: "1:1089395024153:web:c1cece8fe11f434d8e6588"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDqXtIUkJEulbW-cCZq9uzCIw0kH99AUIQ",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kartcade-website.firebaseapp.com",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "kartcade-website",
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "kartcade-website.firebasestorage.app",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1089395024153",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1089395024153:web:c1cece8fe11f434d8e6588"
 };
 
 // Initialize Firebase
