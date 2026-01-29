@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDqXtIUkJEulbW-cCZq9uzCIw0kH99AUIQ",
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: "kartcade-website.firebaseapp.com",
     projectId: "kartcade-website",
     storageBucket: "kartcade-website.firebasestorage.app",
