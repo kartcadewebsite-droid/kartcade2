@@ -1,13 +1,123 @@
 
 import { Stripe } from 'stripe';
 import { buffer } from 'micro';
-import { adminService } from './services/adminService';
 import { MEMBERSHIP_TIERS } from '../config/membership';
+import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
+
+// ============================================
+// FIREBASE ADMIN INIT (Inlined for Vercel Safety)
+// ============================================
+
+if (!admin.apps.length) {
+    // If running in Vercel, we need to handle the private key newlines correctly
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+        : undefined;
+
+    if (process.env.FIREBASE_PROJECT_ID) {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey,
+            }),
+        });
+    } else {
+        console.error('FIREBASE_PROJECT_ID is missing in environment variables.');
+    }
+}
+
+const db = getFirestore();
+
+// Inlined Admin Service
+const adminService = {
+    async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            await db.runTransaction(async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists) throw new Error('User does not exist');
+                const userData = userDoc.data();
+                const currentCredits = userData?.credits?.[equipmentType] || 0;
+                const newCredits = currentCredits + amount;
+                transaction.set(userRef, {
+                    credits: { ...userData?.credits, [equipmentType]: newCredits }
+                }, { merge: true });
+                const transactionRef = db.collection('transactions').doc();
+                transaction.set(transactionRef, {
+                    userId, type: 'credit_add', amount, equipmentType,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(), source: 'system'
+                });
+            });
+            console.log(`Added ${amount} ${equipmentType} credits to ${userId}`);
+            return true;
+        } catch (error) { console.error('Error adding credits:', error); throw error; }
+    },
+    async setCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            await db.runTransaction(async (transaction) => {
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists) throw new Error('User not found');
+                const userData = userDoc.data();
+                const newCredits = { ...userData?.credits };
+                newCredits[equipmentType] = amount;
+                transaction.update(userRef, { credits: newCredits });
+            });
+            return true;
+        } catch (error) { console.error('Error setting credits:', error); throw error; }
+    },
+    async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion', subscriptionId: string, currentPeriodEnd: Date) {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            const updateKey = `memberships.${equipmentType}`;
+            const data = {
+                [updateKey]: {
+                    active: true, tier: tierId, type: equipmentType, stripeSubscriptionId: subscriptionId,
+                    nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }
+            };
+            await userRef.update(data);
+            return true;
+        } catch (error) {
+            // Fallback for missing parent map
+            try {
+                const userRef = db.collection('users').doc(userId);
+                const updateKey = `memberships.${equipmentType}`;
+                await userRef.set({
+                    [updateKey]: {
+                        active: true, tier: tierId, type: equipmentType, stripeSubscriptionId: subscriptionId,
+                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    }
+                }, { merge: true });
+                return true;
+            } catch (err) { console.error('Error updating membership:', err); throw err; }
+        }
+    },
+    async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion') {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            const updateKey = `memberships.${equipmentType}.active`;
+            await userRef.update({
+                [updateKey]: false,
+                [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return true;
+        } catch (error) { console.error('Error deactivating membership:', error); throw error; }
+    }
+};
+
+// ============================================
+// MAIN HANDLER
+// ============================================
 
 // Disable body parser for this route (required for signature verification)
 export const config = {

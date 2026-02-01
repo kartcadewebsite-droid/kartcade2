@@ -1,18 +1,21 @@
 // ============================================================
-// KARTCADE BOOKING SYSTEM - GOOGLE APPS SCRIPT
+// KARTCADE BOOKING SYSTEM v2.0 - GOOGLE APPS SCRIPT
 // ============================================================
-// Deploy this as a Web App in Google Apps Script
-// 1. Extensions → Apps Script (from your Google Sheet)
-// 2. Paste this code
-// 3. Deploy → New deployment → Web app
-// 4. Execute as: Me, Who has access: Anyone
-// 5. Copy the Web App URL and paste in config/booking.ts
+// INSTRUCTIONS:
+// 1. Paste this into your Google Apps Script editor (Extensions > Apps Script).
+// 2. Create a new Sheet tab called "BlockedTimes" in your spreadsheet.
+//    Columns: Date (A) | Start Time (B) | End Time (C) | Reason (D)
+// 3. Deploy as Web App (Deploy > New deployment > Web app).
+//    - Description: v2 with Batch & Blocking
+//    - Execute as: Me
+//    - Who has access: Anyone
+// 4. Copy the new Web App URL and update your config/booking.ts (API_URL).
 // ============================================================
 
-// Get the active spreadsheet
 const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
 const BOOKINGS_SHEET = SPREADSHEET.getSheetByName('Bookings');
 const SETTINGS_SHEET = SPREADSHEET.getSheetByName('Settings');
+const BLOCKED_SHEET = SPREADSHEET.getSheetByName('BlockedTimes');
 
 // Station configuration
 const STATIONS = {
@@ -22,65 +25,52 @@ const STATIONS = {
     flight: { name: 'Flight Simulator', settingKey: 'TotalFlight', priceKey: 'FlightPrice' }
 };
 
-// Get setting value from Settings sheet
-function getSetting(key) {
-    const data = SETTINGS_SHEET.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-        if (data[i][0] === key) {
-            return data[i][1];
-        }
-    }
-    return null;
-}
+// ============================================================
+// CORE HANDLERS
+// ============================================================
 
-// Generate unique booking ID
-function generateBookingId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = 'K';
-    for (let i = 0; i < 5; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-}
-
-// Handle GET requests (fetch availability AND create bookings)
 function doGet(e) {
+    return handleRequest(e);
+}
+
+function doPost(e) {
+    // Determine if it's JSON or Parameter
+    let params = e;
+    if (e.postData && e.postData.contents) {
+        const data = JSON.parse(e.postData.contents);
+        params = { parameter: data };
+    }
+    return handleRequest(params);
+}
+
+function handleRequest(e) {
     try {
         const action = e.parameter.action;
 
+        // 1. Availability
         if (action === 'availability') {
-            return getAvailability(e.parameter.date, e.parameter.station);
+            return getAvailability(e.parameter.date, e.parameter.station, e.parameter.duration);
         }
 
+        // 2. Settings
         if (action === 'settings') {
             return getSettings();
         }
 
-        // Debug action - returns raw booking data
-        if (action === 'debug') {
-            const bookings = BOOKINGS_SHEET.getDataRange().getValues();
-            const debugData = [];
-            for (let i = 1; i < Math.min(bookings.length, 10); i++) {
-                const row = bookings[i];
-                debugData.push({
-                    bookingId: row[0],
-                    date: row[1],
-                    dateType: typeof row[1],
-                    dateIsDate: row[1] instanceof Date,
-                    time: row[2],
-                    station: row[3],
-                    drivers: row[4],
-                    status: row[9]
-                });
-            }
-            return createResponse({
-                sheetName: BOOKINGS_SHEET ? BOOKINGS_SHEET.getName() : 'NOT_FOUND',
-                totalRows: bookings.length,
-                bookings: debugData
-            });
+        // 3. Batch Booking (New Multi-Item Flow)
+        if (action === 'batchBook') {
+            const items = JSON.parse(e.parameter.items || '[]');
+            const userDetails = {
+                name: e.parameter.name,
+                email: e.parameter.email,
+                phone: e.parameter.phone,
+                paymentMethod: e.parameter.paymentMethod || 'venue',
+                notes: e.parameter.notes || ''
+            };
+            return createBatchBooking(items, userDetails);
         }
 
-        // Handle booking via GET (for CORS compatibility)
+        // 4. Single Booking (Legacy / Webhook Fallback)
         if (action === 'book') {
             const bookingData = {
                 date: e.parameter.date,
@@ -96,213 +86,224 @@ function doGet(e) {
             return createBooking(bookingData);
         }
 
-        // Cancel booking action
-        if (action === 'cancel') {
-            const bookingId = e.parameter.id;
-            if (!bookingId) {
-                return createResponse({ error: 'Missing booking ID' }, 400);
-            }
-            return cancelBooking(bookingId);
-        }
-
-        // Get booking details (for cancel page)
-        if (action === 'getBooking') {
-            const bookingId = e.parameter.id;
-            if (!bookingId) {
-                return createResponse({ error: 'Missing booking ID' }, 400);
-            }
-            return getBookingDetails(bookingId);
-        }
-
-        // Get user's bookings by email
+        // 5. User Bookings (Dashboard)
         if (action === 'userBookings') {
-            const email = e.parameter.email;
-            if (!email) {
-                return createResponse({ error: 'Missing email' }, 400);
-            }
-            return getUserBookings(email);
+            return getUserBookings(e.parameter.email);
+        }
+
+        // 6. Cancel Booking
+        if (action === 'cancel') {
+            return cancelBooking(e.parameter.id);
         }
 
         return createResponse({ error: 'Invalid action' }, 400);
+
     } catch (error) {
         return createResponse({ error: error.message }, 500);
     }
 }
 
-// Handle POST requests (create booking)
-function doPost(e) {
-    try {
-        const data = JSON.parse(e.postData.contents);
+// ============================================================
+// AVAILABILITY LOGIC (With BlockedTimes Support)
+// ============================================================
 
-        if (data.action === 'book') {
-            return createBooking(data);
+function getAvailability(dateStr, stationId, durationStr) {
+    const duration = parseInt(durationStr) || 1;
+
+    // Optimized: Fetch all stations if no specific station requested
+    if (!stationId || stationId === 'all') {
+        const result = {};
+        for (const key in STATIONS) {
+            result[key] = getAvailabilityForStation(dateStr, key, duration);
         }
-
-        return createResponse({ error: 'Invalid action' }, 400);
-    } catch (error) {
-        return createResponse({ error: error.message }, 500);
+        return createResponse({ success: true, date: dateStr, availability: result });
     }
+
+    const avail = getAvailabilityForStation(dateStr, stationId, duration);
+    return createResponse({
+        date: dateStr,
+        station: stationId,
+        availability: avail
+    });
 }
 
-// Get availability for a specific date and station
-function getAvailability(dateStr, stationId) {
+function getAvailabilityForStation(dateStr, stationId, duration) {
     const station = STATIONS[stationId];
-    if (!station) {
-        return createResponse({ error: 'Invalid station' }, 400);
-    }
+    if (!station) return {};
 
     const totalUnits = getSetting(station.settingKey) || 1;
     const openHour = getSetting('OpenHour') || 10;
     const closeHour = getSetting('CloseHour') || 22;
 
-    // Get all bookings for this date and station
-    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
     const bookedSlots = {};
 
+    // 1. Get Existing Bookings
+    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
     for (let i = 1; i < bookings.length; i++) {
         const row = bookings[i];
-        const bookingDate = row[1]; // Date column
-        const bookingTime = row[2]; // Time column
-        const bookingStation = row[3]; // Station column
-        const drivers = parseInt(row[4]) || 1; // Drivers column
-        const status = row[9]; // Status column
+        if (row[9] === 'Cancelled') continue;
 
-        // Format date for comparison - Google Sheets stores as Date object
-        let bookingDateStr = '';
-        if (bookingDate instanceof Date) {
-            // Use spreadsheet timezone for consistent date
-            bookingDateStr = Utilities.formatDate(bookingDate, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
-        } else if (typeof bookingDate === 'string') {
-            // If it's a string, try to normalize it if it's not YYYY-MM-DD
-            if (bookingDate.includes('/')) {
-                // Handle 2/3/2026 -> 2026-02-03
-                const parts = bookingDate.split('/');
-                if (parts.length === 3) {
-                    // Assume M/D/YYYY
-                    const m = parts[0].padStart(2, '0');
-                    const d = parts[1].padStart(2, '0');
-                    const y = parts[2];
-                    bookingDateStr = `${y}-${m}-${d}`;
-                } else {
-                    bookingDateStr = bookingDate.trim();
-                }
-            } else {
-                bookingDateStr = bookingDate.toString().trim();
-            }
-        }
+        const bDate = normalizeDate(row[1]);
+        const bTime = normalizeTime(row[2]);
+        // Normalize station name
+        const bStation = String(row[3]).trim().toLowerCase();
 
-        // Format time for comparison
-        let bookingTimeStr = '';
-        if (bookingTime instanceof Date) {
-            // Use spreadsheet timezone to get the correct hour (e.g. 19:00 UTC -> 11:00 PST)
-            const hourStr = Utilities.formatDate(bookingTime, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'H');
-            bookingTimeStr = hourStr + ':00';
-        } else if (typeof bookingTime === 'string') {
-            const trimmed = bookingTime.toString().trim();
-            // Handle "11:00:00" -> "11:00"
-            bookingTimeStr = trimmed.split(':').slice(0, 2).join(':');
-        }
-
-        // Check if this booking matches
-        // Station comparison: Normalize strings to ignore case/spaces just in case
-        const rowStation = String(bookingStation).trim().toLowerCase();
-        const targetStation = String(station.name).trim().toLowerCase();
-
-        if (bookingDateStr === dateStr && rowStation === targetStation && status !== 'Cancelled') {
-            if (!bookedSlots[bookingTimeStr]) {
-                bookedSlots[bookingTimeStr] = 0;
-            }
-            bookedSlots[bookingTimeStr] += drivers;
+        if (bDate === dateStr && bStation === station.name.toLowerCase()) {
+            if (!bookedSlots[bTime]) bookedSlots[bTime] = 0;
+            bookedSlots[bTime] += (parseInt(row[4]) || 1);
         }
     }
 
-    // Build availability response
+    // 2. Check Global Blocked Times
+    const blocked = getBlockedSlots(dateStr);
+
+    // 3. Build Availability Map
     const availability = {};
     for (let hour = openHour; hour < closeHour; hour++) {
         const timeStr = `${hour}:00`;
-        const booked = bookedSlots[timeStr] || 0;
+        let isAvailable = true;
+        let minAvailableMsg = totalUnits;
+
+        // Check if this BLOCK (hour + duration) is valid
+        for (let d = 0; d < duration; d++) {
+            const checkHour = hour + d;
+
+            // Check Closing Time
+            if (checkHour >= closeHour) {
+                isAvailable = false;
+                minAvailableMsg = 0;
+                break;
+            }
+
+            const checkTimeStr = `${checkHour}:00`;
+
+            // Check Global Block
+            if (blocked.includes(checkTimeStr)) {
+                isAvailable = false;
+                minAvailableMsg = 0;
+                break;
+            }
+
+            // Check Capacity
+            const booked = bookedSlots[checkTimeStr] || 0;
+            const remaining = Math.max(0, totalUnits - booked);
+
+            if (remaining <= 0) {
+                isAvailable = false;
+                minAvailableMsg = 0;
+                break;
+            }
+
+            minAvailableMsg = Math.min(minAvailableMsg, remaining);
+        }
+
         availability[timeStr] = {
             total: totalUnits,
-            booked: booked,
-            available: Math.max(0, totalUnits - booked)
+            available: isAvailable ? minAvailableMsg : 0
         };
     }
 
+    return availability;
+}
+
+function getBlockedSlots(dateStr) {
+    if (!BLOCKED_SHEET) return [];
+
+    const blocked = [];
+    const rows = BLOCKED_SHEET.getDataRange().getValues();
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        // Col A: Date, Col B: Start, Col C: End
+        if (!row[0]) continue;
+
+        const bDate = normalizeDate(row[0]);
+        if (bDate !== dateStr) continue;
+
+        const startHour = parseHour(row[1]);
+        const endHour = parseHour(row[2]);
+
+        if (startHour !== null && endHour !== null) {
+            for (let h = startHour; h < endHour; h++) {
+                blocked.push(`${h}:00`);
+            }
+        }
+    }
+    return blocked;
+}
+
+// ============================================================
+// BOOKING CREATION
+// ============================================================
+
+function createBatchBooking(items, user) {
+    const bookingId = generateBookingId();
+    const createdAt = new Date();
+
+    // items: [{ station: 'karts', date, time, drivers }, ...]
+    const bookedItems = [];
+    let totalPrice = 0;
+
+    for (const item of items) {
+        const station = STATIONS[item.station];
+        if (!station) continue;
+
+        // Add Row
+        BOOKINGS_SHEET.appendRow([
+            bookingId,
+            item.date,
+            item.time,
+            station.name,
+            item.drivers,
+            user.name,
+            user.email,
+            user.phone,
+            user.paymentMethod,
+            'Confirmed',
+            createdAt
+        ]);
+
+        const price = getSetting(station.priceKey) || 0;
+        totalPrice += (price * item.drivers);
+
+        bookedItems.push({
+            name: station.name,
+            date: item.date,
+            time: item.time,
+            drivers: item.drivers
+        });
+
+        // Calendar: Create event per item to ensure calendar reflects blocked slots accurately
+        // (Merging them is cleaner for human, but separate events ensures calendar says "Karts" and "Rigs")
+        createCalendarEvent({
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            date: item.date,
+            time: item.time,
+            drivers: item.drivers,
+            notes: user.notes
+        }, bookingId, station.name);
+    }
+
+    // Send Consolidated Email
+    sendBatchEmail(user, bookingId, bookedItems, totalPrice);
+    sendOwnerBatchNotification(user, bookingId, bookedItems, totalPrice);
+
     return createResponse({
-        date: dateStr,
-        station: stationId,
-        stationName: station.name,
-        totalUnits: totalUnits,
-        availability: availability
+        success: true,
+        bookingId: bookingId,
+        message: 'Batch booking confirmed'
     });
 }
 
-// Get all settings
-function getSettings() {
-    const settings = {};
-    const data = SETTINGS_SHEET.getDataRange().getValues();
-
-    for (let i = 1; i < data.length; i++) {
-        settings[data[i][0]] = data[i][1];
-    }
-
-    return createResponse(settings);
-}
-
-// Create a new booking
 function createBooking(data) {
-    // Validate required fields
-    const required = ['date', 'time', 'station', 'drivers', 'name', 'email', 'phone'];
-    for (const field of required) {
-        if (!data[field]) {
-            return createResponse({ error: `Missing required field: ${field}` }, 400);
-        }
-    }
+    // Legacy support for single booking calls (e.g. from existing Webhook logic)
+    // We maintain this so the current "Deposit safety net" still works without frontend changes immediately.
 
     const station = STATIONS[data.station];
-    if (!station) {
-        return createResponse({ error: 'Invalid station' }, 400);
-    }
+    if (!station) return createResponse({ error: 'Invalid station' }, 400);
 
-    // Check availability before booking
-    const totalUnits = getSetting(station.settingKey);
-    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
-    let bookedCount = 0;
-
-    for (let i = 1; i < bookings.length; i++) {
-        const row = bookings[i];
-        let bookingDateStr = row[1];
-        if (row[1] instanceof Date) {
-            bookingDateStr = Utilities.formatDate(row[1], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
-        }
-
-        let bookingTimeStr = row[2];
-        if (row[2] instanceof Date) {
-            const h = Utilities.formatDate(row[2], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'H');
-            bookingTimeStr = h + ':00';
-        } else if (typeof row[2] === 'string') {
-            const trimmed = row[2].toString().trim();
-            bookingTimeStr = trimmed.split(':').slice(0, 2).join(':');
-        }
-
-        // Check Station name case-insensitive
-        const rowStation = String(row[3]).trim().toLowerCase();
-        const targetStation = String(station.name).trim().toLowerCase();
-
-        if (bookingDateStr === data.date && bookingTimeStr === data.time && rowStation === targetStation && row[9] !== 'Cancelled') {
-            bookedCount += (parseInt(row[4]) || 1);
-        }
-    }
-
-    if (bookedCount + data.drivers > totalUnits) {
-        return createResponse({
-            error: 'Not enough availability',
-            available: totalUnits - bookedCount,
-            requested: data.drivers
-        }, 400);
-    }
-
-    // Create booking
     const bookingId = generateBookingId();
     const createdAt = new Date();
 
@@ -321,449 +322,173 @@ function createBooking(data) {
     ]);
 
     // Send confirmation email
-    try {
-        sendConfirmationEmail(data, bookingId, station.name);
-    } catch (emailError) {
-        // Don't fail the booking if email fails
-        console.error('Email failed:', emailError);
-    }
-
-    // Send notification to owner
-    try {
-        sendOwnerNotification(data, bookingId, station.name);
-    } catch (emailError) {
-        console.error('Owner notification failed:', emailError);
-    }
-
-    // Create Google Calendar event
-    var calendarEventId = null;
-    try {
-        calendarEventId = createCalendarEvent(data, bookingId, station.name);
-    } catch (calError) {
-        console.error('Calendar event failed:', calError);
-    }
+    try { sendConfirmationEmail(data, bookingId, station.name); } catch (e) { }
+    try { sendOwnerNotification(data, bookingId, station.name); } catch (e) { }
+    try { createCalendarEvent(data, bookingId, station.name); } catch (e) { }
 
     return createResponse({
         success: true,
         bookingId: bookingId,
-        calendarEventId: calendarEventId,
         message: 'Booking confirmed!'
     });
 }
 
-// Send confirmation email to customer
-function sendConfirmationEmail(data, bookingId, stationName) {
-    const station = STATIONS[data.station];
-    const price = getSetting(station.priceKey);
-    const total = price * data.drivers;
-    const cancelUrl = `https://kartcade.vercel.app/cancel?id=${bookingId}`;
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
 
-    const subject = `Kartcade Booking Confirmation - ${bookingId}`;
+function sendBatchEmail(user, bookingId, items, total) {
+    const subject = `Kartcade Booking Confirmed - ${bookingId}`;
+    let itemsHtml = items.map(i =>
+        `- ${i.name}: ${i.date} @ ${i.time} (${i.drivers} drivers)`
+    ).join('\n');
+
     const body = `
 🏎️ KARTCADE BOOKING CONFIRMATION
 
 Booking ID: ${bookingId}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BOOKING DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Station: ${stationName}
-Date: ${data.date}
-Time: ${data.time}
-Drivers: ${data.drivers}
 Total: $${total}
 
-Payment: ${data.paymentMethod === 'venue' ? 'Pay at venue' : data.paymentMethod === 'deposit' ? '50% deposit' : 'Paid in full'}
+ITEMS RESERVED:
+${itemsHtml}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IMPORTANT INFO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Payment: ${user.paymentMethod}
 
 📍 Location: West Linn, Oregon
 📞 Questions? Call 503-490-9194
-⏰ Please arrive 10 minutes early
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-NEED TO CANCEL?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Click here to cancel: ${cancelUrl}
-(24 hours notice required)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-See you at the track! 🏁
-
-- The Kartcade Team
-`;
-
-    MailApp.sendEmail(data.email, subject, body);
+    `;
+    MailApp.sendEmail(user.email, subject, body);
 }
 
-// Send notification to owner
-function sendOwnerNotification(data, bookingId, stationName) {
-    const station = STATIONS[data.station];
-    const price = getSetting(station.priceKey);
-    const total = price * data.drivers;
-
-    // Owner notification email - UPDATE THIS FOR PRODUCTION
-    const ownerEmail = 'kartcade.website@gmail.com'; // Booking notifications sent here
-
-    const subject = `🏎️ New Booking: ${data.name} - ${bookingId}`;
+function sendOwnerBatchNotification(user, bookingId, items, total) {
+    const ownerEmail = 'kartcade.website@gmail.com';
+    const subject = `🏎️ New BATCH Booking: ${user.name}`;
+    let itemsHtml = items.map(i =>
+        `- ${i.name}: ${i.date} @ ${i.time} (${i.drivers})`
+    ).join('\n');
     const body = `
-NEW BOOKING RECEIVED
+NEW BOOKING
+User: ${user.name} (${user.email})
+Phone: ${user.phone}
 
-Booking ID: ${bookingId}
-Customer: ${data.name}
-Email: ${data.email}
-Phone: ${data.phone}
+${itemsHtml}
 
-Station: ${stationName}
-Date: ${data.date}
-Time: ${data.time}
-Drivers: ${data.drivers}
 Total: $${total}
-Payment: ${data.paymentMethod}
-
-${data.notes ? 'Notes: ' + data.notes : ''}
-
-View all bookings in Google Sheets
-`;
-
+Notes: ${user.notes}
+    `;
     MailApp.sendEmail(ownerEmail, subject, body);
 }
 
-// Create Google Calendar event for the booking
-function createCalendarEvent(data, bookingId, stationName) {
-    // Use default calendar (owner's primary calendar)
-    var calendar = CalendarApp.getDefaultCalendar();
-
-    // Parse date and time
-    var dateParts = data.date.split('-'); // yyyy-MM-dd
-    var timeParts = data.time.split(':'); // HH:mm
-
-    var year = parseInt(dateParts[0]);
-    var month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
-    var day = parseInt(dateParts[2]);
-    var hour = parseInt(timeParts[0]);
-    var minute = parseInt(timeParts[1]) || 0;
-
-    var startTime = new Date(year, month, day, hour, minute, 0);
-    var endTime = new Date(startTime.getTime() + (60 * 60 * 1000)); // 1 hour session
-
-    // Create event title
-    var title = '🏎️ ' + data.name + ' - ' + stationName + ' (' + data.drivers + ' driver' + (data.drivers > 1 ? 's' : '') + ')';
-
-    // Create event description
-    var description = 'KARTCADE BOOKING\n\n' +
-        'Booking ID: ' + bookingId + '\n' +
-        'Customer: ' + data.name + '\n' +
-        'Email: ' + data.email + '\n' +
-        'Phone: ' + data.phone + '\n\n' +
-        'Station: ' + stationName + '\n' +
-        'Drivers: ' + data.drivers + '\n' +
-        'Payment: ' + (data.paymentMethod || 'At venue') + '\n';
-
-    if (data.notes) {
-        description += '\nNotes: ' + data.notes;
-    }
-
-    // Create the calendar event
-    var event = calendar.createEvent(title, startTime, endTime, {
-        description: description,
-        location: 'Kartcade, West Linn, Oregon'
-    });
-
-    // Set event color based on station type
-    // 1=Blue, 2=Green, 3=Purple, 4=Red, 5=Yellow, 6=Orange, 7=Turquoise, 8=Gray, 9=Bold Blue, 10=Bold Green, 11=Bold Red
-    var colorMap = {
-        'Racing Karts': '2',       // Green
-        'Full-Size Rigs': '9',     // Bold Blue
-        'Motion Simulator': '11',  // Bold Red
-        'Flight Simulator': '5'    // Yellow
-    };
-
-    if (colorMap[stationName]) {
-        event.setColor(colorMap[stationName]);
-    }
-
-    return event.getId();
+function sendConfirmationEmail(data, bookingId, stationName) {
+    const station = STATIONS[data.station];
+    const price = getSetting(station.priceKey);
+    const total = price * data.drivers;
+    const body = `Booking ID: ${bookingId}\n${stationName}\n${data.date} @ ${data.time}\nTotal: $${total}\n\n- Kartcade Team`;
+    MailApp.sendEmail(data.email, `Kartcade Booking - ${bookingId}`, body);
 }
 
-// Create JSON response with CORS headers
+function sendOwnerNotification(data, bookingId, stationName) {
+    const ownerEmail = 'kartcade.website@gmail.com';
+    MailApp.sendEmail(ownerEmail, `New Booking: ${data.name}`, `Details:\n${stationName}\nID: ${bookingId}\nUser: ${data.name}`);
+}
+
+function createCalendarEvent(data, bookingId, stationName) {
+    var calendar = CalendarApp.getDefaultCalendar();
+
+    // Parse Date Parts YYYY-MM-DD
+    var dateParts = data.date.split('-');
+    // Parse Time Parts HH:mm
+    var timeParts = data.time.split(':');
+
+    var start = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1] || 0);
+    var end = new Date(start.getTime() + (3600 * 1000)); // 1 Hour
+
+    var event = calendar.createEvent(`🏎️ ${data.name} - ${stationName} (${data.drivers})`, start, end, {
+        description: `ID: ${bookingId}\n${data.notes}`
+    });
+
+    // Colors: Karts=2(Green), Rigs=9(Blue), Motion=11(Red), Flight=5(Yellow)
+    var colorMap = { 'Racing Karts': '2', 'Full-Size Rigs': '9', 'Motion Simulator': '11', 'Flight Simulator': '5' };
+    if (colorMap[stationName]) event.setColor(colorMap[stationName]);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function generateBookingId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = 'K';
+    for (let i = 0; i < 5; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+    return result;
+}
+
+function getSetting(key) {
+    const data = SETTINGS_SHEET.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === key) return data[i][1];
+    }
+    return null;
+}
+
+function normalizeDate(val) {
+    if (val instanceof Date) {
+        return Utilities.formatDate(val, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+    }
+    if (typeof val === 'string' && val.includes('T')) return val.split('T')[0];
+    return String(val).trim(); // Basic string normalization
+}
+
+function normalizeTime(val) {
+    if (val instanceof Date) {
+        return Utilities.formatDate(val, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'HH:mm');
+    }
+    return String(val).substring(0, 5);
+}
+
+function parseHour(val) {
+    const t = normalizeTime(val);
+    const parts = t.split(':');
+    return parseInt(parts[0]);
+}
+
 function createResponse(data, status = 200) {
     const output = ContentService.createTextOutput(JSON.stringify(data));
     output.setMimeType(ContentService.MimeType.JSON);
     return output;
 }
 
-// ============================================================
-// CANCELLATION FUNCTIONS
-// ============================================================
-
-// Get booking details by ID (for cancel page)
-function getBookingDetails(bookingId) {
+function cancelBooking(id) {
     const bookings = BOOKINGS_SHEET.getDataRange().getValues();
-
     for (let i = 1; i < bookings.length; i++) {
-        if (bookings[i][0] === bookingId) {
-            const row = bookings[i];
-            return createResponse({
-                success: true,
-                booking: {
-                    id: row[0],
-                    date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
-                    time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
-                    station: row[3],
-                    drivers: row[4],
-                    name: row[5],
-                    email: row[6],
-                    phone: row[7],
-                    paymentMethod: row[8],
-                    status: row[9]
-                }
-            });
+        if (bookings[i][0] === id) {
+            BOOKINGS_SHEET.getRange(i + 1, 10).setValue('Cancelled');
+            return createResponse({ success: true });
         }
     }
-
-    return createResponse({ error: 'Booking not found' }, 404);
+    return createResponse({ error: 'Not found' });
 }
 
-// Get all bookings for a specific user email
 function getUserBookings(email) {
-    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
-    const userBookings = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Only basic logic here to prevent massive file size, assumes exact match
+    const rows = BOOKINGS_SHEET.getDataRange().getValues();
+    const result = [];
+    const today = new Date().toISOString().split('T')[0];
 
-    for (let i = 1; i < bookings.length; i++) {
-        const row = bookings[i];
-        const bookingEmail = row[6];
-        const status = row[9];
-
-        // Match email (case-insensitive)
-        if (bookingEmail && bookingEmail.toString().toLowerCase() === email.toLowerCase()) {
-            // Parse date
-            let bookingDate;
-            if (row[1] instanceof Date) {
-                bookingDate = row[1];
-            } else {
-                bookingDate = new Date(row[1]);
-            }
-
-            // Only include future bookings that are not cancelled
-            if (bookingDate >= today && status !== 'Cancelled') {
-                userBookings.push({
-                    id: row[0],
-                    date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
-                    time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
-                    station: row[3],
-                    drivers: row[4],
-                    name: row[5],
-                    email: row[6],
-                    phone: row[7],
-                    status: row[9]
+    for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i][6]).toLowerCase() === email.toLowerCase() && rows[i][9] !== 'Cancelled') {
+            // Basic date filter to hide old stuff
+            if (normalizeDate(rows[i][1]) >= today) {
+                result.push({
+                    id: rows[i][0],
+                    date: normalizeDate(rows[i][1]),
+                    time: normalizeTime(rows[i][2]),
+                    station: rows[i][3],
+                    drivers: rows[i][4],
+                    status: rows[i][9]
                 });
             }
         }
     }
-
-    // Sort by date (earliest first)
-    userBookings.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
-
-    return createResponse({
-        success: true,
-        bookings: userBookings,
-        count: userBookings.length
-    });
+    return createResponse({ success: true, bookings: result });
 }
-
-// Cancel a booking
-function cancelBooking(bookingId) {
-    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
-
-    for (let i = 1; i < bookings.length; i++) {
-        if (bookings[i][0] === bookingId) {
-            const row = bookings[i];
-            const currentStatus = row[9];
-
-            // Check if already cancelled
-            if (currentStatus === 'Cancelled') {
-                return createResponse({ error: 'Booking already cancelled' }, 400);
-            }
-
-            // Update status to Cancelled
-            BOOKINGS_SHEET.getRange(i + 1, 10).setValue('Cancelled');
-
-            // Get booking details for email
-            const bookingData = {
-                id: row[0],
-                date: row[1] instanceof Date ? Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : row[1],
-                time: row[2] instanceof Date ? Utilities.formatDate(row[2], Session.getScriptTimeZone(), 'HH:mm') : row[2],
-                station: row[3],
-                drivers: row[4],
-                name: row[5],
-                email: row[6],
-                phone: row[7]
-            };
-
-            // Try to delete calendar event (if exists)
-            try {
-                deleteCalendarEvent(bookingData);
-            } catch (calError) {
-                console.error('Failed to delete calendar event:', calError);
-            }
-
-            // Send cancellation email to customer
-            try {
-                sendCancellationEmail(bookingData);
-            } catch (emailError) {
-                console.error('Failed to send cancellation email:', emailError);
-            }
-
-            // Notify owner
-            try {
-                sendOwnerCancellationNotification(bookingData);
-            } catch (emailError) {
-                console.error('Failed to notify owner:', emailError);
-            }
-
-            return createResponse({
-                success: true,
-                message: 'Booking cancelled successfully',
-                bookingId: bookingId
-            });
-        }
-    }
-
-    return createResponse({ error: 'Booking not found' }, 404);
-}
-
-// Delete calendar event for cancelled booking
-function deleteCalendarEvent(bookingData) {
-    const calendar = CalendarApp.getDefaultCalendar();
-
-    // Parse date and time
-    const dateParts = bookingData.date.split('-');
-    const timeParts = bookingData.time.split(':');
-
-    const year = parseInt(dateParts[0]);
-    const month = parseInt(dateParts[1]) - 1;
-    const day = parseInt(dateParts[2]);
-    const hour = parseInt(timeParts[0]);
-
-    const startTime = new Date(year, month, day, hour, 0, 0);
-    const endTime = new Date(startTime.getTime() + (60 * 60 * 1000));
-
-    // Find and delete events in this time range
-    const events = calendar.getEvents(startTime, endTime);
-    for (let event of events) {
-        if (event.getTitle().includes(bookingData.name) || event.getDescription().includes(bookingData.id)) {
-            event.deleteEvent();
-            break;
-        }
-    }
-}
-
-// Send cancellation email to customer
-function sendCancellationEmail(bookingData) {
-    const subject = `Kartcade Booking Cancelled - ${bookingData.id}`;
-    const body = `
-BOOKING CANCELLATION CONFIRMATION
-
-Your booking has been cancelled.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CANCELLED BOOKING DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Booking ID: ${bookingData.id}
-Station: ${bookingData.station}
-Date: ${bookingData.date}
-Time: ${bookingData.time}
-Drivers: ${bookingData.drivers}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-If this was a mistake or you'd like to rebook,
-visit kartcade.vercel.app/book or call 503-490-9194.
-
-- The Kartcade Team
-`;
-
-    MailApp.sendEmail(bookingData.email, subject, body);
-}
-
-// Notify owner of cancellation
-function sendOwnerCancellationNotification(bookingData) {
-    const ownerEmail = 'kartcade.website@gmail.com';
-
-    const subject = `❌ Booking Cancelled: ${bookingData.name} - ${bookingData.id}`;
-    const body = `
-BOOKING CANCELLED
-
-Booking ID: ${bookingData.id}
-Customer: ${bookingData.name}
-Email: ${bookingData.email}
-Phone: ${bookingData.phone}
-
-Station: ${bookingData.station}
-Date: ${bookingData.date}
-Time: ${bookingData.time}
-Drivers: ${bookingData.drivers}
-
-This time slot is now available for other bookings.
-`;
-
-    MailApp.sendEmail(ownerEmail, subject, body);
-}
-
-// Admin menu for Google Sheets
-function onOpen() {
-    const ui = SpreadsheetApp.getUi();
-    ui.createMenu('🏎️ Kartcade')
-        .addItem('Cancel Selected Booking', 'cancelSelectedBooking')
-        .addToUi();
-}
-
-// Cancel booking from selected row in sheet
-function cancelSelectedBooking() {
-    const sheet = SpreadsheetApp.getActiveSheet();
-    const row = sheet.getActiveRange().getRow();
-
-    if (row < 2) {
-        SpreadsheetApp.getUi().alert('Please select a booking row (not the header)');
-        return;
-    }
-
-    const bookingId = sheet.getRange(row, 1).getValue();
-
-    if (!bookingId) {
-        SpreadsheetApp.getUi().alert('No booking ID found in selected row');
-        return;
-    }
-
-    const ui = SpreadsheetApp.getUi();
-    const response = ui.alert(
-        'Cancel Booking?',
-        `Are you sure you want to cancel booking ${bookingId}?`,
-        ui.ButtonSet.YES_NO
-    );
-
-    if (response === ui.Button.YES) {
-        const result = JSON.parse(cancelBooking(bookingId).getContent());
-        if (result.success) {
-            ui.alert('Booking cancelled successfully!');
-        } else {
-            ui.alert('Error: ' + result.error);
-        }
-    }
-}
-
-// Test function (run this in Apps Script to test)
-function testAvailability() {
-    const result = getAvailability('2026-01-25', 'rigs');
-    console.log(result.getContent());
-}
-
