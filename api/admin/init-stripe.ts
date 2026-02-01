@@ -1,6 +1,6 @@
 
 import { Stripe } from 'stripe';
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // Membership tier definitions (inlined to avoid import issues)

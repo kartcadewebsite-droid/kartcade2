@@ -1,5 +1,6 @@
 
-import * as admin from 'firebase-admin';
+// Use default import for firebase-admin on Vercel
+import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
 export default async function handler(req: any, res: any) {
@@ -22,7 +23,10 @@ export default async function handler(req: any, res: any) {
                 FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not Set',
                 FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not Set',
                 FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Not Set',
-                usingMethod: hasFullJson ? 'Full JSON' : (hasIndividualKeys ? 'Individual Keys' : 'NONE')
+                usingMethod: hasFullJson ? 'Full JSON' : (hasIndividualKeys ? 'Individual Keys' : 'NONE'),
+                adminType: typeof admin,
+                hasCredential: !!admin?.credential,
+                hasCredentialCert: !!admin?.credential?.cert
             }
         });
 
@@ -33,11 +37,6 @@ export default async function handler(req: any, res: any) {
 
         if (hasFullJson) {
             const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY!;
-            results.steps[results.steps.length - 1].details = {
-                rawJsonStart: rawJson.substring(0, 50) + '...',
-                rawJsonEnd: '...' + rawJson.substring(rawJson.length - 50)
-            };
-
             const serviceAccount = JSON.parse(rawJson);
             credential = admin.credential.cert(serviceAccount);
             results.steps[results.steps.length - 1].status = '✅ Parsed full JSON';
@@ -46,7 +45,7 @@ export default async function handler(req: any, res: any) {
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
                 privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            });
+            } as admin.ServiceAccount);
             results.steps[results.steps.length - 1].status = '✅ Using individual keys';
         } else {
             throw new Error('No Firebase credentials found!');
