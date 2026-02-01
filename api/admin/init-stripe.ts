@@ -3,17 +3,20 @@ import { Stripe } from 'stripe';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// Membership tier definitions (inlined to avoid import issues)
+// Membership tier definitions (matching config/membership.ts)
 const MEMBERSHIP_TIERS = [
-    { id: 'bronze_kart', name: 'Bronze Kart', price: 39, credits: 2, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'bronze' },
-    { id: 'silver_kart', name: 'Silver Kart', price: 69, credits: 4, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'silver' },
-    { id: 'gold_kart', name: 'Gold Kart', price: 119, credits: 8, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'gold' },
-    { id: 'bronze_rig', name: 'Bronze Rig', price: 49, credits: 2, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'bronze' },
-    { id: 'silver_rig', name: 'Silver Rig', price: 89, credits: 4, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'silver' },
-    { id: 'gold_rig', name: 'Gold Rig', price: 149, credits: 8, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'gold' },
-    { id: 'bronze_motion', name: 'Bronze Motion', price: 79, credits: 2, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'bronze' },
-    { id: 'silver_motion', name: 'Silver Motion', price: 139, credits: 4, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'silver' },
-    { id: 'gold_motion', name: 'Gold Motion', price: 229, credits: 8, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'gold' },
+    // KART MEMBERSHIPS
+    { id: 'bronze_kart', name: 'Bronze Kart', price: 75, credits: 5, equipmentType: 'kart', equipmentName: 'Racing Karts', level: 'bronze' },
+    { id: 'silver_kart', name: 'Silver Kart', price: 150, credits: 10, equipmentType: 'kart', equipmentName: 'Racing Karts', level: 'silver' },
+    { id: 'gold_kart', name: 'Gold Kart', price: 300, credits: 20, equipmentType: 'kart', equipmentName: 'Racing Karts', level: 'gold' },
+    // RIG MEMBERSHIPS
+    { id: 'bronze_rig', name: 'Bronze Rig', price: 100, credits: 5, equipmentType: 'rig', equipmentName: 'Full-Size Rigs', level: 'bronze' },
+    { id: 'silver_rig', name: 'Silver Rig', price: 200, credits: 10, equipmentType: 'rig', equipmentName: 'Full-Size Rigs', level: 'silver' },
+    { id: 'gold_rig', name: 'Gold Rig', price: 400, credits: 20, equipmentType: 'rig', equipmentName: 'Full-Size Rigs', level: 'gold' },
+    // MOTION MEMBERSHIPS
+    { id: 'bronze_motion', name: 'Bronze Motion', price: 125, credits: 5, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'bronze' },
+    { id: 'silver_motion', name: 'Silver Motion', price: 250, credits: 10, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'silver' },
+    { id: 'gold_motion', name: 'Gold Motion', price: 500, credits: 20, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'gold' },
 ];
 
 // Initialize Firebase Admin (inline)
