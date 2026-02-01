@@ -173,21 +173,42 @@ function getAvailability(dateStr, stationId) {
             // Use spreadsheet timezone for consistent date
             bookingDateStr = Utilities.formatDate(bookingDate, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
         } else if (typeof bookingDate === 'string') {
-            bookingDateStr = bookingDate.toString().trim();
+            // If it's a string, try to normalize it if it's not YYYY-MM-DD
+            if (bookingDate.includes('/')) {
+                // Handle 2/3/2026 -> 2026-02-03
+                const parts = bookingDate.split('/');
+                if (parts.length === 3) {
+                    // Assume M/D/YYYY
+                    const m = parts[0].padStart(2, '0');
+                    const d = parts[1].padStart(2, '0');
+                    const y = parts[2];
+                    bookingDateStr = `${y}-${m}-${d}`;
+                } else {
+                    bookingDateStr = bookingDate.trim();
+                }
+            } else {
+                bookingDateStr = bookingDate.toString().trim();
+            }
         }
 
-        // Format time for comparison - Google Sheets stores time as Date object (1899-12-30 base)
+        // Format time for comparison
         let bookingTimeStr = '';
         if (bookingTime instanceof Date) {
-            // Extract just the hours
-            const hours = bookingTime.getHours();
-            bookingTimeStr = hours + ':00';
+            // Use spreadsheet timezone to get the correct hour (e.g. 19:00 UTC -> 11:00 PST)
+            const hourStr = Utilities.formatDate(bookingTime, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'H');
+            bookingTimeStr = hourStr + ':00';
         } else if (typeof bookingTime === 'string') {
-            bookingTimeStr = bookingTime.toString().trim();
+            const trimmed = bookingTime.toString().trim();
+            // Handle "11:00:00" -> "11:00"
+            bookingTimeStr = trimmed.split(':').slice(0, 2).join(':');
         }
 
         // Check if this booking matches
-        if (bookingDateStr === dateStr && bookingStation === station.name && status !== 'Cancelled') {
+        // Station comparison: Normalize strings to ignore case/spaces just in case
+        const rowStation = String(bookingStation).trim().toLowerCase();
+        const targetStation = String(station.name).trim().toLowerCase();
+
+        if (bookingDateStr === dateStr && rowStation === targetStation && status !== 'Cancelled') {
             if (!bookedSlots[bookingTimeStr]) {
                 bookedSlots[bookingTimeStr] = 0;
             }
@@ -252,11 +273,24 @@ function createBooking(data) {
         const row = bookings[i];
         let bookingDateStr = row[1];
         if (row[1] instanceof Date) {
-            bookingDateStr = Utilities.formatDate(row[1], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            bookingDateStr = Utilities.formatDate(row[1], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
         }
 
-        if (bookingDateStr === data.date && row[2] === data.time && row[3] === station.name && row[9] !== 'Cancelled') {
-            bookedCount += row[4];
+        let bookingTimeStr = row[2];
+        if (row[2] instanceof Date) {
+            const h = Utilities.formatDate(row[2], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'H');
+            bookingTimeStr = h + ':00';
+        } else if (typeof row[2] === 'string') {
+            const trimmed = row[2].toString().trim();
+            bookingTimeStr = trimmed.split(':').slice(0, 2).join(':');
+        }
+
+        // Check Station name case-insensitive
+        const rowStation = String(row[3]).trim().toLowerCase();
+        const targetStation = String(station.name).trim().toLowerCase();
+
+        if (bookingDateStr === data.date && bookingTimeStr === data.time && rowStation === targetStation && row[9] !== 'Cancelled') {
+            bookedCount += (parseInt(row[4]) || 1);
         }
     }
 
