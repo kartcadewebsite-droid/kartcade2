@@ -30,6 +30,7 @@ export default async function handler(req: any, res: any) {
         await adminService.updateMembership(
             userId,
             tierId,
+            tier.equipmentType,
             fakeSubId,
             nextMonth
         );

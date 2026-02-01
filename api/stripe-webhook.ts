@@ -5,9 +5,7 @@ import { adminService } from './services/adminService';
 import { MEMBERSHIP_TIERS } from '../config/membership';
 
 // Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2024-06-20' as any, // @ts-ignore: Version mismatch with installed types
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
 
@@ -115,7 +113,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
         // 2. Create/Update membership record
         // Note: stripe.subscriptions.retrieve returns a Stripe.Subscription object
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
         const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
 
         await adminService.updateMembership(
@@ -137,19 +135,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * Handle recurring payment success (Renewals)
  */
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
-    const subscriptionId = invoice.subscription as string;
+    const subscriptionId = (invoice as any).subscription as string;
 
     // If subscription is missing or expanded object, handle strictly string ID
     if (!subscriptionId || typeof subscriptionId !== 'string') return;
 
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-    // Explicitly cast to any to access metadata safely if types are outdated
-    const subData = subscription as any;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
 
     // Check if metadata exists on subscription (it should propagate from creation)
-    const userId = subData.metadata?.userId;
-    const tierId = subData.metadata?.tierId;
+    const userId = subscription.metadata?.userId;
+    const tierId = subscription.metadata?.tierId;
 
     if (!userId || !tierId || invoice.billing_reason === 'subscription_create') {
         return;
