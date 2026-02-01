@@ -1,13 +1,36 @@
 
 import { Stripe } from 'stripe';
-import { adminService } from '../services/adminService';
-import { MEMBERSHIP_TIERS } from '../../config/membership';
+import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+
+// Membership tier definitions (inlined to avoid import issues)
+const MEMBERSHIP_TIERS = [
+    { id: 'bronze_kart', name: 'Bronze Kart', price: 39, credits: 2, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'bronze' },
+    { id: 'silver_kart', name: 'Silver Kart', price: 69, credits: 4, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'silver' },
+    { id: 'gold_kart', name: 'Gold Kart', price: 119, credits: 8, equipmentType: 'kart', equipmentName: 'Kart Simulator', level: 'gold' },
+    { id: 'bronze_rig', name: 'Bronze Rig', price: 49, credits: 2, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'bronze' },
+    { id: 'silver_rig', name: 'Silver Rig', price: 89, credits: 4, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'silver' },
+    { id: 'gold_rig', name: 'Gold Rig', price: 149, credits: 8, equipmentType: 'rig', equipmentName: 'Racing Rig', level: 'gold' },
+    { id: 'bronze_motion', name: 'Bronze Motion', price: 79, credits: 2, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'bronze' },
+    { id: 'silver_motion', name: 'Silver Motion', price: 139, credits: 4, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'silver' },
+    { id: 'gold_motion', name: 'Gold Motion', price: 229, credits: 8, equipmentType: 'motion', equipmentName: 'Motion Platform', level: 'gold' },
+];
+
+// Initialize Firebase Admin (inline)
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+    });
+}
+
+const db = getFirestore();
 
 // Initialize Stripe
-// @ts-ignore: Version mismatch with installed types
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    // apiVersion: '2023-10-16', // Default to account version
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'GET') {
@@ -39,8 +62,7 @@ export default async function handler(req: any, res: any) {
             if (existing) {
                 console.log(`✅ Product already exists: ${productName} (${existing.id})`);
                 productId = existing.id;
-                // Try to find a price for it? For simplicity, we assume if product exists, price exists.
-                // We need the PRICE ID for the config.
+                // Try to find a price for it
                 const prices = await stripe.prices.list({ product: productId, limit: 1 });
                 if (prices.data.length > 0) {
                     priceId = prices.data[0].id;
@@ -92,8 +114,12 @@ export default async function handler(req: any, res: any) {
             }
         }
 
-        // 2. Save mapping to Firestore
-        await adminService.saveStripeConfig(config);
+        // 2. Save mapping to Firestore (inline function)
+        await db.collection('system').doc('stripe_config').set({
+            prices: config,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        console.log('Stripe config saved to Firestore');
 
         // 3. Return nice HTML success page
         res.setHeader('Content-Type', 'text/html');
@@ -103,28 +129,28 @@ export default async function handler(req: any, res: any) {
         <head>
             <title>Stripe Setup Complete</title>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #111; color: white; display: flex; justify-content: center; items-center; height: 100vh; margin: 0; }
-                .card { background: #222; padding: 2rem; border-radius: 1rem; border: 1px solid #333; max-width: 500px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-                h1 { color: #2D9E49; margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #111; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                .card { background: #222; padding: 2rem; border-radius: 1rem; border: 1px solid #333; max-width: 500px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
+                h1 { color: #2D9E49; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
                 .success-icon { font-size: 1.5rem; }
                 ul { list-style: none; padding: 0; margin: 1.5rem 0; text-align: left; }
-                li { padding: 0.5rem 0; border-bottom: 1px solid #333; display: flex; justify-content: space-between; font-size: 0.9rem; }
+                li { padding: 0.75rem 0; border-bottom: 1px solid #333; display: flex; justify-content: space-between; font-size: 0.9rem; }
                 li:last-child { border-bottom: none; }
                 .label { color: #888; }
-                .value { font-family: monospace; color: #ccc; }
-                .btn { display: inline-block; background: #333; color: white; padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 0.5rem; margin-top: 1rem; transition: background 0.2s; }
-                .btn:hover { background: #444; }
+                .value { font-family: monospace; color: #2D9E49; }
+                .btn { display: inline-block; background: #2D9E49; color: white; padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 0.5rem; margin-top: 1rem; transition: background 0.2s; }
+                .btn:hover { background: #248a3f; }
             </style>
         </head>
         <body>
-            <div class="card text-center">
+            <div class="card">
                 <h1><span class="success-icon">✅</span> System Setup Complete</h1>
                 <p>Your Kartcade payment system is now fully initialized.</p>
                 
                 <ul>
-                    <li><span class="label">Stripe Connection</span> <span class="value">Active</span></li>
+                    <li><span class="label">Stripe Connection</span> <span class="value">Active ✓</span></li>
                     <li><span class="label">Products Created</span> <span class="value">${createdProducts.length}</span></li>
-                    <li><span class="label">Database Updated</span> <span class="value">True</span></li>
+                    <li><span class="label">Database Updated</span> <span class="value">True ✓</span></li>
                 </ul>
 
                 <p style="color: #666; font-size: 0.8rem; margin-top: 2rem;">You can safely close this window.</p>
@@ -137,9 +163,14 @@ export default async function handler(req: any, res: any) {
     } catch (err: any) {
         console.error('Initialization Error:', err);
         res.status(500).send(`
-            <h1>❌ Setup Failed</h1>
-            <p>Error: ${err.message}</p>
-            <pre>${JSON.stringify(err, null, 2)}</pre>
+            <html>
+            <head><title>Setup Failed</title></head>
+            <body style="font-family: system-ui; background: #111; color: white; padding: 40px;">
+                <h1>❌ Setup Failed</h1>
+                <p style="color: #ff6b6b;">Error: ${err.message}</p>
+                <pre style="background: #222; padding: 20px; border-radius: 8px; overflow: auto;">${JSON.stringify(err, null, 2)}</pre>
+            </body>
+            </html>
         `);
     }
 }
