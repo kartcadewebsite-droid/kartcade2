@@ -18,14 +18,25 @@ const MEMBERSHIP_TIERS = [
 
 // Initialize Firebase Admin (inline)
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert({
+    let credential;
+
+    // Option 1: Full JSON in FIREBASE_SERVICE_ACCOUNT_KEY (recommended)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        credential = admin.credential.cert(serviceAccount);
+    }
+    // Option 2: Individual keys (legacy)
+    else {
+        credential = admin.credential.cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
             privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
-    });
+        });
+    }
+
+    admin.initializeApp({ credential });
 }
+
 
 const db = getFirestore();
 
