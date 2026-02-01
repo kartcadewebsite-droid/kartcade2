@@ -43,18 +43,29 @@ const CheckoutPage: React.FC = () => {
         setLoading(true);
         setError('');
 
-        const queryPriceId = searchParams.get('priceId');
-        const finalPriceId = queryPriceId || tier.stripePriceId;
-
         try {
+            // First, try to get priceId from URL params
+            let finalPriceId = searchParams.get('priceId');
+
+            // If no priceId in URL, fetch from API
+            if (!finalPriceId) {
+                const configRes = await fetch('/api/get-stripe-config');
+                const configData = await configRes.json();
+                finalPriceId = configData?.prices?.[tier.id] || null;
+            }
+
+            // If still no price, use fallback from tier config
+            if (!finalPriceId) {
+                finalPriceId = tier.stripePriceId;
+            }
+
             if (!isStripeConfigured()) {
-                // Placeholder for when Stripe is not configured
                 setError('Payment system is not yet configured. Please contact us to complete your purchase.');
                 setLoading(false);
                 return;
             }
 
-            // Check if we have a valid price ID (either from URL or config)
+            // Check if we have a valid price ID
             if (!finalPriceId || finalPriceId.includes('placeholder')) {
                 setError('Configuration Error: Membership Price ID is missing. Please contact support.');
                 setLoading(false);
