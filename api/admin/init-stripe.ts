@@ -77,6 +77,16 @@ export default async function handler(req: any, res: any) {
                 console.log(`✅ Product already exists: ${productName} (${existing.id})`);
                 productId = existing.id;
 
+                // Check and update product description if needed
+                const expectedDescription = `${tier.credits}h of ${tier.equipmentName} time per month`;
+                if (existing.description !== expectedDescription) {
+                    console.log(`📝 Updating product description...`);
+                    await stripe.products.update(productId, {
+                        description: expectedDescription
+                    });
+                    console.log(`✅ Description updated to: ${expectedDescription}`);
+                }
+
                 // Find all active prices for this product
                 const prices = await stripe.prices.list({ product: productId, active: true, limit: 10 });
                 const expectedAmount = tier.price * 100; // in cents
