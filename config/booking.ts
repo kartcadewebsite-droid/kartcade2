@@ -90,7 +90,7 @@ export const bookingApi = {
             return null;
         }
 
-        const url = `${bookingConfig.API_URL}?action=availability&date=${date}&station=${station}`;
+        const url = `${bookingConfig.API_URL}?action=availability&date=${date}&station=${station}&t=${Date.now()}`;
 
         try {
             const response = await fetch(url);
