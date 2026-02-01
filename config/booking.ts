@@ -66,7 +66,6 @@ export const bookingConfig = {
 
     // Payment options
     paymentOptions: {
-        venue: { label: 'Pay at Venue', description: 'Pay when you arrive' },
         deposit: { label: 'Pay Deposit', description: '50% now, rest at venue' },
         now: { label: 'Pay in Full', description: 'Complete payment now' }
     }
