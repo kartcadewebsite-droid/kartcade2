@@ -96,8 +96,10 @@ const formatDate = (date: Date) => {
 };
 
 // Format date for API (YYYY-MM-DD)
+// Format date for API (YYYY-MM-DD) in Oregon Time
 const formatDateForApi = (date: Date) => {
-    return date.toISOString().split('T')[0];
+    // strict conversion to Oregon time to prevent UTC rollover
+    return date.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 };
 
 // Generate next 30 days
