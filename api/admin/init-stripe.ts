@@ -76,21 +76,29 @@ export default async function handler(req: any, res: any) {
             if (existing) {
                 console.log(`✅ Product already exists: ${productName} (${existing.id})`);
                 productId = existing.id;
-                // Try to find a price for it
-                const prices = await stripe.prices.list({ product: productId, limit: 1 });
-                if (prices.data.length > 0) {
-                    priceId = prices.data[0].id;
+
+                // Find all active prices for this product
+                const prices = await stripe.prices.list({ product: productId, active: true, limit: 10 });
+                const expectedAmount = tier.price * 100; // in cents
+
+                // Check if any price has the correct amount
+                const correctPrice = prices.data.find(p => p.unit_amount === expectedAmount);
+
+                if (correctPrice) {
+                    console.log(`✅ Found correct price: $${tier.price}`);
+                    priceId = correctPrice.id;
                 } else {
-                    // Create price if missing
-                    console.log(`⚠️ Product exists but price missing. Creating price...`);
-                    const price = await stripe.prices.create({
+                    // Price exists but with wrong amount - create new price
+                    console.log(`⚠️ Price amount mismatch! Creating new price with correct amount: $${tier.price}`);
+                    const newPrice = await stripe.prices.create({
                         product: productId,
-                        unit_amount: tier.price * 100,
+                        unit_amount: expectedAmount,
                         currency: 'usd',
                         recurring: { interval: 'month' },
                         metadata: { tierId: tier.id }
                     });
-                    priceId = price.id;
+                    priceId = newPrice.id;
+                    console.log(`✅ Created new price: ${priceId}`);
                 }
             } else {
                 // Create New Product
