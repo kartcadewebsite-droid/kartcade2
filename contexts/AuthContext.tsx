@@ -12,6 +12,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
 import { UserCredits, UserMembership, UserMembershipsMap, DEFAULT_CREDITS, DEFAULT_MEMBERSHIPS } from '../config/membership';
+import { bookingConfig } from '../config/booking';
 
 // Types
 interface UserProfile {
@@ -85,8 +86,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Check if current user is admin - ONLY from Firestore role (no hardcoded email)
-    const isAdmin = userProfile?.role === 'admin';
+    // Check if current user is admin - via Firestore role OR predefined admin email
+    const isAdmin = userProfile?.role === 'admin' ||
+        (currentUser?.email && bookingConfig.adminEmails?.includes(currentUser.email)) ||
+        false;
 
     // Create user profile in Firestore - Returns true if new user created
     const createUserProfile = async (

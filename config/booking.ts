@@ -64,8 +64,12 @@ export const bookingConfig = {
     minAdvanceHours: 2, // Minimum hours in advance to book
     maxAdvanceDays: 30, // Maximum days in advance to book
 
+    // Admin emails (can see 'Pay at Venue')
+    adminEmails: ['kartcade.website@gmail.com', 'adamjames9@gmail.com', 'info@kartcade.com'],
+
     // Payment options
     paymentOptions: {
+        venue: { label: 'Pay at Venue', description: 'Pay when you arrive', adminOnly: true },
         deposit: { label: 'Pay Deposit', description: '50% now, rest at venue' },
         now: { label: 'Pay in Full', description: 'Complete payment now' }
     }
