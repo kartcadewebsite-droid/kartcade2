@@ -96,6 +96,11 @@ function handleRequest(e) {
             return cancelBooking(e.parameter.id);
         }
 
+        // 7. ALL Bookings (Admin Dashboard)
+        if (action === 'allBookings') {
+            return getAllBookings();
+        }
+
         return createResponse({ error: 'Invalid action' }, 400);
 
     } catch (error) {
@@ -491,4 +496,73 @@ function getUserBookings(email) {
         }
     }
     return createResponse({ success: true, bookings: result });
+}
+
+// ============================================================
+// ADMIN: GET ALL BOOKINGS (For Admin Dashboard)
+// ============================================================
+function getAllBookings() {
+    const rows = BOOKINGS_SHEET.getDataRange().getValues();
+    const today = new Date();
+    const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    const todayBookings = [];
+    const upcomingBookings = [];
+    const pastBookings = [];
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const bookingDate = normalizeDate(row[1]);
+        const status = row[9] || 'Pending';
+
+        const booking = {
+            id: row[0],
+            date: bookingDate,
+            time: normalizeTime(row[2]),
+            station: row[3],
+            drivers: row[4],
+            name: row[5],
+            email: row[6],
+            phone: row[7],
+            paymentMethod: row[8],
+            status: status
+        };
+
+        // Skip cancelled bookings from main views (but still include in stats)
+        if (status === 'Cancelled') {
+            pastBookings.push(booking);
+            continue;
+        }
+
+        // Categorize
+        if (bookingDate === todayStr) {
+            todayBookings.push(booking);
+        } else if (bookingDate > todayStr) {
+            upcomingBookings.push(booking);
+        } else {
+            pastBookings.push(booking);
+        }
+    }
+
+    // Sort by date/time
+    const sortByDateTime = (a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.time.localeCompare(b.time);
+    };
+
+    todayBookings.sort(sortByDateTime);
+    upcomingBookings.sort(sortByDateTime);
+    pastBookings.sort(sortByDateTime).reverse(); // Most recent first
+
+    return createResponse({
+        success: true,
+        today: todayBookings,
+        upcoming: upcomingBookings,
+        past: pastBookings.slice(0, 50), // Limit past to last 50
+        stats: {
+            todayCount: todayBookings.length,
+            upcomingCount: upcomingBookings.length,
+            pastCount: pastBookings.length
+        }
+    });
 }

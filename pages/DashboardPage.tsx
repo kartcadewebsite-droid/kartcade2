@@ -13,6 +13,8 @@ interface Booking {
     drivers: number;
     name: string;
     email: string;
+    phone?: string;
+    paymentMethod?: string;
     status: string;
 }
 
@@ -37,6 +39,15 @@ const DashboardPage: React.FC = () => {
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
+
+    // ADMIN: Dashboard state for ALL bookings
+    const [adminTodayBookings, setAdminTodayBookings] = useState<Booking[]>([]);
+    const [adminUpcomingBookings, setAdminUpcomingBookings] = useState<Booking[]>([]);
+    const [adminPastBookings, setAdminPastBookings] = useState<Booking[]>([]);
+    const [adminStats, setAdminStats] = useState({ todayCount: 0, upcomingCount: 0, pastCount: 0 });
+    const [adminLoading, setAdminLoading] = useState(false);
+    const [adminTab, setAdminTab] = useState<'today' | 'upcoming' | 'past'>('today');
+    const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
     // Get real membership and credits from user profile
     const membership = userProfile?.membership?.active ? userProfile.membership : null;
@@ -93,6 +104,34 @@ const DashboardPage: React.FC = () => {
             });
         }
     }, [userProfile, showEditModal]);
+
+    // ADMIN: Fetch ALL bookings with auto-refresh (every 30 seconds)
+    useEffect(() => {
+        if (!isAdmin) return;
+
+        const fetchAllBookings = async () => {
+            try {
+                setAdminLoading(true);
+                const response = await bookingApi.getAllBookings();
+                if (response.success) {
+                    setAdminTodayBookings(response.today || []);
+                    setAdminUpcomingBookings(response.upcoming || []);
+                    setAdminPastBookings(response.past || []);
+                    setAdminStats(response.stats || { todayCount: 0, upcomingCount: 0, pastCount: 0 });
+                    setLastRefresh(new Date());
+                }
+            } catch (error) {
+                console.error('Failed to fetch admin bookings:', error);
+            } finally {
+                setAdminLoading(false);
+            }
+        };
+
+        fetchAllBookings(); // Initial fetch
+        const interval = setInterval(fetchAllBookings, 30000); // Refresh every 30 seconds
+
+        return () => clearInterval(interval);
+    }, [isAdmin]);
 
     const handleLogout = async () => {
         try {
@@ -211,6 +250,129 @@ const DashboardPage: React.FC = () => {
                     <div className="mb-6 p-4 bg-[#D42428]/10 border border-[#D42428]/30 rounded-lg flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-[#D42428] flex-shrink-0 mt-0.5" />
                         <p className="text-[#D42428] text-sm">{error}</p>
+                    </div>
+                )}
+
+                {/* ADMIN DASHBOARD - Shows ALL bookings */}
+                {isAdmin && (
+                    <div className="mb-8 bg-[#141414] rounded-2xl border border-[#D42428]/30 overflow-hidden">
+                        {/* Admin Header */}
+                        <div className="bg-[#D42428]/10 px-6 py-4 border-b border-[#D42428]/20">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Calendar className="w-5 h-5 text-[#D42428]" />
+                                    <h2 className="font-display text-lg font-bold text-white uppercase">Admin Booking Dashboard</h2>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm">
+                                    {adminLoading && (
+                                        <span className="text-white/40 flex items-center gap-2">
+                                            <div className="w-3 h-3 border-2 border-[#D42428] border-t-transparent rounded-full animate-spin"></div>
+                                            Refreshing...
+                                        </span>
+                                    )}
+                                    {lastRefresh && !adminLoading && (
+                                        <span className="text-white/40">
+                                            🔄 Auto-refresh: {lastRefresh.toLocaleTimeString()}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Admin Tabs */}
+                        <div className="flex border-b border-white/10">
+                            <button
+                                onClick={() => setAdminTab('today')}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'today'
+                                        ? 'text-[#D42428] border-b-2 border-[#D42428] bg-[#D42428]/5'
+                                        : 'text-white/60 hover:text-white'
+                                    }`}
+                            >
+                                Today ({adminStats.todayCount})
+                            </button>
+                            <button
+                                onClick={() => setAdminTab('upcoming')}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'upcoming'
+                                        ? 'text-[#2D9E49] border-b-2 border-[#2D9E49] bg-[#2D9E49]/5'
+                                        : 'text-white/60 hover:text-white'
+                                    }`}
+                            >
+                                Upcoming ({adminStats.upcomingCount})
+                            </button>
+                            <button
+                                onClick={() => setAdminTab('past')}
+                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'past'
+                                        ? 'text-white/60 border-b-2 border-white/30'
+                                        : 'text-white/40 hover:text-white/60'
+                                    }`}
+                            >
+                                Past ({adminStats.pastCount})
+                            </button>
+                        </div>
+
+                        {/* Admin Booking Table */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-black/30">
+                                    <tr className="text-left text-white/40 text-xs uppercase">
+                                        <th className="px-4 py-3">Time</th>
+                                        <th className="px-4 py-3">Date</th>
+                                        <th className="px-4 py-3">Station</th>
+                                        <th className="px-4 py-3">Customer</th>
+                                        <th className="px-4 py-3">Email</th>
+                                        <th className="px-4 py-3">Phone</th>
+                                        <th className="px-4 py-3">Payment</th>
+                                        <th className="px-4 py-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {(adminTab === 'today' ? adminTodayBookings :
+                                        adminTab === 'upcoming' ? adminUpcomingBookings :
+                                            adminPastBookings
+                                    ).map((booking) => (
+                                        <tr key={booking.id} className="hover:bg-white/5 transition-colors">
+                                            <td className="px-4 py-3 text-[#D42428] font-medium">{booking.time}</td>
+                                            <td className="px-4 py-3 text-white">{booking.date}</td>
+                                            <td className="px-4 py-3">
+                                                <span
+                                                    className="px-2 py-1 rounded text-xs font-medium"
+                                                    style={{
+                                                        backgroundColor: `${getStationColor(booking.station)}20`,
+                                                        color: getStationColor(booking.station)
+                                                    }}
+                                                >
+                                                    {booking.station}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-white">{booking.name}</td>
+                                            <td className="px-4 py-3 text-white/60">{booking.email}</td>
+                                            <td className="px-4 py-3 text-white/60">{booking.phone || '-'}</td>
+                                            <td className="px-4 py-3 text-white/60 capitalize">{booking.paymentMethod || '-'}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${booking.status === 'Confirmed'
+                                                        ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
+                                                        : booking.status === 'Cancelled'
+                                                            ? 'bg-red-500/20 text-red-400'
+                                                            : 'bg-yellow-500/20 text-yellow-400'
+                                                    }`}>
+                                                    {booking.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {(adminTab === 'today' ? adminTodayBookings :
+                                        adminTab === 'upcoming' ? adminUpcomingBookings :
+                                            adminPastBookings
+                                    ).length === 0 && (
+                                            <tr>
+                                                <td colSpan={8} className="px-4 py-8 text-center text-white/40">
+                                                    No {adminTab} bookings found
+                                                </td>
+                                            </tr>
+                                        )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 

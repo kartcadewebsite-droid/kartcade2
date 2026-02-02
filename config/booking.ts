@@ -226,6 +226,23 @@ export const bookingApi = {
             console.error('Failed to cancel booking:', error);
             throw error;
         }
+    },
+
+    // Get ALL bookings (Admin Dashboard)
+    async getAllBookings() {
+        try {
+            const url = `${bookingConfig.API_URL}?action=allBookings&t=${Date.now()}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                redirect: 'follow'
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Failed to fetch all bookings:', error);
+            throw error;
+        }
     }
 };
 
