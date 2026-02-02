@@ -8,7 +8,7 @@
 // 3. Deploy as Web App (Deploy > New deployment > Web app).
 //    - Description: v2 with Batch & Blocking
 //    - Execute as: Me
-//    - Who has access: Anyone
+//    - Who has access: Anyhttps://developers.google.com/apps-script/one
 // 4. Copy the new Web App URL and update your config/booking.ts (API_URL).
 // ============================================================
 
@@ -101,6 +101,11 @@ function handleRequest(e) {
             return getAllBookings();
         }
 
+        // 8. Get Single Booking (for Cancel Page)
+        if (action === 'getBooking') {
+            return getBooking(e.parameter.id);
+        }
+
         return createResponse({ error: 'Invalid action' }, 400);
 
     } catch (error) {
@@ -142,6 +147,37 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
 
     const bookedSlots = {};
 
+    // Helper to extract quantity from multi-equipment format
+    // e.g., "Karts:5, Rigs:3 (2h)" -> for "karts" returns 5
+    function extractQuantityFromBooking(stationStr, targetId) {
+        const lower = String(stationStr).toLowerCase();
+
+        // Map station IDs to their short names in booking format
+        const shortNames = {
+            karts: 'karts',
+            rigs: 'rigs',
+            motion: 'motion',
+            flight: 'flight'
+        };
+
+        const shortName = shortNames[targetId];
+        if (!shortName) return 0;
+
+        // Try to match "Karts:5" pattern
+        const regex = new RegExp(shortName + ':(\\d+)', 'i');
+        const match = lower.match(regex);
+        if (match) {
+            return parseInt(match[1]) || 0;
+        }
+
+        // Fallback: check legacy format (exact station name match)
+        if (lower === station.name.toLowerCase()) {
+            return 1; // Legacy single booking
+        }
+
+        return 0;
+    }
+
     // 1. Get Existing Bookings
     const bookings = BOOKINGS_SHEET.getDataRange().getValues();
     for (let i = 1; i < bookings.length; i++) {
@@ -150,12 +186,25 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
 
         const bDate = normalizeDate(row[1]);
         const bTime = normalizeTime(row[2]);
-        // Normalize station name
-        const bStation = String(row[3]).trim().toLowerCase();
+        const bStation = String(row[3]).trim();
 
-        if (bDate === dateStr && bStation === station.name.toLowerCase()) {
-            if (!bookedSlots[bTime]) bookedSlots[bTime] = 0;
-            bookedSlots[bTime] += (parseInt(row[4]) || 1);
+        // Parse duration from booking to block multiple hours
+        const durationMatch = bStation.match(/\((\d+)h\)/);
+        const bookingDuration = durationMatch ? parseInt(durationMatch[1]) : 1;
+
+        if (bDate === dateStr) {
+            // Extract quantity for THIS station from the booking
+            const qty = extractQuantityFromBooking(bStation, stationId);
+
+            if (qty > 0) {
+                // Block all hours covered by this booking
+                const startHour = parseInt(bTime.split(':')[0]);
+                for (let h = 0; h < bookingDuration; h++) {
+                    const hourKey = `${startHour + h}:00`;
+                    if (!bookedSlots[hourKey]) bookedSlots[hourKey] = 0;
+                    bookedSlots[hourKey] += qty;
+                }
+            }
         }
     }
 
@@ -303,20 +352,24 @@ function createBatchBooking(items, user) {
 }
 
 function createBooking(data) {
-    // Legacy support for single booking calls (e.g. from existing Webhook logic)
-    // We maintain this so the current "Deposit safety net" still works without frontend changes immediately.
-
-    const station = STATIONS[data.station];
-    if (!station) return createResponse({ error: 'Invalid station' }, 400);
+    // UPDATED: Now handles multi-equipment format like "Karts:2, Rigs:1 (2h)"
+    // The station field is now a descriptive string, not a lookup key
 
     const bookingId = generateBookingId();
     const createdAt = new Date();
+
+    // Use station string directly - it's now "Karts:2, Rigs:1 (2h)" format
+    const stationDisplay = data.station || 'Unknown';
+
+    // Parse duration from station string (e.g., "(2h)" -> 2)
+    const durationMatch = stationDisplay.match(/\((\d+)h\)/);
+    const durationHours = durationMatch ? parseInt(durationMatch[1]) : 1;
 
     BOOKINGS_SHEET.appendRow([
         bookingId,
         data.date,
         data.time,
-        station.name,
+        stationDisplay,
         data.drivers,
         data.name,
         data.email,
@@ -326,10 +379,10 @@ function createBooking(data) {
         createdAt
     ]);
 
-    // Send confirmation email
-    try { sendConfirmationEmail(data, bookingId, station.name); } catch (e) { }
-    try { sendOwnerNotification(data, bookingId, station.name); } catch (e) { }
-    try { createCalendarEvent(data, bookingId, station.name); } catch (e) { }
+    // Send confirmation email with new format
+    try { sendConfirmationEmail(data, bookingId, stationDisplay, durationHours); } catch (e) { }
+    try { sendOwnerNotification(data, bookingId, stationDisplay, durationHours); } catch (e) { }
+    try { createCalendarEvent(data, bookingId, stationDisplay, durationHours); } catch (e) { }
 
     return createResponse({
         success: true,
@@ -384,20 +437,51 @@ Notes: ${user.notes}
     MailApp.sendEmail(ownerEmail, subject, body);
 }
 
-function sendConfirmationEmail(data, bookingId, stationName) {
-    const station = STATIONS[data.station];
-    const price = getSetting(station.priceKey);
-    const total = price * data.drivers;
-    const body = `Booking ID: ${bookingId}\n${stationName}\n${data.date} @ ${data.time}\nTotal: $${total}\n\n- Kartcade Team`;
+function sendConfirmationEmail(data, bookingId, stationDisplay, durationHours) {
+    // UPDATED: Now uses stationDisplay directly (no STATIONS lookup)
+    const cancelUrl = `https://kartcade.com/cancel?id=${bookingId}`;
+    const body = `
+🏎️ KARTCADE BOOKING CONFIRMATION
+
+Booking ID: ${bookingId}
+Equipment: ${stationDisplay}
+Date: ${data.date}
+Time: ${data.time}
+Duration: ${durationHours} hour${durationHours > 1 ? 's' : ''}
+Drivers: ${data.drivers}
+
+📍 Location: West Linn, Oregon
+📞 Questions? Call 503-490-9194
+
+Need to cancel? Visit: ${cancelUrl}
+
+Thank you for booking with Kartcade!
+- The Kartcade Team
+    `;
     MailApp.sendEmail(data.email, `Kartcade Booking - ${bookingId}`, body);
 }
 
-function sendOwnerNotification(data, bookingId, stationName) {
+function sendOwnerNotification(data, bookingId, stationDisplay, durationHours) {
     const ownerEmail = 'kartcade.website@gmail.com';
-    MailApp.sendEmail(ownerEmail, `New Booking: ${data.name}`, `Details:\n${stationName}\nID: ${bookingId}\nUser: ${data.name}`);
+    const body = `
+🏎️ NEW BOOKING
+
+ID: ${bookingId}
+Customer: ${data.name}
+Email: ${data.email}
+Phone: ${data.phone}
+
+Equipment: ${stationDisplay}
+Date: ${data.date}
+Time: ${data.time} (${durationHours}hr)
+Drivers: ${data.drivers}
+Payment: ${data.paymentMethod}
+Notes: ${data.notes || 'None'}
+    `;
+    MailApp.sendEmail(ownerEmail, `New Booking: ${data.name} - ${stationDisplay}`, body);
 }
 
-function createCalendarEvent(data, bookingId, stationName) {
+function createCalendarEvent(data, bookingId, stationDisplay, durationHours) {
     var calendar = CalendarApp.getDefaultCalendar();
 
     // Parse Date Parts YYYY-MM-DD
@@ -406,15 +490,15 @@ function createCalendarEvent(data, bookingId, stationName) {
     var timeParts = data.time.split(':');
 
     var start = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1] || 0);
-    var end = new Date(start.getTime() + (3600 * 1000)); // 1 Hour
+    // UPDATED: Use actual duration instead of fixed 1 hour
+    var end = new Date(start.getTime() + (durationHours * 3600 * 1000));
 
-    var event = calendar.createEvent(`🏎️ ${data.name} - ${stationName} (${data.drivers})`, start, end, {
-        description: `ID: ${bookingId}\n${data.notes}`
+    var event = calendar.createEvent(`🏎️ ${data.name} - ${stationDisplay}`, start, end, {
+        description: `Booking ID: ${bookingId}\nDrivers: ${data.drivers}\nPhone: ${data.phone}\nEmail: ${data.email}\n\nNotes: ${data.notes || 'None'}`
     });
 
-    // Colors: Karts=2(Green), Rigs=9(Blue), Motion=11(Red), Flight=5(Yellow)
-    var colorMap = { 'Racing Karts': '2', 'Full-Size Rigs': '9', 'Motion Simulator': '11', 'Flight Simulator': '5' };
-    if (colorMap[stationName]) event.setColor(colorMap[stationName]);
+    // Default color: Green for multi-booking
+    event.setColor('2');
 }
 
 // ============================================================
@@ -472,6 +556,30 @@ function cancelBooking(id) {
         }
     }
     return createResponse({ error: 'Not found' });
+}
+
+function getBooking(id) {
+    const bookings = BOOKINGS_SHEET.getDataRange().getValues();
+    for (let i = 1; i < bookings.length; i++) {
+        if (bookings[i][0] === id) {
+            return createResponse({
+                success: true,
+                booking: {
+                    id: bookings[i][0],
+                    date: normalizeDate(bookings[i][1]),
+                    time: normalizeTime(bookings[i][2]),
+                    station: bookings[i][3],
+                    drivers: bookings[i][4],
+                    name: bookings[i][5],
+                    email: bookings[i][6],
+                    phone: bookings[i][7],
+                    paymentMethod: bookings[i][8],
+                    status: bookings[i][9]
+                }
+            });
+        }
+    }
+    return createResponse({ success: false, error: 'Booking not found' });
 }
 
 function getUserBookings(email) {

@@ -84,13 +84,13 @@ export const isApiConfigured = () => {
 // API functions
 export const bookingApi = {
     // Fetch availability for a date and station (with retry logic)
-    async getAvailability(date: string, station: string, retries = 3): Promise<any> {
+    async getAvailability(date: string, station: string, duration: number = 1, retries = 3): Promise<any> {
         if (!isApiConfigured()) {
             console.warn('Booking API not configured - using demo mode');
             return null;
         }
 
-        const url = `${bookingConfig.API_URL}?action=availability&date=${date}&station=${station}&t=${Date.now()}`;
+        const url = `${bookingConfig.API_URL}?action=availability&date=${date}&station=${station}&duration=${duration}&t=${Date.now()}`;
 
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {

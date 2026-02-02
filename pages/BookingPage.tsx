@@ -98,6 +98,23 @@ const generateDates = () => {
     return dates;
 };
 
+// Email validation helper
+const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+};
+
+// Phone validation helper (at least 10 digits)
+const isValidPhone = (phone: string): boolean => {
+    const digits = phone.replace(/\D/g, '');
+    return digits.length >= 10;
+};
+
+// Equipment cart type for multi-booking
+type EquipmentCart = {
+    [key: string]: number; // stationId -> quantity
+};
+
 const BookingPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isLiveMode, setIsLiveMode] = useState(isApiConfigured());
@@ -139,6 +156,16 @@ const BookingPage: React.FC = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [loadingStripe, setLoadingStripe] = useState(false);
 
+    // Multi-booking state
+    const [equipmentCart, setEquipmentCart] = useState<EquipmentCart>({
+        karts: 0,
+        rigs: 0,
+        motion: 0,
+        flight: 0
+    });
+    const [duration, setDuration] = useState(1); // 1, 2, or 3 hours
+    const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({});
+
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -167,16 +194,27 @@ const BookingPage: React.FC = () => {
     const dates = generateDates();
     const timeSlots = generateTimeSlots();
 
-    // Load availability when date/station changes
+    // Get first equipment type in cart for availability
+    const getFirstCartEquipment = (): string | null => {
+        for (const station of stationTypes) {
+            if ((equipmentCart[station.id] || 0) > 0) {
+                return station.id;
+            }
+        }
+        return selectedStation; // Fallback for legacy mode
+    };
+
+    // Load availability when date/equipment/duration changes
     useEffect(() => {
-        if (selectedDate && selectedStation) {
+        if (selectedDate && (hasAnyEquipment() || selectedStation)) {
             loadAvailability();
         }
-    }, [selectedDate, selectedStation]);
+    }, [selectedDate, equipmentCart, selectedStation, duration]);
 
     // Fetch availability from API - ROBUST VERSION (No Demo Fallback)
     const loadAvailability = async () => {
-        if (!selectedDate || !selectedStation) return;
+        const equipmentId = getFirstCartEquipment();
+        if (!selectedDate || !equipmentId) return;
 
         setIsLoadingAvailability(true);
         setError(null);
@@ -185,7 +223,7 @@ const BookingPage: React.FC = () => {
         const dateStr = formatDateForApi(selectedDate);
 
         try {
-            const response = await bookingApi.getAvailability(dateStr, selectedStation);
+            const response = await bookingApi.getAvailability(dateStr, equipmentId, duration);
 
             if (response && response.availability) {
                 setAvailability(response.availability);
@@ -226,7 +264,7 @@ const BookingPage: React.FC = () => {
     }, [step]);
 
     const handleSubmit = async () => {
-        if (!selectedDate || !selectedTime || !selectedStation) return;
+        if (!selectedDate || !selectedTime || !hasAnyEquipment()) return;
 
         // NEW: If Deposit selected, open the "Choose Method" modal instead of submitting immediately
         if (paymentMethod === 'deposit') {
@@ -272,8 +310,8 @@ const BookingPage: React.FC = () => {
             const result = await bookingApi.createBooking({
                 date: formatDateForApi(selectedDate),
                 time: selectedTime,
-                station: selectedStation,
-                drivers: drivers,
+                station: `${getCartSummary()} (${duration}h)`,
+                drivers: getTotalDrivers(),
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
@@ -310,13 +348,13 @@ const BookingPage: React.FC = () => {
                     userEmail: currentUser.email,
                     amount: depositAmount, // Custom Amount
                     mode: 'payment',
-                    productName: `50% Deposit: ${selectedStationData?.name} (${formatDate(selectedDate!)})`,
+                    productName: `50% Deposit: ${getCartSummary()} (${formatDate(selectedDate!)} - ${duration}hr)`,
                     // Pass booking details for Webhook Fulfillment
                     bookingDetails: {
-                        station: selectedStation,
+                        station: `${getCartSummary()} (${duration}h)`,
                         date: formatDateForApi(selectedDate!),
                         time: selectedTime,
-                        drivers: drivers,
+                        drivers: getTotalDrivers(),
                         name: formData.name,
                         email: formData.email,
                         phone: formData.phone,
@@ -368,8 +406,8 @@ const BookingPage: React.FC = () => {
             const result = await bookingApi.createBooking({
                 date: formatDateForApi(selectedDate!),
                 time: selectedTime!,
-                station: selectedStation!,
-                drivers: drivers,
+                station: `${getCartSummary()} (${duration}h)`,
+                drivers: getTotalDrivers(),
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
@@ -389,10 +427,54 @@ const BookingPage: React.FC = () => {
         setIsSubmitting(false);
     };
 
-    // Calculate total
+    // Calculate total - UPDATED for multi-booking
     const calculateTotal = () => {
-        if (!selectedStationData) return 0;
-        return selectedStationData.price * drivers;
+        // If using legacy single-station mode
+        if (selectedStation && !hasAnyEquipment()) {
+            if (!selectedStationData) return 0;
+            return selectedStationData.price * drivers * duration;
+        }
+        // Multi-equipment mode
+        let total = 0;
+        stationTypes.forEach(station => {
+            const qty = equipmentCart[station.id] || 0;
+            total += station.price * qty * duration;
+        });
+        return total;
+    };
+
+    // Cart helper: check if any equipment is selected
+    const hasAnyEquipment = () => {
+        return Object.values(equipmentCart).some(qty => qty > 0);
+    };
+
+    // Cart helper: get total items (drivers)
+    const getTotalDrivers = () => {
+        return Object.values(equipmentCart).reduce((sum, qty) => sum + qty, 0);
+    };
+
+    // Cart helper: get cart summary text
+    const getCartSummary = () => {
+        const items: string[] = [];
+        stationTypes.forEach(station => {
+            const qty = equipmentCart[station.id] || 0;
+            if (qty > 0) {
+                const shortName = station.id === 'karts' ? 'Karts' :
+                    station.id === 'rigs' ? 'Rigs' :
+                        station.id === 'motion' ? 'Motion' : 'Flight';
+                items.push(`${shortName}:${qty}`);
+            }
+        });
+        return items.length > 0 ? items.join(', ') : 'None selected';
+    };
+
+    // Update cart quantity
+    const updateCartQuantity = (stationId: string, delta: number) => {
+        const station = stationTypes.find(s => s.id === stationId);
+        if (!station) return;
+        const current = equipmentCart[stationId] || 0;
+        const newQty = Math.max(0, Math.min(station.units, current + delta));
+        setEquipmentCart(prev => ({ ...prev, [stationId]: newQty }));
     };
 
     return (
@@ -517,45 +599,113 @@ const BookingPage: React.FC = () => {
                         </div>
                     ) : (
                         <>
-                            {/* Step 1: Select Station */}
+                            {/* Step 1: Select Equipment & Duration */}
                             {step === 1 && (
                                 <div className="booking-step">
                                     <h2 className="font-display text-2xl font-bold uppercase mb-8 text-center">
-                                        Choose Your Station
+                                        Select Equipment & Duration
                                     </h2>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {stationTypes.map((station) => (
-                                            <button
-                                                key={station.id}
-                                                onClick={() => setSelectedStation(station.id)}
-                                                className={`p-6 rounded-2xl border text-left transition-all hover:scale-[1.02] ${selectedStation === station.id
-                                                    ? 'border-[#2D9E49] bg-[#2D9E49]/10'
-                                                    : 'border-white/10 bg-[#141414] hover:border-white/30'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start gap-4">
-                                                    <div style={{ color: station.color }}>{station.icon}</div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <h3 className="font-display text-lg font-bold uppercase">{station.name}</h3>
-                                                            <span className="text-[#2D9E49] font-bold">${station.price}/hr</span>
+                                    {/* Equipment Selection */}
+                                    <div className="space-y-4 mb-8">
+                                        {stationTypes.map((station) => {
+                                            const qty = equipmentCart[station.id] || 0;
+                                            return (
+                                                <div
+                                                    key={station.id}
+                                                    className={`p-6 rounded-2xl border transition-all ${qty > 0
+                                                        ? 'border-[#2D9E49] bg-[#2D9E49]/10'
+                                                        : 'border-white/10 bg-[#141414]'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div style={{ color: station.color }}>{station.icon}</div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <h3 className="font-display text-lg font-bold uppercase">{station.name}</h3>
+                                                                <span className="text-[#2D9E49] font-bold">${station.price}/hr</span>
+                                                            </div>
+                                                            <p className="text-white/50 text-sm">{station.description}</p>
+                                                            <div className="flex items-center gap-2 mt-2 text-xs text-white/40">
+                                                                <span>Max: {station.units}</span>
+                                                                <span>•</span>
+                                                                <span>Ages {station.ageReq}</span>
+                                                            </div>
                                                         </div>
-                                                        <p className="text-white/50 text-sm mb-3">{station.description}</p>
-                                                        <div className="flex items-center gap-4 text-xs">
-                                                            <span className="bg-white/10 px-3 py-1 rounded-full">{station.units} available</span>
-                                                            <span className="text-white/40">Ages {station.ageReq}</span>
+
+                                                        {/* Quantity Controls */}
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => updateCartQuantity(station.id, -1)}
+                                                                disabled={qty === 0}
+                                                                className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                <span className="text-xl font-bold">−</span>
+                                                            </button>
+                                                            <span className="w-8 text-center text-xl font-bold">{qty}</span>
+                                                            <button
+                                                                onClick={() => updateCartQuantity(station.id, 1)}
+                                                                disabled={qty >= station.units}
+                                                                className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                <span className="text-xl font-bold">+</span>
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </button>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
+
+                                    {/* Duration Selector */}
+                                    <div className="mb-8">
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-4">
+                                            <Clock className="w-4 h-4 inline mr-2" />
+                                            Session Duration
+                                        </label>
+                                        <div className="flex gap-4">
+                                            {[1, 2, 3].map((hrs) => (
+                                                <button
+                                                    key={hrs}
+                                                    onClick={() => setDuration(hrs)}
+                                                    className={`flex-1 py-4 rounded-xl text-center font-bold transition-all ${duration === hrs
+                                                        ? 'bg-[#2D9E49] text-white'
+                                                        : 'bg-[#141414] border border-white/10 hover:border-white/30'
+                                                        }`}
+                                                >
+                                                    {hrs} Hour{hrs > 1 ? 's' : ''}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Cart Summary */}
+                                    {hasAnyEquipment() && (
+                                        <div className="bg-[#141414] border border-white/10 rounded-2xl p-6 mb-8">
+                                            <h3 className="text-xs uppercase tracking-widest text-white/40 mb-4">Your Selection</h3>
+                                            <div className="space-y-2 mb-4">
+                                                {stationTypes.map((station) => {
+                                                    const qty = equipmentCart[station.id] || 0;
+                                                    if (qty === 0) return null;
+                                                    return (
+                                                        <div key={station.id} className="flex justify-between text-sm">
+                                                            <span>{qty}x {station.name}</span>
+                                                            <span className="text-white/60">${station.price * qty * duration}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div className="flex justify-between border-t border-white/10 pt-4">
+                                                <span className="font-bold">Total ({duration}hr session)</span>
+                                                <span className="text-[#2D9E49] font-bold text-xl">${calculateTotal()}</span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex justify-end mt-8">
                                         <button
-                                            onClick={() => selectedStation && setStep(2)}
-                                            disabled={!selectedStation}
+                                            onClick={() => hasAnyEquipment() && setStep(2)}
+                                            disabled={!hasAnyEquipment()}
                                             className="flex items-center gap-3 px-10 py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Continue <ArrowRight className="w-5 h-5" />
@@ -627,6 +777,12 @@ const BookingPage: React.FC = () => {
                                                         const available = getAvailableUnits(time);
                                                         const isSelected = selectedTime === time;
 
+                                                        // Check if cart quantity exceeds available for THIS equipment type
+                                                        // For now, we get availability for first cart equipment only
+                                                        const firstEquipment = getFirstCartEquipment();
+                                                        const requestedQty = firstEquipment ? (equipmentCart[firstEquipment] || 0) : 0;
+                                                        const exceedsCapacity = requestedQty > available;
+
                                                         // Check if time is in the past (Oregon Time)
                                                         const now = new Date();
                                                         // Convert current browser time to Oregon time
@@ -641,7 +797,22 @@ const BookingPage: React.FC = () => {
                                                         const currentHour = oregonNow.getHours();
                                                         const isPast = isToday && slotHour <= currentHour;
 
-                                                        const isDisabled = available <= 0 || isPast;
+                                                        // Disable if: no slots, past time, OR requested more than available
+                                                        const isDisabled = available <= 0 || isPast || exceedsCapacity;
+
+                                                        // Status text
+                                                        let statusText = 'Available';
+                                                        let statusColor = 'text-[#2D9E49]';
+                                                        if (isPast) {
+                                                            statusText = 'PASSED';
+                                                            statusColor = 'text-white/20';
+                                                        } else if (available <= 0) {
+                                                            statusText = 'FULL';
+                                                            statusColor = 'text-[#D42428]';
+                                                        } else if (exceedsCapacity) {
+                                                            statusText = `Only ${available} left`;
+                                                            statusColor = 'text-[#D42428]';
+                                                        }
 
                                                         return (
                                                             <button
@@ -661,8 +832,8 @@ const BookingPage: React.FC = () => {
                                                                     }`}
                                                             >
                                                                 <div className="font-bold">{time}</div>
-                                                                <div className={`text-xs mt-1 ${isPast ? 'text-white/20' : available <= 0 ? 'text-[#D42428]' : 'text-[#2D9E49]'}`}>
-                                                                    {isPast ? 'PASSED' : available <= 0 ? 'FULL' : `${available} left`}
+                                                                <div className={`text-xs mt-1 ${statusColor}`}>
+                                                                    {statusText}
                                                                 </div>
                                                             </button>
                                                         );
@@ -672,33 +843,17 @@ const BookingPage: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* Number of Drivers */}
+                                    {/* Cart Summary (replaces old Drivers selector) */}
                                     {selectedTime && (
-                                        <div className="mb-8">
-                                            <label className="block text-xs uppercase tracking-widest text-white/40 mb-4">
-                                                <Users className="w-4 h-4 inline mr-2" />
-                                                Number of Drivers
-                                            </label>
-
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex items-center gap-2 bg-[#141414] border border-white/10 rounded-xl p-2 overflow-x-auto">
-                                                    {[...Array(Math.min(getAvailableUnits(selectedTime), 10))].map((_, i) => (
-                                                        <button
-                                                            key={i + 1}
-                                                            onClick={() => setDrivers(i + 1)}
-                                                            className={`w-12 h-12 rounded-lg font-bold transition-all flex-shrink-0 ${drivers === i + 1
-                                                                ? 'bg-[#2D9E49] text-white'
-                                                                : 'bg-white/5 text-white/60 hover:bg-white/10'
-                                                                }`}
-                                                        >
-                                                            {i + 1}
-                                                        </button>
-                                                    ))}
+                                        <div className="bg-[#141414] border border-white/10 rounded-xl p-4 mb-8">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-widest text-white/40 mb-1">Your Selection</div>
+                                                    <div className="text-sm text-white/80">{getCartSummary()} • {duration}hr</div>
                                                 </div>
-
                                                 <div className="text-right">
                                                     <div className="text-2xl font-bold text-[#2D9E49]">${calculateTotal()}</div>
-                                                    <div className="text-xs text-white/40">total</div>
+                                                    <div className="text-xs text-white/40">{getTotalDrivers()} driver{getTotalDrivers() > 1 ? 's' : ''}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -753,10 +908,23 @@ const BookingPage: React.FC = () => {
                                                     type="email"
                                                     required
                                                     value={formData.email}
-                                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                    className="w-full bg-[#141414] border border-white/10 rounded-xl px-4 py-4 text-white focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                                    onChange={(e) => {
+                                                        setFormData({ ...formData, email: e.target.value });
+                                                        if (formErrors.email && isValidEmail(e.target.value)) {
+                                                            setFormErrors(prev => ({ ...prev, email: undefined }));
+                                                        }
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (formData.email && !isValidEmail(formData.email)) {
+                                                            setFormErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
+                                                        }
+                                                    }}
+                                                    className={`w-full bg-[#141414] border rounded-xl px-4 py-4 text-white focus:outline-none transition-colors ${formErrors.email ? 'border-red-500 focus:border-red-500' : 'border-white/10 focus:border-[#2D9E49]'}`}
                                                     placeholder="john@email.com"
                                                 />
+                                                {formErrors.email && (
+                                                    <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Phone *</label>
@@ -764,10 +932,23 @@ const BookingPage: React.FC = () => {
                                                     type="tel"
                                                     required
                                                     value={formData.phone}
-                                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                                    className="w-full bg-[#141414] border border-white/10 rounded-xl px-4 py-4 text-white focus:border-[#2D9E49] focus:outline-none transition-colors"
+                                                    onChange={(e) => {
+                                                        setFormData({ ...formData, phone: e.target.value });
+                                                        if (formErrors.phone && isValidPhone(e.target.value)) {
+                                                            setFormErrors(prev => ({ ...prev, phone: undefined }));
+                                                        }
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (formData.phone && !isValidPhone(formData.phone)) {
+                                                            setFormErrors(prev => ({ ...prev, phone: 'Please enter a valid phone number (10+ digits)' }));
+                                                        }
+                                                    }}
+                                                    className={`w-full bg-[#141414] border rounded-xl px-4 py-4 text-white focus:outline-none transition-colors ${formErrors.phone ? 'border-red-500 focus:border-red-500' : 'border-white/10 focus:border-[#2D9E49]'}`}
                                                     placeholder="(503) 555-1234"
                                                 />
+                                                {formErrors.phone && (
+                                                    <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -799,7 +980,16 @@ const BookingPage: React.FC = () => {
                                             <ArrowLeft className="w-5 h-5" /> Back
                                         </button>
                                         <button
-                                            onClick={() => formData.name && formData.email && formData.phone && setStep(4)}
+                                            onClick={() => {
+                                                const errors: { email?: string; phone?: string } = {};
+                                                if (!isValidEmail(formData.email)) errors.email = 'Please enter a valid email address';
+                                                if (!isValidPhone(formData.phone)) errors.phone = 'Please enter a valid phone number (10+ digits)';
+                                                if (Object.keys(errors).length > 0) {
+                                                    setFormErrors(errors);
+                                                    return;
+                                                }
+                                                setStep(4);
+                                            }}
                                             disabled={!formData.name || !formData.email || !formData.phone}
                                             className="flex items-center gap-3 px-10 py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
@@ -826,9 +1016,21 @@ const BookingPage: React.FC = () => {
                                             <h3 className="font-display text-lg font-bold uppercase mb-4 text-[#2D9E49]">Booking Summary</h3>
 
                                             <div className="space-y-3">
-                                                <div className="flex justify-between">
-                                                    <span className="text-white/50">Station</span>
-                                                    <span className="font-medium">{selectedStationData?.name}</span>
+                                                {/* Equipment list */}
+                                                <div>
+                                                    <span className="text-white/50 text-sm">Equipment</span>
+                                                    <div className="mt-1 space-y-1">
+                                                        {stationTypes.map((station) => {
+                                                            const qty = equipmentCart[station.id] || 0;
+                                                            if (qty === 0) return null;
+                                                            return (
+                                                                <div key={station.id} className="flex justify-between text-sm">
+                                                                    <span>{qty}× {station.name}</span>
+                                                                    <span className="text-white/60">${station.price * qty}/hr</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-white/50">Date</span>
@@ -836,11 +1038,11 @@ const BookingPage: React.FC = () => {
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-white/50">Time</span>
-                                                    <span className="font-medium">{selectedTime} (1 hour)</span>
+                                                    <span className="font-medium">{selectedTime} ({duration} hour{duration > 1 ? 's' : ''})</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-white/50">Drivers</span>
-                                                    <span className="font-medium">{drivers} × ${selectedStationData?.price}/hr</span>
+                                                    <span className="text-white/50">Total Drivers</span>
+                                                    <span className="font-medium">{getTotalDrivers()}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-white/50">Customer</span>

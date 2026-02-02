@@ -176,7 +176,10 @@ const DashboardPage: React.FC = () => {
 
     // Format time for display
     const formatTime = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':');
+        if (!timeStr) return 'Time TBD';
+        const parts = timeStr.split(':');
+        const hours = parts[0] || '12';
+        const minutes = parts[1] || '00';
         const hour = parseInt(hours);
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const displayHour = hour % 12 || 12;
@@ -284,8 +287,8 @@ const DashboardPage: React.FC = () => {
                             <button
                                 onClick={() => setAdminTab('today')}
                                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'today'
-                                        ? 'text-[#D42428] border-b-2 border-[#D42428] bg-[#D42428]/5'
-                                        : 'text-white/60 hover:text-white'
+                                    ? 'text-[#D42428] border-b-2 border-[#D42428] bg-[#D42428]/5'
+                                    : 'text-white/60 hover:text-white'
                                     }`}
                             >
                                 Today ({adminStats.todayCount})
@@ -293,8 +296,8 @@ const DashboardPage: React.FC = () => {
                             <button
                                 onClick={() => setAdminTab('upcoming')}
                                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'upcoming'
-                                        ? 'text-[#2D9E49] border-b-2 border-[#2D9E49] bg-[#2D9E49]/5'
-                                        : 'text-white/60 hover:text-white'
+                                    ? 'text-[#2D9E49] border-b-2 border-[#2D9E49] bg-[#2D9E49]/5'
+                                    : 'text-white/60 hover:text-white'
                                     }`}
                             >
                                 Upcoming ({adminStats.upcomingCount})
@@ -302,8 +305,8 @@ const DashboardPage: React.FC = () => {
                             <button
                                 onClick={() => setAdminTab('past')}
                                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'past'
-                                        ? 'text-white/60 border-b-2 border-white/30'
-                                        : 'text-white/40 hover:text-white/60'
+                                    ? 'text-white/60 border-b-2 border-white/30'
+                                    : 'text-white/40 hover:text-white/60'
                                     }`}
                             >
                                 Past ({adminStats.pastCount})
@@ -350,10 +353,10 @@ const DashboardPage: React.FC = () => {
                                             <td className="px-4 py-3 text-white/60 capitalize">{booking.paymentMethod || '-'}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${booking.status === 'Confirmed'
-                                                        ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
-                                                        : booking.status === 'Cancelled'
-                                                            ? 'bg-red-500/20 text-red-400'
-                                                            : 'bg-yellow-500/20 text-yellow-400'
+                                                    ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
+                                                    : booking.status === 'Cancelled'
+                                                        ? 'bg-red-500/20 text-red-400'
+                                                        : 'bg-yellow-500/20 text-yellow-400'
                                                     }`}>
                                                     {booking.status}
                                                 </span>
