@@ -83,8 +83,8 @@ export const isApiConfigured = () => {
 
 // API functions
 export const bookingApi = {
-    // Fetch availability for a date and station
-    async getAvailability(date: string, station: string) {
+    // Fetch availability for a date and station (with retry logic)
+    async getAvailability(date: string, station: string, retries = 3): Promise<any> {
         if (!isApiConfigured()) {
             console.warn('Booking API not configured - using demo mode');
             return null;
@@ -92,14 +92,45 @@ export const bookingApi = {
 
         const url = `${bookingConfig.API_URL}?action=availability&date=${date}&station=${station}&t=${Date.now()}`;
 
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Failed to fetch availability:', error);
-            return null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    method: 'GET',
+                    // NOTE: No custom headers to avoid CORS preflight with Google Apps Script
+                    // Cache busting is handled via the &t= URL parameter
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Validate response structure
+                if (data && (data.availability || data.date)) {
+                    return data;
+                } else {
+                    throw new Error('Invalid response structure');
+                }
+            } catch (error: any) {
+                console.error(`Availability fetch attempt ${attempt}/${retries} failed:`, error.message);
+
+                if (attempt === retries) {
+                    // All retries exhausted
+                    throw new Error(`Failed to load availability after ${retries} attempts. Please refresh the page.`);
+                }
+
+                // Wait before retry (exponential backoff: 500ms, 1000ms, 2000ms)
+                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt - 1)));
+            }
         }
+
+        return null;
     },
 
     // Create a booking

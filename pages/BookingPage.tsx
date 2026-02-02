@@ -66,24 +66,8 @@ const generateTimeSlots = () => {
     return slots;
 };
 
-// Simulate booked slots (demo/fallback mode)
-const simulateBookings = (date: string, stationId: string) => {
-    const bookings: { [key: string]: { booked: number; available: number; total: number } } = {};
-    const station = stationTypes.find(s => s.id === stationId);
-    const maxUnits = station?.units || 1;
-
-    generateTimeSlots().forEach(slot => {
-        // Random booking simulation for demo
-        const randomBooked = Math.floor(Math.random() * (maxUnits + 1));
-        bookings[slot] = {
-            booked: randomBooked,
-            available: maxUnits - randomBooked,
-            total: maxUnits
-        };
-    });
-
-    return bookings;
-};
+// NOTE: Demo/simulation mode removed - availability now ALWAYS comes from real API
+// This prevents cross-device sync issues caused by random fallback data
 
 // Format date for display
 const formatDate = (date: Date) => {
@@ -190,35 +174,34 @@ const BookingPage: React.FC = () => {
         }
     }, [selectedDate, selectedStation]);
 
-    // Fetch availability from API or use demo data
+    // Fetch availability from API - ROBUST VERSION (No Demo Fallback)
     const loadAvailability = async () => {
         if (!selectedDate || !selectedStation) return;
 
         setIsLoadingAvailability(true);
         setError(null);
+        setAvailability({}); // Clear old data while loading
 
         const dateStr = formatDateForApi(selectedDate);
 
-        if (isLiveMode) {
-            // Try to fetch from real API
-            try {
-                const response = await bookingApi.getAvailability(dateStr, selectedStation);
-                if (response && response.availability) {
-                    setAvailability(response.availability);
-                } else {
-                    // Fall back to demo mode
-                    setAvailability(simulateBookings(dateStr, selectedStation));
-                }
-            } catch (err) {
-                console.error('API error, falling back to demo:', err);
-                setAvailability(simulateBookings(dateStr, selectedStation));
-            }
-        } else {
-            // Demo mode
-            setAvailability(simulateBookings(dateStr, selectedStation));
-        }
+        try {
+            const response = await bookingApi.getAvailability(dateStr, selectedStation);
 
-        setIsLoadingAvailability(false);
+            if (response && response.availability) {
+                setAvailability(response.availability);
+            } else {
+                // API returned but no availability data - show empty state
+                console.warn('API returned no availability data');
+                setError('No availability data found. Please try again or contact support.');
+            }
+        } catch (err: any) {
+            // API completely failed after retries
+            console.error('Availability fetch failed:', err);
+            setError(err.message || 'Failed to load availability. Please refresh the page.');
+            setAvailability({}); // Ensure no stale data
+        } finally {
+            setIsLoadingAvailability(false);
+        }
     };
 
     // Calculate available units for selected time
