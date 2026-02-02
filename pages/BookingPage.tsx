@@ -508,25 +508,25 @@ const BookingPage: React.FC = () => {
                     )}
 
                     {/* Progress Steps */}
-                    <div className="flex items-center justify-center gap-2 mt-8">
+                    <div className="flex items-center justify-center gap-1 sm:gap-2 mt-8">
                         {[1, 2, 3, 4].map((s) => (
                             <div key={s} className="flex items-center">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${step >= s
+                                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold transition-all ${step >= s
                                     ? 'bg-[#2D9E49] text-white'
                                     : 'bg-white/10 text-white/40'
                                     }`}>
-                                    {step > s ? <CheckCircle className="w-5 h-5" /> : s}
+                                    {step > s ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : s}
                                 </div>
                                 {s < 4 && (
-                                    <div className={`w-12 md:w-20 h-1 mx-1 transition-all ${step > s ? 'bg-[#2D9E49]' : 'bg-white/10'
+                                    <div className={`w-6 sm:w-12 md:w-20 h-1 mx-0.5 sm:mx-1 transition-all ${step > s ? 'bg-[#2D9E49]' : 'bg-white/10'
                                         }`} />
                                 )}
                             </div>
                         ))}
                     </div>
-                    <div className="flex justify-center gap-4 md:gap-12 mt-3 text-xs text-white/40 uppercase tracking-wider">
-                        <span className={step >= 1 ? 'text-white' : ''}>Station</span>
-                        <span className={step >= 2 ? 'text-white' : ''}>Date & Time</span>
+                    <div className="flex justify-center gap-2 sm:gap-4 md:gap-12 mt-3 text-[10px] sm:text-xs text-white/40 uppercase tracking-wider">
+                        <span className={step >= 1 ? 'text-white' : ''}>Equipment</span>
+                        <span className={step >= 2 ? 'text-white' : ''}>Date/Time</span>
                         <span className={step >= 3 ? 'text-white' : ''}>Details</span>
                         <span className={step >= 4 ? 'text-white' : ''}>Confirm</span>
                     </div>
@@ -613,42 +613,46 @@ const BookingPage: React.FC = () => {
                                             return (
                                                 <div
                                                     key={station.id}
-                                                    className={`p-6 rounded-2xl border transition-all ${qty > 0
+                                                    className={`p-4 sm:p-6 rounded-2xl border transition-all ${qty > 0
                                                         ? 'border-[#2D9E49] bg-[#2D9E49]/10'
                                                         : 'border-white/10 bg-[#141414]'
                                                         }`}
                                                 >
-                                                    <div className="flex items-center gap-4">
-                                                        <div style={{ color: station.color }}>{station.icon}</div>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <h3 className="font-display text-lg font-bold uppercase">{station.name}</h3>
-                                                                <span className="text-[#2D9E49] font-bold">${station.price}/hr</span>
-                                                            </div>
-                                                            <p className="text-white/50 text-sm">{station.description}</p>
-                                                            <div className="flex items-center gap-2 mt-2 text-xs text-white/40">
-                                                                <span>Max: {station.units}</span>
-                                                                <span>•</span>
-                                                                <span>Ages {station.ageReq}</span>
+                                                    {/* Mobile: Stack vertically, Desktop: Horizontal */}
+                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                                                        {/* Header Row - Always horizontal */}
+                                                        <div className="flex items-center gap-3 sm:gap-4 flex-1">
+                                                            <div className="flex-shrink-0" style={{ color: station.color }}>{station.icon}</div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                                    <h3 className="font-display text-base sm:text-lg font-bold uppercase truncate">{station.name}</h3>
+                                                                    <span className="text-[#2D9E49] font-bold text-sm sm:text-base flex-shrink-0">${station.price}/hr</span>
+                                                                </div>
+                                                                <p className="text-white/50 text-xs sm:text-sm line-clamp-2">{station.description}</p>
+                                                                <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
+                                                                    <span>Max: {station.units}</span>
+                                                                    <span>•</span>
+                                                                    <span>Ages {station.ageReq}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
 
-                                                        {/* Quantity Controls */}
-                                                        <div className="flex items-center gap-3">
+                                                        {/* Quantity Controls - Full width on mobile */}
+                                                        <div className="flex items-center justify-center gap-4 sm:gap-3 pt-3 sm:pt-0 border-t sm:border-0 border-white/10">
                                                             <button
                                                                 onClick={() => updateCartQuantity(station.id, -1)}
                                                                 disabled={qty === 0}
-                                                                className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                                className="w-12 h-12 sm:w-10 sm:h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                                             >
-                                                                <span className="text-xl font-bold">−</span>
+                                                                <span className="text-2xl sm:text-xl font-bold">−</span>
                                                             </button>
-                                                            <span className="w-8 text-center text-xl font-bold">{qty}</span>
+                                                            <span className="w-12 text-center text-2xl sm:text-xl font-bold">{qty}</span>
                                                             <button
                                                                 onClick={() => updateCartQuantity(station.id, 1)}
                                                                 disabled={qty >= station.units}
-                                                                className="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                                className="w-12 h-12 sm:w-10 sm:h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                                             >
-                                                                <span className="text-xl font-bold">+</span>
+                                                                <span className="text-2xl sm:text-xl font-bold">+</span>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -663,17 +667,17 @@ const BookingPage: React.FC = () => {
                                             <Clock className="w-4 h-4 inline mr-2" />
                                             Session Duration
                                         </label>
-                                        <div className="flex gap-4">
+                                        <div className="flex gap-2 sm:gap-4">
                                             {[1, 2, 3].map((hrs) => (
                                                 <button
                                                     key={hrs}
                                                     onClick={() => setDuration(hrs)}
-                                                    className={`flex-1 py-4 rounded-xl text-center font-bold transition-all ${duration === hrs
+                                                    className={`flex-1 py-3 sm:py-4 rounded-xl text-center text-sm sm:text-base font-bold transition-all ${duration === hrs
                                                         ? 'bg-[#2D9E49] text-white'
                                                         : 'bg-[#141414] border border-white/10 hover:border-white/30'
                                                         }`}
                                                 >
-                                                    {hrs} Hour{hrs > 1 ? 's' : ''}
+                                                    {hrs}hr{hrs > 1 ? 's' : ''}
                                                 </button>
                                             ))}
                                         </div>
@@ -772,7 +776,7 @@ const BookingPage: React.FC = () => {
                                                     <span className="ml-3 text-white/50">Loading availability...</span>
                                                 </div>
                                             ) : (
-                                                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
                                                     {timeSlots.map((time) => {
                                                         const available = getAvailableUnits(time);
                                                         const isSelected = selectedTime === time;
@@ -972,10 +976,10 @@ const BookingPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-between mt-8">
+                                    <div className="flex flex-col sm:flex-row gap-3 sm:justify-between mt-8">
                                         <button
                                             onClick={() => setStep(2)}
-                                            className="flex items-center gap-2 px-6 py-4 border border-white/20 text-white rounded-full font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                            className="flex items-center justify-center gap-2 px-6 py-3 sm:py-4 border border-white/20 text-white rounded-full font-bold uppercase tracking-widest hover:bg-white/5 transition-colors order-2 sm:order-1"
                                         >
                                             <ArrowLeft className="w-5 h-5" /> Back
                                         </button>
@@ -991,7 +995,7 @@ const BookingPage: React.FC = () => {
                                                 setStep(4);
                                             }}
                                             disabled={!formData.name || !formData.email || !formData.phone}
-                                            className="flex items-center gap-3 px-10 py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="flex items-center justify-center gap-3 px-10 py-3 sm:py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-2"
                                         >
                                             Continue <ArrowRight className="w-5 h-5" />
                                         </button>
@@ -1265,10 +1269,10 @@ const BookingPage: React.FC = () => {
                         </>
                     )}
                 </div>
-            </section>
+            </section >
 
             {/* Quick Contact */}
-            <section className="py-12 px-6 md:px-12 bg-[#141414]">
+            < section className="py-12 px-6 md:px-12 bg-[#141414]" >
                 <div className="max-w-4xl mx-auto text-center">
                     <p className="text-white/50 mb-4">Need help or have questions?</p>
                     <a
@@ -1278,8 +1282,8 @@ const BookingPage: React.FC = () => {
                         <Phone className="w-5 h-5" /> {siteConfig.phone}
                     </a>
                 </div>
-            </section>
-        </div>
+            </section >
+        </div >
     );
 };
 
