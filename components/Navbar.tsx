@@ -194,7 +194,7 @@ const Navbar: React.FC = () => {
                     to="/dashboard"
                     className="block px-4 py-2 text-xs uppercase tracking-widest text-white/70 hover:text-[#2D9E49] hover:bg-white/5 transition-colors"
                   >
-                    Dashboard
+                    Driver Profile
                   </Link>
                   <button
                     onClick={handleLogout}
@@ -330,7 +330,7 @@ const Navbar: React.FC = () => {
                   onClick={toggleMenu}
                   className="w-full bg-white/10 border border-white/20 text-white font-display uppercase font-bold text-center py-3 rounded-lg hover:bg-white/20 transition-colors tracking-widest text-xs mb-2 flex items-center justify-center gap-2"
                 >
-                  <User className="w-4 h-4" /> Dashboard
+                  <User className="w-4 h-4" /> Driver Profile
                 </Link>
                 <button
                   onClick={() => { handleLogout(); toggleMenu(); }}
@@ -341,11 +341,11 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <Link
-                to="/signup"
+                to="/driver-profile"
                 onClick={toggleMenu}
                 className="w-full bg-white/10 border border-white/20 text-white font-display uppercase font-bold text-center py-3 rounded-lg hover:bg-white/20 transition-colors tracking-widest text-xs mb-2 flex items-center justify-center gap-2"
               >
-                <User className="w-4 h-4" /> Create Driver Profile
+                <User className="w-4 h-4" /> Driver Profile
               </Link>
             )}
 
