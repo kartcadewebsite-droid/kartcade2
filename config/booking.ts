@@ -62,7 +62,7 @@ export const bookingConfig = {
 
     // Booking rules
     minAdvanceHours: 2, // Minimum hours in advance to book
-    maxAdvanceDays: 30, // Maximum days in advance to book
+    maxAdvanceDays: 56, // Maximum days in advance to book (8 weeks)
 
     // Admin emails (can see 'Pay at Venue')
     adminEmails: ['kartcade.website@gmail.com', 'adamjames9@gmail.com', 'info@kartcade.com'],

@@ -31,6 +31,8 @@ interface UserProfile {
     favCar?: string;
     favRig?: string;
     settings?: string;
+    // Junior Drivers (for parents to add minors to their account)
+    juniorDrivers?: string[];
     // Credits and Membership
     credits: UserCredits;
     memberships: UserMembershipsMap;

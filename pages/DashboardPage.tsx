@@ -40,6 +40,10 @@ const DashboardPage: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
 
+    // Junior Drivers State
+    const [juniorDrivers, setJuniorDrivers] = useState<string[]>([]);
+    const [newJuniorName, setNewJuniorName] = useState('');
+
     // ADMIN: Dashboard state for ALL bookings
     const [adminTodayBookings, setAdminTodayBookings] = useState<Booking[]>([]);
     const [adminUpcomingBookings, setAdminUpcomingBookings] = useState<Booking[]>([]);
@@ -102,6 +106,7 @@ const DashboardPage: React.FC = () => {
                 settings: userProfile.settings || '',
                 phone: userProfile.phone || '',
             });
+            setJuniorDrivers(userProfile.juniorDrivers || []);
         }
     }, [userProfile, showEditModal]);
 
@@ -133,6 +138,18 @@ const DashboardPage: React.FC = () => {
         return () => clearInterval(interval);
     }, [isAdmin]);
 
+    // Prevent body scroll when modal is open
+    useEffect(() => {
+        if (showEditModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showEditModal]);
+
     const handleLogout = async () => {
         try {
             await logout();
@@ -153,7 +170,7 @@ const DashboardPage: React.FC = () => {
         setSaveError('');
 
         try {
-            await updateProfile(editFormData);
+            await updateProfile({ ...editFormData, juniorDrivers });
             setShowEditModal(false);
         } catch (err) {
             console.error(err);
@@ -161,6 +178,17 @@ const DashboardPage: React.FC = () => {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleAddJuniorDriver = () => {
+        if (newJuniorName.trim()) {
+            setJuniorDrivers([...juniorDrivers, newJuniorName.trim()]);
+            setNewJuniorName('');
+        }
+    };
+
+    const handleRemoveJuniorDriver = (index: number) => {
+        setJuniorDrivers(juniorDrivers.filter((_, i) => i !== index));
     };
 
     // Format date for display
@@ -582,6 +610,41 @@ const DashboardPage: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Junior Drivers Card */}
+                    {userProfile?.juniorDrivers && userProfile.juniorDrivers.length > 0 && (
+                        <div className="bg-[#141414] rounded-2xl p-6 border border-white/10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-[#2D9E49]/20 rounded-lg flex items-center justify-center">
+                                        <User className="w-6 h-6 text-[#2D9E49]" />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-display text-lg font-bold text-white uppercase">Junior Drivers</h2>
+                                        <p className="text-white/60 text-sm">Covered by your waiver</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowEditModal(true)}
+                                    className="text-[#2D9E49] hover:text-[#248a3f] transition-colors flex items-center gap-1 text-sm"
+                                >
+                                    <Edit2 className="w-4 h-4" />
+                                    <span>Edit</span>
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {userProfile.juniorDrivers.map((name, index) => (
+                                    <div key={index} className="flex items-center gap-2 p-3 bg-black/30 rounded-lg">
+                                        <div className="w-8 h-8 bg-[#2D9E49]/20 rounded-full flex items-center justify-center">
+                                            <User className="w-4 h-4 text-[#2D9E49]" />
+                                        </div>
+                                        <span className="text-white font-medium">{name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Upcoming Bookings */}
@@ -720,108 +783,170 @@ const DashboardPage: React.FC = () => {
             </div>
             {/* Edit Profile Modal */}
             {showEditModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-[#141414] border border-white/10 rounded-2xl p-6 w-full max-w-lg relative">
-                        <button
-                            onClick={() => setShowEditModal(false)}
-                            className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden"
+                    onClick={(e) => {
+                        // Close modal when clicking backdrop
+                        if (e.target === e.currentTarget) setShowEditModal(false);
+                    }}
+                >
+                    <div className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-lg relative max-h-[70vh] sm:max-h-[75vh] flex flex-col my-4">
+                        {/* Fixed Header with Close Button */}
+                        <div className="flex items-center justify-between p-4 sm:p-6 pb-2 sm:pb-3 flex-shrink-0">
+                            <h2 className="font-display text-lg sm:text-xl font-bold uppercase text-white">Edit Driver Profile</h2>
+                            <button
+                                onClick={() => setShowEditModal(false)}
+                                className="ml-2 text-white/40 hover:text-white transition-colors flex-shrink-0"
+                                type="button"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div
+                            className="overflow-y-auto overflow-x-hidden px-4 sm:px-6 pb-4 sm:pb-6"
+                            onWheel={(e) => {
+                                // Prevent event from bubbling to prevent background scroll
+                                e.stopPropagation();
+                            }}
                         >
-                            <X className="w-5 h-5" />
-                        </button>
 
-                        <h2 className="font-display text-xl font-bold uppercase text-white mb-6">Edit Driver Profile</h2>
+                            {saveError && (
+                                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
+                                    {saveError}
+                                </div>
+                            )}
 
-                        {saveError && (
-                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
-                                {saveError}
-                            </div>
-                        )}
+                            <form onSubmit={handleSaveProfile} className="space-y-3 sm:space-y-4">
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Discipline</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.favDiscipline}
+                                            onChange={(e) => setEditFormData({ ...editFormData, favDiscipline: e.target.value })}
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="e.g. GT3"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Track</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.favTrack}
+                                            onChange={(e) => setEditFormData({ ...editFormData, favTrack: e.target.value })}
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="e.g. Spa"
+                                        />
+                                    </div>
+                                    <div className="col-span-2 md:col-span-1">
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Mobile Number</label>
+                                        <input
+                                            type="tel"
+                                            value={editFormData.phone}
+                                            onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="555-123-4567"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Car</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.favCar}
+                                            onChange={(e) => setEditFormData({ ...editFormData, favCar: e.target.value })}
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="e.g. Ferrari 296"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Rig</label>
+                                        <input
+                                            type="text"
+                                            value={editFormData.favRig}
+                                            onChange={(e) => setEditFormData({ ...editFormData, favRig: e.target.value })}
+                                            className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="e.g. Motion"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Settings / Notes</label>
+                                    <textarea
+                                        value={editFormData.settings}
+                                        onChange={(e) => setEditFormData({ ...editFormData, settings: e.target.value })}
+                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none resize-none"
+                                        rows={3}
+                                        placeholder="Force feedback preferences, etc."
+                                    />
+                                </div>
 
-                        <form onSubmit={handleSaveProfile} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Discipline</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.favDiscipline}
-                                        onChange={(e) => setEditFormData({ ...editFormData, favDiscipline: e.target.value })}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
-                                        placeholder="e.g. GT3"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Track</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.favTrack}
-                                        onChange={(e) => setEditFormData({ ...editFormData, favTrack: e.target.value })}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
-                                        placeholder="e.g. Spa"
-                                    />
-                                </div>
-                                <div className="col-span-2 md:col-span-1">
-                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Mobile Number</label>
-                                    <input
-                                        type="tel"
-                                        value={editFormData.phone}
-                                        onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
-                                        placeholder="555-123-4567"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Car</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.favCar}
-                                        onChange={(e) => setEditFormData({ ...editFormData, favCar: e.target.value })}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
-                                        placeholder="e.g. Ferrari 296"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Rig</label>
-                                    <input
-                                        type="text"
-                                        value={editFormData.favRig}
-                                        onChange={(e) => setEditFormData({ ...editFormData, favRig: e.target.value })}
-                                        className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none"
-                                        placeholder="e.g. Motion"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Settings / Notes</label>
-                                <textarea
-                                    value={editFormData.settings}
-                                    onChange={(e) => setEditFormData({ ...editFormData, settings: e.target.value })}
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:border-[#2D9E49] outline-none resize-none"
-                                    rows={3}
-                                    placeholder="Force feedback preferences, etc."
-                                />
-                            </div>
+                                {/* Junior Drivers Section */}
+                                <div className="border-t border-white/10 pt-4">
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-3">Junior Drivers (Optional)</label>
+                                    <p className="text-xs text-white/50 mb-3">Add minors to your account. They will be covered by your acceptance of the waiver.</p>
 
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditModal(false)}
-                                    className="px-4 py-2 text-white/60 hover:text-white transition-colors text-sm font-bold uppercase tracking-wider"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSaving}
-                                    className="flex items-center gap-2 px-6 py-2 bg-[#2D9E49] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-[#248a3f] transition-colors disabled:opacity-50"
-                                >
-                                    {isSaving ? 'Saving...' : (
-                                        <>
-                                            <Save className="w-3 h-3" /> Save Changes
-                                        </>
+                                    {/* List of Junior Drivers */}
+                                    {juniorDrivers.length > 0 && (
+                                        <div className="space-y-2 mb-3">
+                                            {juniorDrivers.map((name, index) => (
+                                                <div key={index} className="flex items-center justify-between bg-black/30 border border-white/10 rounded-lg px-3 py-2">
+                                                    <span className="text-white text-sm">{name}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveJuniorDriver(index)}
+                                                        className="text-[#D42428] hover:text-[#B91C1C] transition-colors"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
-                                </button>
-                            </div>
-                        </form>
+
+                                    {/* Add Junior Driver Input */}
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newJuniorName}
+                                            onChange={(e) => setNewJuniorName(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddJuniorDriver())}
+                                            className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-white text-sm focus:border-[#2D9E49] outline-none"
+                                            placeholder="Enter child's name"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddJuniorDriver}
+                                            className="px-4 py-2 bg-[#2D9E49] text-white rounded-lg font-bold text-sm hover:bg-[#248a3f] transition-colors"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-4 pb-2 sm:pb-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEditModal(false)}
+                                        className="px-4 py-2 text-white/60 hover:text-white transition-colors text-sm font-bold uppercase tracking-wider"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSaving}
+                                        className="flex items-center gap-2 px-6 py-2 bg-[#2D9E49] text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-[#248a3f] transition-colors disabled:opacity-50"
+                                    >
+                                        {isSaving ? 'Saving...' : (
+                                            <>
+                                                <Save className="w-3 h-3" /> Save Changes
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}

@@ -12,6 +12,7 @@ import { bookingConfig, bookingApi, isApiConfigured } from '../config/booking';
 import { useAuth } from '../contexts/AuthContext';
 import { getEquipmentTypeFromStation } from '../config/membership';
 import PayPalCheckout from '../components/PayPalCheckout';
+import CalendarPicker from '../components/CalendarPicker';
 
 // Station Types Configuration
 const stationTypes = [
@@ -735,31 +736,24 @@ const BookingPage: React.FC = () => {
                                             <Calendar className="w-4 h-4 inline mr-2" />
                                             Select Date
                                         </label>
-                                        <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-                                            {dates.slice(0, 14).map((date, i) => {
-                                                const isSelected = selectedDate?.toDateString() === date.toDateString();
-                                                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                                                const dayNum = date.getDate();
-
-                                                return (
-                                                    <button
-                                                        key={i}
-                                                        onClick={() => {
-                                                            setSelectedDate(date);
-                                                            setSelectedTime(null);
-                                                            setDrivers(1);
-                                                        }}
-                                                        className={`flex-shrink-0 w-16 py-4 rounded-xl text-center transition-all ${isSelected
-                                                            ? 'bg-[#2D9E49] text-white'
-                                                            : 'bg-[#141414] border border-white/10 hover:border-white/30'
-                                                            }`}
-                                                    >
-                                                        <div className="text-xs text-white/50">{dayName}</div>
-                                                        <div className="text-xl font-bold">{dayNum}</div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                        <CalendarPicker
+                                            selectedDate={selectedDate}
+                                            onDateChange={(date) => {
+                                                setSelectedDate(date);
+                                                setSelectedTime(null);
+                                                setDrivers(1);
+                                            }}
+                                            minDate={(() => {
+                                                const min = new Date();
+                                                min.setHours(min.getHours() + bookingConfig.minAdvanceHours);
+                                                return min;
+                                            })()}
+                                            maxDate={(() => {
+                                                const max = new Date();
+                                                max.setDate(max.getDate() + bookingConfig.maxAdvanceDays);
+                                                return max;
+                                            })()}
+                                        />
                                     </div>
 
                                     {/* Time Slots */}
