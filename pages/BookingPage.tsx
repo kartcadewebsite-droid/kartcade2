@@ -147,7 +147,11 @@ const BookingPage: React.FC = () => {
     });
     const [selectedTime, setSelectedTime] = useState<string | null>(searchParams.get('time') || null);
     const [drivers, setDrivers] = useState(1);
-    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits' | 'paypal'>('venue');
+
+    // SECURITY FIX: Default to 'deposit' instead of 'venue' to prevent accidental unpaid bookings.
+    // 'venue' is restricted to Admins only, so it should never be the default state.
+    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits' | 'paypal'>('deposit');
+
     const [availability, setAvailability] = useState<{ [key: string]: { booked: number; available: number; total: number } }>({});
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
