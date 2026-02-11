@@ -65,7 +65,7 @@ export const bookingConfig = {
     maxAdvanceDays: 56, // Maximum days in advance to book (8 weeks)
 
     // Admin emails (can see 'Pay at Venue')
-    adminEmails: ['kartcade.website@gmail.com', 'adamjames9@gmail.com', 'info@kartcade.com'],
+    adminEmails: ['kartcade.website@gmail.com', 'adamjames9@gmail.com', 'info@kartcade.com', 'devansh7704patel@gmail.com'],
 
     // Payment options
     paymentOptions: {

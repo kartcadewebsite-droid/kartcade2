@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save } from 'lucide-react';
+import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
 import { getMembershipById } from '../config/membership';
+import { getPaymentStatus, formatCurrency } from '../utils/paymentStatus';
 
 interface Booking {
     id: string;
@@ -378,7 +379,19 @@ const DashboardPage: React.FC = () => {
                                             <td className="px-4 py-3 text-white">{booking.name}</td>
                                             <td className="px-4 py-3 text-white/60">{booking.email}</td>
                                             <td className="px-4 py-3 text-white/60">{booking.phone || '-'}</td>
-                                            <td className="px-4 py-3 text-white/60 capitalize">{booking.paymentMethod || '-'}</td>
+                                            <td className="px-4 py-3">
+                                                {booking.paymentMethod && (() => {
+                                                    const paymentStatus = getPaymentStatus(booking.station, booking.paymentMethod);
+                                                    return (
+                                                        <div className="space-y-1">
+                                                            <div className="text-white/60 capitalize text-xs">{booking.paymentMethod}</div>
+                                                            <div className="text-[10px] font-mono text-white/80">
+                                                                Paid: {formatCurrency(paymentStatus.paid)} | Remaining: {formatCurrency(paymentStatus.remaining)}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs font-medium ${booking.status === 'Confirmed'
                                                     ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
@@ -694,6 +707,18 @@ const DashboardPage: React.FC = () => {
                                                 <div className="text-white/40 text-xs mt-1">
                                                     {booking.drivers} driver{booking.drivers > 1 ? 's' : ''} • ID: {booking.id}
                                                 </div>
+                                                {/* Payment Status */}
+                                                {booking.paymentMethod && (() => {
+                                                    const paymentStatus = getPaymentStatus(booking.station, booking.paymentMethod);
+                                                    return (
+                                                        <div className="flex items-center gap-2 mt-2">
+                                                            <DollarSign className="w-3 h-3 text-white/40" />
+                                                            <span className="text-[11px] font-mono text-white/60">
+                                                                PAID: {formatCurrency(paymentStatus.paid)} | REMAINING: {formatCurrency(paymentStatus.remaining)}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
 
