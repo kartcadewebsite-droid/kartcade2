@@ -20,6 +20,7 @@ interface UserProfile {
     email: string;
     name: string;
     phone?: string;
+    photoURL?: string; // Parent profile photo URL
     role?: 'admin' | 'user';
     waiverAccepted: boolean;
     rulesAccepted: boolean;
@@ -32,7 +33,10 @@ interface UserProfile {
     favRig?: string;
     settings?: string;
     // Junior Drivers (for parents to add minors to their account)
-    juniorDrivers?: string[];
+    juniorDrivers?: Array<{
+        name: string;
+        photoURL?: string; // Junior driver photo URL
+    }>;
     // Credits and Membership
     credits: UserCredits;
     memberships: UserMembershipsMap;

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign } from 'lucide-react';
+import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign, Camera, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
 import { getMembershipById } from '../config/membership';
 import { getPaymentStatus, formatCurrency } from '../utils/paymentStatus';
+import { uploadProfilePhoto, deleteProfilePhoto, validatePhotoFile } from '../utils/profilePhoto';
 
 interface Booking {
     id: string;
@@ -42,8 +43,13 @@ const DashboardPage: React.FC = () => {
     const [saveError, setSaveError] = useState('');
 
     // Junior Drivers State
-    const [juniorDrivers, setJuniorDrivers] = useState<string[]>([]);
+    const [juniorDrivers, setJuniorDrivers] = useState<Array<{ name: string; photoURL?: string }>>([]);
     const [newJuniorName, setNewJuniorName] = useState('');
+
+    // Photo Upload State
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [uploadingJuniorIndex, setUploadingJuniorIndex] = useState<number | null>(null);
+    const parentPhotoInputRef = React.useRef<HTMLInputElement>(null);
 
     // ADMIN: Dashboard state for ALL bookings
     const [adminTodayBookings, setAdminTodayBookings] = useState<Booking[]>([]);
@@ -107,7 +113,15 @@ const DashboardPage: React.FC = () => {
                 settings: userProfile.settings || '',
                 phone: userProfile.phone || '',
             });
-            setJuniorDrivers(userProfile.juniorDrivers || []);
+            // Handle junior drivers - support both old format (with age) and new format (without age)
+            const juniors = userProfile.juniorDrivers || [];
+            setJuniorDrivers(juniors.map((j: any) => {
+                // Extract name and photoURL, ignore age if it exists
+                return {
+                    name: j.name || '', // Ensure name is always a string
+                    photoURL: j.photoURL || undefined
+                };
+            }));
         }
     }, [userProfile, showEditModal]);
 
@@ -171,11 +185,18 @@ const DashboardPage: React.FC = () => {
         setSaveError('');
 
         try {
-            await updateProfile({ ...editFormData, juniorDrivers });
+            // Sanitize juniorDrivers to remove undefined values which Firestore rejects
+            const sanitizedJuniors = juniorDrivers.map(driver => {
+                const cleanDriver: any = { name: driver.name };
+                if (driver.photoURL) cleanDriver.photoURL = driver.photoURL;
+                return cleanDriver;
+            });
+
+            await updateProfile({ ...editFormData, juniorDrivers: sanitizedJuniors });
             setShowEditModal(false);
         } catch (err) {
             console.error(err);
-            setSaveError('Failed to update profile');
+            setSaveError('Failed to update profile: ' + (err instanceof Error ? err.message : String(err)));
         } finally {
             setIsSaving(false);
         }
@@ -183,13 +204,99 @@ const DashboardPage: React.FC = () => {
 
     const handleAddJuniorDriver = () => {
         if (newJuniorName.trim()) {
-            setJuniorDrivers([...juniorDrivers, newJuniorName.trim()]);
+            setJuniorDrivers([...juniorDrivers, {
+                name: newJuniorName.trim()
+            }]);
             setNewJuniorName('');
         }
     };
 
     const handleRemoveJuniorDriver = (index: number) => {
         setJuniorDrivers(juniorDrivers.filter((_, i) => i !== index));
+    };
+
+    // Photo Upload/Delete Handlers
+    const handleParentPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUser) return;
+
+        const error = validatePhotoFile(file);
+        if (error) {
+            setSaveError(error);
+            return;
+        }
+
+        setUploadingPhoto(true);
+        setSaveError('');
+        try {
+            await uploadProfilePhoto(currentUser.uid, file);
+            await refreshUserProfile(); // Force UI update
+        } catch (err) {
+            setSaveError('Failed to upload photo. Please try again.');
+        } finally {
+            setUploadingPhoto(false);
+            if (parentPhotoInputRef.current) parentPhotoInputRef.current.value = '';
+        }
+    };
+
+    const handleParentPhotoDelete = async () => {
+        if (!currentUser) return;
+        setUploadingPhoto(true);
+        try {
+            await deleteProfilePhoto(currentUser.uid);
+            await refreshUserProfile(); // Force UI update
+        } catch (err) {
+            setSaveError('Failed to delete photo.');
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
+    const handleJuniorPhotoUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !currentUser) return;
+
+        const error = validatePhotoFile(file);
+        if (error) {
+            setSaveError(error);
+            return;
+        }
+
+        setUploadingJuniorIndex(index);
+        setSaveError('');
+        try {
+            const downloadURL = await uploadProfilePhoto(currentUser.uid, file, index);
+
+            // Update local state immediately so user sees it
+            const updatedJuniors = [...juniorDrivers];
+            updatedJuniors[index] = { ...updatedJuniors[index], photoURL: downloadURL };
+            setJuniorDrivers(updatedJuniors);
+
+            await refreshUserProfile(); // Sync global state
+        } catch (err) {
+            setSaveError('Failed to upload photo.');
+        } finally {
+            setUploadingJuniorIndex(null);
+        }
+    };
+
+    const handleJuniorPhotoDelete = async (index: number) => {
+        if (!currentUser) return;
+        setUploadingJuniorIndex(index);
+        try {
+            await deleteProfilePhoto(currentUser.uid, index);
+
+            // Update local state immediately so user sees it
+            const updatedJuniors = [...juniorDrivers];
+            updatedJuniors[index] = { ...updatedJuniors[index], photoURL: undefined };
+            setJuniorDrivers(updatedJuniors);
+
+            await refreshUserProfile(); // Sync global state
+        } catch (err) {
+            setSaveError('Failed to delete photo.');
+        } finally {
+            setUploadingJuniorIndex(null);
+        }
     };
 
     // Format date for display
@@ -424,8 +531,18 @@ const DashboardPage: React.FC = () => {
                     {/* Profile Card */}
                     <div className="bg-[#141414] rounded-2xl p-6 border border-white/10">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="w-16 h-16 bg-[#2D9E49]/20 rounded-full flex items-center justify-center">
-                                <User className="w-8 h-8 text-[#2D9E49]" />
+                            <div className="w-16 h-16 bg-[#2D9E49]/20 rounded-full overflow-hidden border-2 border-[#2D9E49]/30">
+                                {userProfile?.photoURL ? (
+                                    <img
+                                        src={userProfile.photoURL}
+                                        alt={userProfile.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <User className="w-8 h-8 text-[#2D9E49]" />
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <h2 className="font-display text-lg font-bold text-white uppercase">
@@ -647,12 +764,16 @@ const DashboardPage: React.FC = () => {
                             </div>
 
                             <div className="space-y-2">
-                                {userProfile.juniorDrivers.map((name, index) => (
+                                {userProfile.juniorDrivers.map((junior, index) => (
                                     <div key={index} className="flex items-center gap-2 p-3 bg-black/30 rounded-lg">
-                                        <div className="w-8 h-8 bg-[#2D9E49]/20 rounded-full flex items-center justify-center">
-                                            <User className="w-4 h-4 text-[#2D9E49]" />
+                                        <div className="w-8 h-8 bg-[#2D9E49]/20 rounded-full flex items-center justify-center overflow-hidden">
+                                            {junior.photoURL ? (
+                                                <img src={junior.photoURL} alt={junior.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <User className="w-4 h-4 text-[#2D9E49]" />
+                                            )}
                                         </div>
-                                        <span className="text-white font-medium">{name}</span>
+                                        <span className="text-white font-medium">{junior.name}</span>
                                     </div>
                                 ))}
                             </div>
@@ -844,6 +965,65 @@ const DashboardPage: React.FC = () => {
                             )}
 
                             <form onSubmit={handleSaveProfile} className="space-y-3 sm:space-y-4">
+                                {/* Parent Photo Upload Section */}
+                                <div className="bg-black/20 border border-white/10 rounded-xl p-4">
+                                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-3">Profile Photo</label>
+                                    <div className="flex items-center gap-4">
+                                        {/* Photo Preview */}
+                                        <div className="w-20 h-20 bg-[#2D9E49]/20 rounded-full overflow-hidden border-2 border-[#2D9E49]/30 flex-shrink-0">
+                                            {userProfile?.photoURL ? (
+                                                <img
+                                                    src={userProfile.photoURL}
+                                                    alt={userProfile.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <User className="w-10 h-10 text-[#2D9E49]" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* Upload/Delete Buttons */}
+                                        <div className="flex gap-2 flex-1">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleParentPhotoUpload}
+                                                className="hidden"
+                                                id="parent-photo-upload"
+                                                ref={parentPhotoInputRef}
+                                            />
+                                            <label
+                                                htmlFor="parent-photo-upload"
+                                                className="flex-1 px-4 py-2 bg-[#2D9E49] text-white rounded-lg font-bold text-sm hover:bg-[#248a3f] transition-colors cursor-pointer text-center flex items-center justify-center gap-2"
+                                            >
+                                                {uploadingPhoto ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                        <span>Uploading...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Camera className="w-4 h-4" />
+                                                        <span>Upload</span>
+                                                    </>
+                                                )}
+                                            </label>
+                                            {userProfile?.photoURL && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleParentPhotoDelete}
+                                                    disabled={uploadingPhoto}
+                                                    className="px-4 py-2 bg-[#D42428] text-white rounded-lg font-bold text-sm hover:bg-[#B91C1C] transition-colors disabled:opacity-50 flex items-center gap-2"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    <span>Delete</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                                     <div>
                                         <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Fav Discipline</label>
@@ -915,9 +1095,49 @@ const DashboardPage: React.FC = () => {
                                     {/* List of Junior Drivers */}
                                     {juniorDrivers.length > 0 && (
                                         <div className="space-y-2 mb-3">
-                                            {juniorDrivers.map((name, index) => (
-                                                <div key={index} className="flex items-center justify-between bg-black/30 border border-white/10 rounded-lg px-3 py-2">
-                                                    <span className="text-white text-sm">{name}</span>
+                                            {juniorDrivers.map((junior, index) => (
+                                                <div key={index} className="flex items-center gap-2 bg-black/30 border border-white/10 rounded-lg px-3 py-2">
+                                                    {/* Photo */}
+                                                    <div className="w-10 h-10 bg-[#2D9E49]/20 rounded-full overflow-hidden flex-shrink-0">
+                                                        {junior.photoURL ? (
+                                                            <img src={junior.photoURL} alt={junior.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <User className="w-5 h-5 text-[#2D9E49]" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Name */}
+                                                    <span className="text-white text-sm flex-1">{junior.name}</span>
+                                                    {/* Upload/Delete Photo */}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleJuniorPhotoUpload(index, e)}
+                                                        className="hidden"
+                                                        id={`junior-photo-${index}`}
+                                                    />
+                                                    <label
+                                                        htmlFor={`junior-photo-${index}`}
+                                                        className="cursor-pointer text-[#2D9E49] hover:text-[#248a3f] transition-colors"
+                                                    >
+                                                        {uploadingJuniorIndex === index ? (
+                                                            <div className="w-4 h-4 border-2 border-[#2D9E49] border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <Camera className="w-4 h-4" />
+                                                        )}
+                                                    </label>
+                                                    {junior.photoURL && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleJuniorPhotoDelete(index)}
+                                                            className="text-[#D42428] hover:text-[#B91C1C] transition-colors"
+                                                            disabled={uploadingJuniorIndex === index}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {/* Remove Junior */}
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveJuniorDriver(index)}
@@ -973,9 +1193,9 @@ const DashboardPage: React.FC = () => {
                             </form>
                         </div>
                     </div>
-                </div>
+                </div >
             )}
-        </div>
+        </div >
     );
 };
 
