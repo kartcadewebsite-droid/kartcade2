@@ -116,9 +116,18 @@ const DashboardPage: React.FC = () => {
             // Handle junior drivers - support both old format (with age) and new format (without age)
             const juniors = userProfile.juniorDrivers || [];
             setJuniorDrivers(juniors.map((j: any) => {
-                // Extract name and photoURL, ignore age if it exists
+                // Defensive coding: handle case where name might be corrupted (e.g. object instead of string)
+                let name = '';
+                if (typeof j.name === 'string') {
+                    name = j.name;
+                } else if (j.name && typeof j.name === 'object' && j.name.name) {
+                    name = String(j.name.name); // Handle nested object corruption
+                } else {
+                    name = String(j.name || 'Unknown');
+                }
+
                 return {
-                    name: j.name || '', // Ensure name is always a string
+                    name,
                     photoURL: j.photoURL || undefined
                 };
             }));
