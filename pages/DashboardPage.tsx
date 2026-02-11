@@ -239,8 +239,18 @@ const DashboardPage: React.FC = () => {
         setSaveError('');
         try {
             await uploadProfilePhoto(currentUser.uid, file);
-            await refreshUserProfile(); // Force UI update
+
+            // ✅ SUCCESS: Show alert immediately
+            window.alert('Profile photo updated successfully!');
+
+            try {
+                await refreshUserProfile(); // Force UI update
+            } catch (refreshErr) {
+                console.warn('Photo uploaded but UI refresh failed:', refreshErr);
+                // Swallow this error so user knows upload worked
+            }
         } catch (err) {
+            console.error('Upload failed:', err);
             setSaveError('Failed to upload photo. Please try again.');
         } finally {
             setUploadingPhoto(false);
