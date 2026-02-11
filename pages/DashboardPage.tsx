@@ -22,7 +22,7 @@ interface Booking {
 
 const DashboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, logout, isAdmin, getCredits, updateProfile } = useAuth();
+    const { currentUser, userProfile, logout, isAdmin, getCredits, updateProfile, refreshUserProfile } = useAuth();
 
     const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
     const [loadingBookings, setLoadingBookings] = useState(true);
@@ -56,12 +56,22 @@ const DashboardPage: React.FC = () => {
     const [adminUpcomingBookings, setAdminUpcomingBookings] = useState<Booking[]>([]);
     const [adminPastBookings, setAdminPastBookings] = useState<Booking[]>([]);
     const [adminStats, setAdminStats] = useState({ todayCount: 0, upcomingCount: 0, pastCount: 0 });
+
+    // UI State for Photo Preview (Optimistic Updates)
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+    // Sync photoPreview with userProfile when it changes (initial load or background refresh)
+    useEffect(() => {
+        setPhotoPreview(userProfile?.photoURL || null);
+    }, [userProfile?.photoURL]);
     const [adminLoading, setAdminLoading] = useState(false);
     const [adminTab, setAdminTab] = useState<'today' | 'upcoming' | 'past'>('today');
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
     // Get real membership and credits from user profile
-    const membership = userProfile?.membership?.active ? userProfile.membership : null;
+    const membership = userProfile?.memberships?.kart?.active ? userProfile.memberships.kart :
+        userProfile?.memberships?.rig?.active ? userProfile.memberships.rig :
+            userProfile?.memberships?.motion?.active ? userProfile.memberships.motion : null;
     const membershipTier = membership ? getMembershipById(membership.tier) : null;
 
     // Get credits for each equipment type
@@ -115,22 +125,7 @@ const DashboardPage: React.FC = () => {
             });
             // Handle junior drivers - support both old format (with age) and new format (without age)
             const juniors = userProfile.juniorDrivers || [];
-            setJuniorDrivers(juniors.map((j: any) => {
-                // Defensive coding: handle case where name might be corrupted (e.g. object instead of string)
-                let name = '';
-                if (typeof j.name === 'string') {
-                    name = j.name;
-                } else if (j.name && typeof j.name === 'object' && j.name.name) {
-                    name = String(j.name.name); // Handle nested object corruption
-                } else {
-                    name = String(j.name || 'Unknown');
-                }
-
-                return {
-                    name,
-                    photoURL: j.photoURL || undefined
-                };
-            }));
+            setJuniorDrivers(juniors);
         }
     }, [userProfile, showEditModal]);
 
@@ -263,6 +258,13 @@ const DashboardPage: React.FC = () => {
         setUploadingPhoto(true);
         try {
             await deleteProfilePhoto(currentUser.uid);
+
+            // ✅ SUCCESS: Show alert immediately
+            window.alert('Profile photo removed.');
+
+            // ⚡ OPTIMISTIC UPDATE: Clear local preview immediately
+            setPhotoPreview(null);
+
             await refreshUserProfile(); // Force UI update
         } catch (err) {
             setSaveError('Failed to delete photo.');
@@ -990,10 +992,10 @@ const DashboardPage: React.FC = () => {
                                     <div className="flex items-center gap-4">
                                         {/* Photo Preview */}
                                         <div className="w-20 h-20 bg-[#2D9E49]/20 rounded-full overflow-hidden border-2 border-[#2D9E49]/30 flex-shrink-0">
-                                            {userProfile?.photoURL ? (
+                                            {photoPreview ? (
                                                 <img
-                                                    src={userProfile.photoURL}
-                                                    alt={userProfile.name}
+                                                    src={photoPreview}
+                                                    alt={userProfile?.name || 'User'}
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
@@ -1028,7 +1030,8 @@ const DashboardPage: React.FC = () => {
                                                     </>
                                                 )}
                                             </label>
-                                            {userProfile?.photoURL && (
+
+                                            {(photoPreview || userProfile?.photoURL) && (
                                                 <button
                                                     type="button"
                                                     onClick={handleParentPhotoDelete}
@@ -1212,9 +1215,9 @@ const DashboardPage: React.FC = () => {
                             </form>
                         </div>
                     </div>
-                </div >
+                </div>
             )}
-        </div >
+        </div>
     );
 };
 
