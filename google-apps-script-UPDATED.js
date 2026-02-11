@@ -16,8 +16,8 @@ const BLOCKED_SHEET = SPREADSHEET.getSheetByName('BlockedTimes');
 const STATIONS = {
     karts: { name: 'Racing Karts', settingKey: 'TotalKarts', priceKey: 'KartPrice', pricePerHour: 30 },
     rigs: { name: 'Full-Size Rigs', settingKey: 'TotalRigs', priceKey: 'RigPrice', pricePerHour: 40 },
-    motion: { name: 'Motion Simulator', settingKey: 'TotalMotion', priceKey: 'MotionPrice', pricePerHour: 40 },
-    flight: { name: 'Flight Simulator', settingKey: 'TotalFlight', priceKey: 'FlightPrice', pricePerHour: 45 }
+    motion: { name: 'Motion Simulator', settingKey: 'TotalMotion', priceKey: 'MotionPrice', pricePerHour: 50 },
+    flight: { name: 'Flight Simulator', settingKey: 'TotalFlight', priceKey: 'FlightPrice', pricePerHour: 40 }
 };
 
 // ============================================================
@@ -74,7 +74,7 @@ function getEquipmentPrice(equipmentType) {
     if (normalizedType.indexOf('kart') !== -1) return 30;
     if (normalizedType.indexOf('rig') !== -1) return 40;
     if (normalizedType.indexOf('motion') !== -1) return 40;
-    if (normalizedType.indexOf('flight') !== -1) return 45;
+    if (normalizedType.indexOf('flight') !== -1) return 40; // flight simulator
 
     return 30; // Default
 }

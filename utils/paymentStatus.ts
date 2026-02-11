@@ -54,8 +54,8 @@ export function getEquipmentPrice(equipmentType: string): number {
 
     if (normalizedType.includes('kart')) return 30;
     if (normalizedType.includes('rig')) return 40;
-    if (normalizedType.includes('motion')) return 40;
-    if (normalizedType.includes('flight')) return 45;
+    if (normalizedType.includes('motion')) return 50;
+    if (normalizedType.includes('flight')) return 40;
 
     return 30; // Default
 }
@@ -79,21 +79,24 @@ export function calculateTotalCost(station: string): number {
  * Calculate amount paid based on payment method
  */
 export function calculatePaidAmount(paymentMethod: string, totalCost: number): number {
-    const method = paymentMethod?.toLowerCase() || 'venue';
+    const method = String(paymentMethod || 'venue').toLowerCase().trim();
 
-    switch (method) {
-        case 'paypal':
-        case 'credits':
-            return totalCost; // Paid in full
-
-        case 'deposit':
-            return totalCost * 0.5; // 50% deposit
-
-        case 'venue':
-        case 'pay at venue':
-        default:
-            return 0; // Nothing paid yet
+    // Check for various forms of online payment
+    if (method === 'paypal' ||
+        method.includes('paypal') ||
+        method === 'credits' ||
+        method.includes('credit') ||
+        method === 'stripe' ||
+        method === 'online') {
+        return totalCost; // Paid in full
     }
+
+    if (method === 'deposit' || method.includes('deposit')) {
+        return totalCost * 0.5; // 50% deposit
+    }
+
+    // Default to unpaid/venue payment
+    return 0;
 }
 
 /**
