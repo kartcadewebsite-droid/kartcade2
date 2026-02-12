@@ -7,7 +7,6 @@ import ReactLenis from 'lenis/react';
 // Components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import CustomCursor from './components/CustomCursor';
 import FloatingCallButton from './components/FloatingCallButton';
 import ProtectedRoute from './components/ProtectedRoute';
 import Chatbot from './components/Chatbot';
@@ -92,7 +91,6 @@ const App: React.FC = () => {
         <Router>
           <ScrollToTop />
           <div className="relative min-h-screen">
-            <CustomCursor />
             <Navbar />
             <FloatingCallButton />
             <Chatbot />

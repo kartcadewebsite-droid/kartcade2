@@ -66,30 +66,30 @@ const Gallery: React.FC = () => {
             <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8 h-[150vh] overflow-hidden">
                 {/* Column 1 */}
                 <div ref={col1Ref} className="flex flex-col gap-8">
-                    <div className="w-full h-[60vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[60vh] overflow-hidden group">
                         <img src={images[0]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Website Development" />
                     </div>
-                    <div className="w-full h-[40vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[40vh] overflow-hidden group">
                         <img src={images[1]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Brand Identity" />
                     </div>
                 </div>
 
                 {/* Column 2 */}
                 <div ref={col2Ref} className="flex flex-col gap-8 pt-20">
-                    <div className="w-full h-[50vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[50vh] overflow-hidden group">
                         <img src={images[2]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Analytics Dashboard" />
                     </div>
-                    <div className="w-full h-[70vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[70vh] overflow-hidden group">
                         <img src={images[3]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Social Media" />
                     </div>
                 </div>
 
                 {/* Column 3 */}
                 <div ref={col3Ref} className="flex flex-col gap-8">
-                    <div className="w-full h-[70vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[70vh] overflow-hidden group">
                         <img src={images[4]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Team Collaboration" />
                     </div>
-                    <div className="w-full h-[50vh] overflow-hidden group cursor-none" data-cursor="view">
+                    <div className="w-full h-[50vh] overflow-hidden group">
                         <img src={images[5]} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Creative Design" />
                     </div>
                 </div>
