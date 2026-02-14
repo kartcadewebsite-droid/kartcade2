@@ -309,6 +309,28 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         await adminService.addCredits(userId, equipmentType, tier.credits);
 
         console.log(`[WEBHOOK] Added ${tier.credits} ${equipmentType} credits to ${userId}. COMPLETE.`);
+
+        // CRM PERMANENT LOG: Save transaction record (safe — won't affect payment)
+        try {
+            await db.collection('transactions_log').add({
+                userId,
+                email: session.customer_details?.email || '',
+                type: 'membership_purchase',
+                tierId,
+                tierName: tier.name,
+                equipmentType,
+                amount: (session.amount_total || 0) / 100,
+                currency: session.currency || 'usd',
+                stripeSessionId: session.id,
+                subscriptionId,
+                creditsAdded: tier.credits,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`[CRM] Logged membership purchase for ${userId}`);
+        } catch (logErr) {
+            console.error('[CRM] Failed to log transaction (non-critical):', logErr);
+            // Non-critical — payment and membership still succeed
+        }
     } catch (err: any) {
         console.error(`[WEBHOOK] CRITICAL FAILURE activating membership for ${userId} (${tierId}):`, err.message || err);
         // The safety net in verify-checkout-session will catch this
@@ -360,6 +382,26 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
         await adminService.setCredits(userId, equipmentType, tier.credits);
 
         console.log(`[WEBHOOK] Renewal complete for ${userId}: ${tier.credits} ${equipmentType} credits refreshed`);
+
+        // CRM PERMANENT LOG: Save renewal record (safe — won't affect renewal)
+        try {
+            await db.collection('transactions_log').add({
+                userId,
+                type: 'membership_renewal',
+                tierId,
+                tierName: tier.name,
+                equipmentType,
+                amount: (invoice.amount_paid || 0) / 100,
+                currency: invoice.currency || 'usd',
+                stripeInvoiceId: invoice.id,
+                subscriptionId,
+                creditsRefreshed: tier.credits,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`[CRM] Logged renewal for ${userId}`);
+        } catch (logErr) {
+            console.error('[CRM] Failed to log renewal (non-critical):', logErr);
+        }
     } catch (err: any) {
         console.error(`[WEBHOOK] RENEWAL FAILURE for invoice ${invoice.id}:`, err.message || err);
         throw err; // Re-throw so Stripe retries
@@ -586,6 +628,29 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
 
         if (data.success) {
             console.log(`Booking created successfully! ID: ${data.bookingId}`);
+
+            // CRM PERMANENT LOG: Save booking record (safe — won't affect booking)
+            try {
+                await db.collection('transactions_log').add({
+                    userId: metadata.userId || '',
+                    email: metadata.bookingEmail || session.customer_details?.email || '',
+                    type: 'booking_deposit',
+                    station: metadata.bookingStation,
+                    date: metadata.bookingDate,
+                    time: metadata.bookingTime,
+                    drivers: parseInt(metadata.bookingDrivers || '1'),
+                    name: metadata.bookingName || 'Guest',
+                    amount: (session.amount_total || 0) / 100,
+                    currency: session.currency || 'usd',
+                    stripeSessionId: session.id,
+                    bookingId: data.bookingId || '',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(`[CRM] Logged booking deposit for ${metadata.bookingEmail}`);
+            } catch (logErr) {
+                console.error('[CRM] Failed to log booking (non-critical):', logErr);
+                // Non-critical — booking still goes to Google Sheet
+            }
         } else {
             console.error('Google Apps Script returned error:', data.error);
         }

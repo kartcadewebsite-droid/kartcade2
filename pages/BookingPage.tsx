@@ -13,6 +13,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { getEquipmentTypeFromStation } from '../config/membership';
 import PayPalCheckout from '../components/PayPalCheckout';
 import CalendarPicker from '../components/CalendarPicker';
+import { db } from '../config/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // Station Types Configuration
 const stationTypes = [
@@ -327,6 +329,36 @@ const BookingPage: React.FC = () => {
             if (result.success) {
                 setBookingId(result.bookingId);
                 setIsComplete(true);
+
+                // CRM: Log booking to Firebase (safe — won't affect booking)
+                try {
+                    const equipmentBreakdown: Record<string, number> = {};
+                    stationTypes.forEach(s => {
+                        const qty = equipmentCart[s.id] || 0;
+                        if (qty > 0) equipmentBreakdown[s.id] = qty;
+                    });
+                    await addDoc(collection(db, 'transactions_log'), {
+                        userId: currentUser?.uid || '',
+                        email: formData.email,
+                        name: formData.name,
+                        phone: formData.phone,
+                        type: 'booking',
+                        station: `${getCartSummary()} (${duration}h)`,
+                        equipment: equipmentBreakdown,
+                        drivers: getTotalDrivers(),
+                        duration,
+                        date: formatDateForApi(selectedDate),
+                        time: selectedTime,
+                        calculatedPrice: calculateTotal(),
+                        paymentMethod: paymentMethod === 'credits' ? 'credits' : paymentMethod,
+                        bookingId: result.bookingId || '',
+                        status: 'confirmed',
+                        createdAt: serverTimestamp()
+                    });
+                    console.log('[CRM] Booking logged for', formData.email);
+                } catch (logErr) {
+                    console.error('[CRM] Failed to log booking (non-critical):', logErr);
+                }
             } else {
                 setError(result.error || 'Failed to create booking');
             }
@@ -423,6 +455,36 @@ const BookingPage: React.FC = () => {
             if (result.success) {
                 setBookingId(result.bookingId);
                 setIsComplete(true);
+
+                // CRM: Log PayPal booking to Firebase (safe — won't affect booking)
+                try {
+                    const equipmentBreakdown: Record<string, number> = {};
+                    stationTypes.forEach(s => {
+                        const qty = equipmentCart[s.id] || 0;
+                        if (qty > 0) equipmentBreakdown[s.id] = qty;
+                    });
+                    await addDoc(collection(db, 'transactions_log'), {
+                        userId: currentUser?.uid || '',
+                        email: formData.email,
+                        name: formData.name,
+                        phone: formData.phone,
+                        type: 'booking',
+                        station: `${getCartSummary()} (${duration}h)`,
+                        equipment: equipmentBreakdown,
+                        drivers: getTotalDrivers(),
+                        duration,
+                        date: formatDateForApi(selectedDate!),
+                        time: selectedTime!,
+                        calculatedPrice: calculateTotal(),
+                        paymentMethod: 'paypal',
+                        bookingId: result.bookingId || '',
+                        status: 'confirmed',
+                        createdAt: serverTimestamp()
+                    });
+                    console.log('[CRM] PayPal booking logged for', formData.email);
+                } catch (logErr) {
+                    console.error('[CRM] Failed to log PayPal booking (non-critical):', logErr);
+                }
             } else {
                 setError(result.error || 'Booking created, but failed to save details. Please contact us.');
             }

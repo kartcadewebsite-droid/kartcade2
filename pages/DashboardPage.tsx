@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign, Camera, Trash2 } from 'lucide-react';
+import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign, Camera, Trash2, Users, RefreshCw, Database } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
 import { getMembershipById } from '../config/membership';
 import { getPaymentStatus, formatCurrency } from '../utils/paymentStatus';
 import { uploadProfilePhoto, deleteProfilePhoto, validatePhotoFile } from '../utils/profilePhoto';
+import CustomersTable from '../components/admin/CustomersTable';
+import { crmService, CustomerAnalytics } from '../services/crm';
+import { db } from '../config/firebase';
+import { collection, addDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 
 interface Booking {
     id: string;
@@ -67,6 +71,95 @@ const DashboardPage: React.FC = () => {
     const [adminLoading, setAdminLoading] = useState(false);
     const [adminTab, setAdminTab] = useState<'today' | 'upcoming' | 'past'>('today');
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+    // CRM State
+    const [adminView, setAdminView] = useState<'bookings' | 'customers'>('bookings');
+    const [crmCustomers, setCrmCustomers] = useState<CustomerAnalytics[]>([]);
+    const [crmLoading, setCrmLoading] = useState(false);
+    const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
+    const [syncCount, setSyncCount] = useState(0);
+
+    // Equipment prices for sync calculation
+    const EQUIPMENT_PRICES: Record<string, number> = { karts: 30, rigs: 40, motion: 50, flight: 40 };
+
+    // Sync existing admin bookings to Firebase CRM
+    const syncBookingsToFirebase = async () => {
+        setSyncStatus('syncing');
+        setSyncCount(0);
+        try {
+            // Combine all admin bookings
+            const allBookings: Booking[] = [...adminTodayBookings, ...adminUpcomingBookings, ...adminPastBookings];
+            if (allBookings.length === 0) {
+                setSyncStatus('done');
+                return;
+            }
+
+            // Fetch existing transactions to avoid duplicates
+            const existingSnapshot = await getDocs(collection(db, 'transactions_log'));
+            const existingKeys = new Set(
+                existingSnapshot.docs.map(doc => {
+                    const d = doc.data();
+                    return `${d.date}_${d.time}_${d.email}`.toLowerCase();
+                })
+            );
+
+            let synced = 0;
+            for (const booking of allBookings) {
+                const key = `${booking.date}_${booking.time}_${booking.email}`.toLowerCase();
+                if (existingKeys.has(key)) continue; // Skip duplicates
+
+                // Parse station string: "Rigs:2, Karts:1 (1h)"
+                const equipment: Record<string, number> = {};
+                let duration = 1;
+                const durationMatch = booking.station.match(/\((\d+)h\)/);
+                if (durationMatch) duration = parseInt(durationMatch[1]);
+                const patterns = booking.station.match(/(\w+):(\d+)/g);
+                if (patterns) {
+                    patterns.forEach(p => {
+                        const [type, qty] = p.split(':');
+                        const k = type.toLowerCase();
+                        if (EQUIPMENT_PRICES[k]) equipment[k] = parseInt(qty);
+                    });
+                }
+
+                // Calculate price
+                let price = 0;
+                for (const [type, qty] of Object.entries(equipment)) {
+                    price += (EQUIPMENT_PRICES[type] || 0) * qty * duration;
+                }
+
+                await addDoc(collection(db, 'transactions_log'), {
+                    userId: '',
+                    email: booking.email,
+                    name: booking.name,
+                    phone: booking.phone || '',
+                    type: 'booking',
+                    station: booking.station,
+                    equipment,
+                    drivers: booking.drivers,
+                    duration,
+                    date: booking.date,
+                    time: booking.time,
+                    calculatedPrice: price,
+                    paymentMethod: booking.paymentMethod || 'unknown',
+                    bookingId: booking.id,
+                    status: booking.status === 'cancelled' ? 'cancelled' : 'confirmed',
+                    syncedFromSheet: true,
+                    createdAt: serverTimestamp()
+                });
+                synced++;
+                setSyncCount(synced);
+            }
+
+            setSyncStatus('done');
+            // Refresh CRM data after sync
+            const updatedCustomers = await crmService.getAllCustomers();
+            setCrmCustomers(updatedCustomers);
+        } catch (err) {
+            console.error('[CRM Sync] Error:', err);
+            setSyncStatus('error');
+        }
+    };
 
     // Get ALL active memberships from user profile
     const activeMemberships = [
@@ -417,138 +510,216 @@ const DashboardPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* ADMIN DASHBOARD - Shows ALL bookings */}
+                {/* ADMIN SECTION */}
                 {isAdmin && (
-                    <div className="mb-8 bg-[#141414] rounded-2xl border border-[#D42428]/30 overflow-hidden">
-                        {/* Admin Header */}
-                        <div className="bg-[#D42428]/10 px-6 py-4 border-b border-[#D42428]/20">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Calendar className="w-5 h-5 text-[#D42428]" />
-                                    <h2 className="font-display text-lg font-bold text-white uppercase">Admin Booking Dashboard</h2>
+                    <div className="mb-8">
+                        {/* Admin View Toggle: Bookings vs Customers */}
+                        <div className="flex items-center gap-3 mb-4">
+                            <button
+                                onClick={() => setAdminView('bookings')}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminView === 'bookings'
+                                    ? 'bg-[#D42428] text-white'
+                                    : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Calendar className="w-4 h-4" />
+                                Bookings
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setAdminView('customers');
+                                    // Fetch CRM data on first click
+                                    if (crmCustomers.length === 0 && !crmLoading) {
+                                        setCrmLoading(true);
+                                        crmService.getAllCustomers()
+                                            .then(data => setCrmCustomers(data))
+                                            .catch(err => console.error('CRM fetch failed:', err))
+                                            .finally(() => setCrmLoading(false));
+                                    }
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminView === 'customers'
+                                    ? 'bg-[#D42428] text-white'
+                                    : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Users className="w-4 h-4" />
+                                Customers CRM
+                            </button>
+                        </div>
+
+                        {/* Bookings View */}
+                        {adminView === 'bookings' && (
+                            <div className="bg-[#141414] rounded-2xl border border-[#D42428]/30 overflow-hidden">
+                                {/* Admin Header */}
+                                <div className="bg-[#D42428]/10 px-6 py-4 border-b border-[#D42428]/20">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Calendar className="w-5 h-5 text-[#D42428]" />
+                                            <h2 className="font-display text-lg font-bold text-white uppercase">Admin Booking Dashboard</h2>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-sm">
+                                            {adminLoading && (
+                                                <span className="text-white/40 flex items-center gap-2">
+                                                    <div className="w-3 h-3 border-2 border-[#D42428] border-t-transparent rounded-full animate-spin"></div>
+                                                    Refreshing...
+                                                </span>
+                                            )}
+                                            {lastRefresh && !adminLoading && (
+                                                <span className="text-white/40">
+                                                    🔄 Auto-refresh: {lastRefresh.toLocaleTimeString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm">
-                                    {adminLoading && (
-                                        <span className="text-white/40 flex items-center gap-2">
-                                            <div className="w-3 h-3 border-2 border-[#D42428] border-t-transparent rounded-full animate-spin"></div>
-                                            Refreshing...
-                                        </span>
-                                    )}
-                                    {lastRefresh && !adminLoading && (
-                                        <span className="text-white/40">
-                                            🔄 Auto-refresh: {lastRefresh.toLocaleTimeString()}
-                                        </span>
-                                    )}
+
+                                {/* Admin Tabs */}
+                                <div className="flex border-b border-white/10">
+                                    <button
+                                        onClick={() => setAdminTab('today')}
+                                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'today'
+                                            ? 'text-[#D42428] border-b-2 border-[#D42428] bg-[#D42428]/5'
+                                            : 'text-white/60 hover:text-white'
+                                            }`}
+                                    >
+                                        Today ({adminStats.todayCount})
+                                    </button>
+                                    <button
+                                        onClick={() => setAdminTab('upcoming')}
+                                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'upcoming'
+                                            ? 'text-[#2D9E49] border-b-2 border-[#2D9E49] bg-[#2D9E49]/5'
+                                            : 'text-white/60 hover:text-white'
+                                            }`}
+                                    >
+                                        Upcoming ({adminStats.upcomingCount})
+                                    </button>
+                                    <button
+                                        onClick={() => setAdminTab('past')}
+                                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'past'
+                                            ? 'text-white/60 border-b-2 border-white/30'
+                                            : 'text-white/40 hover:text-white/60'
+                                            }`}
+                                    >
+                                        Past ({adminStats.pastCount})
+                                    </button>
+                                </div>
+
+                                {/* Admin Booking Table */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-black/30">
+                                            <tr className="text-left text-white/40 text-xs uppercase">
+                                                <th className="px-4 py-3">Time</th>
+                                                <th className="px-4 py-3">Date</th>
+                                                <th className="px-4 py-3">Station</th>
+                                                <th className="px-4 py-3">Customer</th>
+                                                <th className="px-4 py-3">Email</th>
+                                                <th className="px-4 py-3">Phone</th>
+                                                <th className="px-4 py-3">Payment</th>
+                                                <th className="px-4 py-3">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {(adminTab === 'today' ? adminTodayBookings :
+                                                adminTab === 'upcoming' ? adminUpcomingBookings :
+                                                    adminPastBookings
+                                            ).map((booking) => (
+                                                <tr key={booking.id} className="hover:bg-white/5 transition-colors">
+                                                    <td className="px-4 py-3 text-[#D42428] font-medium">{booking.time}</td>
+                                                    <td className="px-4 py-3 text-white">{booking.date}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span
+                                                            className="px-2 py-1 rounded text-xs font-medium"
+                                                            style={{
+                                                                backgroundColor: `${getStationColor(booking.station)}20`,
+                                                                color: getStationColor(booking.station)
+                                                            }}
+                                                        >
+                                                            {booking.station}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-white">{booking.name}</td>
+                                                    <td className="px-4 py-3 text-white/60">{booking.email}</td>
+                                                    <td className="px-4 py-3 text-white/60">{booking.phone || '-'}</td>
+                                                    <td className="px-4 py-3">
+                                                        {booking.paymentMethod && (() => {
+                                                            const paymentStatus = getPaymentStatus(booking.station, booking.paymentMethod);
+                                                            return (
+                                                                <div className="space-y-1">
+                                                                    <div className="text-white/60 capitalize text-xs">{booking.paymentMethod}</div>
+                                                                    <div className="text-[10px] font-mono text-white/80">
+                                                                        Paid: {formatCurrency(paymentStatus.paid)} | Remaining: {formatCurrency(paymentStatus.remaining)}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-1 rounded text-xs font-medium ${booking.status === 'Confirmed'
+                                                            ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
+                                                            : booking.status === 'Cancelled'
+                                                                ? 'bg-red-500/20 text-red-400'
+                                                                : 'bg-yellow-500/20 text-yellow-400'
+                                                            }`}>
+                                                            {booking.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(adminTab === 'today' ? adminTodayBookings :
+                                                adminTab === 'upcoming' ? adminUpcomingBookings :
+                                                    adminPastBookings
+                                            ).length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={8} className="px-4 py-8 text-center text-white/40">
+                                                            No {adminTab} bookings found
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Admin Tabs */}
-                        <div className="flex border-b border-white/10">
-                            <button
-                                onClick={() => setAdminTab('today')}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'today'
-                                    ? 'text-[#D42428] border-b-2 border-[#D42428] bg-[#D42428]/5'
-                                    : 'text-white/60 hover:text-white'
-                                    }`}
-                            >
-                                Today ({adminStats.todayCount})
-                            </button>
-                            <button
-                                onClick={() => setAdminTab('upcoming')}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'upcoming'
-                                    ? 'text-[#2D9E49] border-b-2 border-[#2D9E49] bg-[#2D9E49]/5'
-                                    : 'text-white/60 hover:text-white'
-                                    }`}
-                            >
-                                Upcoming ({adminStats.upcomingCount})
-                            </button>
-                            <button
-                                onClick={() => setAdminTab('past')}
-                                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${adminTab === 'past'
-                                    ? 'text-white/60 border-b-2 border-white/30'
-                                    : 'text-white/40 hover:text-white/60'
-                                    }`}
-                            >
-                                Past ({adminStats.pastCount})
-                            </button>
-                        </div>
-
-                        {/* Admin Booking Table */}
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-black/30">
-                                    <tr className="text-left text-white/40 text-xs uppercase">
-                                        <th className="px-4 py-3">Time</th>
-                                        <th className="px-4 py-3">Date</th>
-                                        <th className="px-4 py-3">Station</th>
-                                        <th className="px-4 py-3">Customer</th>
-                                        <th className="px-4 py-3">Email</th>
-                                        <th className="px-4 py-3">Phone</th>
-                                        <th className="px-4 py-3">Payment</th>
-                                        <th className="px-4 py-3">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {(adminTab === 'today' ? adminTodayBookings :
-                                        adminTab === 'upcoming' ? adminUpcomingBookings :
-                                            adminPastBookings
-                                    ).map((booking) => (
-                                        <tr key={booking.id} className="hover:bg-white/5 transition-colors">
-                                            <td className="px-4 py-3 text-[#D42428] font-medium">{booking.time}</td>
-                                            <td className="px-4 py-3 text-white">{booking.date}</td>
-                                            <td className="px-4 py-3">
-                                                <span
-                                                    className="px-2 py-1 rounded text-xs font-medium"
-                                                    style={{
-                                                        backgroundColor: `${getStationColor(booking.station)}20`,
-                                                        color: getStationColor(booking.station)
-                                                    }}
-                                                >
-                                                    {booking.station}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-white">{booking.name}</td>
-                                            <td className="px-4 py-3 text-white/60">{booking.email}</td>
-                                            <td className="px-4 py-3 text-white/60">{booking.phone || '-'}</td>
-                                            <td className="px-4 py-3">
-                                                {booking.paymentMethod && (() => {
-                                                    const paymentStatus = getPaymentStatus(booking.station, booking.paymentMethod);
-                                                    return (
-                                                        <div className="space-y-1">
-                                                            <div className="text-white/60 capitalize text-xs">{booking.paymentMethod}</div>
-                                                            <div className="text-[10px] font-mono text-white/80">
-                                                                Paid: {formatCurrency(paymentStatus.paid)} | Remaining: {formatCurrency(paymentStatus.remaining)}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${booking.status === 'Confirmed'
-                                                    ? 'bg-[#2D9E49]/20 text-[#2D9E49]'
-                                                    : booking.status === 'Cancelled'
-                                                        ? 'bg-red-500/20 text-red-400'
-                                                        : 'bg-yellow-500/20 text-yellow-400'
-                                                    }`}>
-                                                    {booking.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {(adminTab === 'today' ? adminTodayBookings :
-                                        adminTab === 'upcoming' ? adminUpcomingBookings :
-                                            adminPastBookings
-                                    ).length === 0 && (
-                                            <tr>
-                                                <td colSpan={8} className="px-4 py-8 text-center text-white/40">
-                                                    No {adminTab} bookings found
-                                                </td>
-                                            </tr>
-                                        )}
-                                </tbody>
-                            </table>
-                        </div>
+                        {/* Customers CRM View */}
+                        {adminView === 'customers' && (
+                            <div className="bg-[#141414] rounded-2xl border border-[#D42428]/30 overflow-hidden">
+                                <div className="bg-[#D42428]/10 px-6 py-4 border-b border-[#D42428]/20">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Users className="w-5 h-5 text-[#D42428]" />
+                                            <h2 className="font-display text-lg font-bold text-white uppercase">Customer Analytics</h2>
+                                        </div>
+                                        <button
+                                            onClick={syncBookingsToFirebase}
+                                            disabled={syncStatus === 'syncing'}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all border ${syncStatus === 'done'
+                                                    ? 'bg-green-500/20 border-green-500/30 text-green-400'
+                                                    : syncStatus === 'syncing'
+                                                        ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400 animate-pulse'
+                                                        : syncStatus === 'error'
+                                                            ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                                                            : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white'
+                                                }`}
+                                        >
+                                            {syncStatus === 'syncing' ? (
+                                                <><RefreshCw className="w-3 h-3 animate-spin" /> Syncing... ({syncCount})</>
+                                            ) : syncStatus === 'done' ? (
+                                                <><Database className="w-3 h-3" /> Synced {syncCount} bookings ✓</>
+                                            ) : syncStatus === 'error' ? (
+                                                <><Database className="w-3 h-3" /> Sync failed — retry</>
+                                            ) : (
+                                                <><Database className="w-3 h-3" /> Sync Sheet → CRM</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="p-6">
+                                    <CustomersTable customers={crmCustomers} loading={crmLoading} />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

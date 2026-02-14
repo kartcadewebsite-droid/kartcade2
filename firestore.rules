@@ -2,10 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - each user can only read/write their own document
+    // Helper: Check if the requesting user is an admin
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'kartcade.website@gmail.com' ||
+        request.auth.token.email == 'devansh7704patel@gmail.com' ||
+        request.auth.token.email == 'adamjames9@gmail.com' ||
+        request.auth.token.email == 'info@kartcade.com'
+      );
+    }
+    
+    // Users collection - each user can read/write their own document
+    // Admins can read ALL user documents (for CRM)
     match /users/{userId} {
-      // Users can read their own profile
-      allow read: if request.auth != null && request.auth.uid == userId;
+      // Users can read their own profile, admins can read all
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       
       // Users can create their own profile (on signup)
       allow create: if request.auth != null && request.auth.uid == userId;
@@ -16,6 +27,19 @@ service cloud.firestore {
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
       
       // No one can delete user profiles (admin does this manually if needed)
+      allow delete: if false;
+    }
+    
+    // Transactions Log (CRM) - permanent booking/membership records
+    match /transactions_log/{transactionId} {
+      // Admins can read all, regular users can read their own
+      allow read: if request.auth != null && (
+        isAdmin() || request.auth.uid == resource.data.userId
+      );
+      // Any authenticated user can create (logged at booking time)
+      // Admins can also update (for sync, cancellation)
+      allow create: if request.auth != null;
+      allow update: if isAdmin();
       allow delete: if false;
     }
     
