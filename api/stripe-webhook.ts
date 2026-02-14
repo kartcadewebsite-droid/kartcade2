@@ -35,6 +35,30 @@ if (!admin.apps.length) {
 
 const db = getFirestore();
 
+// ============================================
+// IDEMPOTENCY: Prevent double-processing of webhook events
+// ============================================
+async function isEventProcessed(eventId: string): Promise<boolean> {
+    try {
+        const docRef = db.collection('processed_stripe_events').doc(eventId);
+        const doc = await docRef.get();
+        return doc.exists;
+    } catch {
+        return false; // If check fails, process anyway (safer than skipping)
+    }
+}
+
+async function markEventProcessed(eventId: string, eventType: string): Promise<void> {
+    try {
+        await db.collection('processed_stripe_events').doc(eventId).set({
+            eventType,
+            processedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (err) {
+        console.error('[WEBHOOK] Failed to mark event as processed:', err);
+    }
+}
+
 // Inlined Admin Service
 const adminService = {
     async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
@@ -111,7 +135,25 @@ const adminService = {
                 [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp()
             });
             return true;
-        } catch (error) { console.error('Error deactivating membership:', error); throw error; }
+        } catch (error) {
+            console.error('[WEBHOOK] deactivateMembership update failed, trying set+merge fallback:', error);
+            // Fallback: use set with merge (handles missing map)
+            try {
+                const userRef = db.collection('users').doc(userId);
+                await userRef.set({
+                    memberships: {
+                        [equipmentType]: {
+                            active: false,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        }
+                    }
+                }, { merge: true });
+                return true;
+            } catch (fallbackErr) {
+                console.error('[WEBHOOK] deactivateMembership fallback also failed:', fallbackErr);
+                throw fallbackErr;
+            }
+        }
     }
 };
 
@@ -151,6 +193,12 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
+        // IDEMPOTENCY CHECK: Skip already-processed events
+        if (await isEventProcessed(event.id)) {
+            console.log(`[WEBHOOK] Event ${event.id} already processed, skipping (idempotency guard)`);
+            return res.json({ received: true, skipped: true });
+        }
+
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object as Stripe.Checkout.Session;
@@ -170,6 +218,18 @@ export default async function handler(req: any, res: any) {
                 break;
             }
 
+            case 'invoice.payment_failed': {
+                const invoice = event.data.object as Stripe.Invoice;
+                await handlePaymentFailed(invoice);
+                break;
+            }
+
+            case 'customer.subscription.updated': {
+                const subscription = event.data.object as Stripe.Subscription;
+                await handleSubscriptionUpdated(subscription);
+                break;
+            }
+
             case 'customer.subscription.deleted': {
                 const subscription = event.data.object as Stripe.Subscription;
                 await handleSubscriptionDeleted(subscription);
@@ -177,12 +237,15 @@ export default async function handler(req: any, res: any) {
             }
 
             default:
-                console.log(`Unhandled event type ${event.type}`);
+                console.log(`[WEBHOOK] Unhandled event type ${event.type}`);
         }
+
+        // Mark event as processed (idempotency)
+        await markEventProcessed(event.id, event.type);
 
         res.json({ received: true });
     } catch (err: any) {
-        console.error(`Error handling webhook event: ${err.message}`);
+        console.error(`[WEBHOOK] Error handling ${event.type} event: ${err.message}`);
         res.status(500).json({ error: 'Webhook handler failed' });
     }
 }
@@ -198,33 +261,39 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const subscriptionId = session.subscription as string;
 
     if (!userId || !tierId) {
-        console.error('Missing metadata in checkout session');
+        console.error('[WEBHOOK] Missing metadata in checkout session:', { sessionId: session.id, userId, tierId });
         return;
     }
 
-    console.log(`Processing new subscription for user ${userId}, tier ${tierId}`);
+    console.log(`[WEBHOOK] Processing new subscription for user ${userId}, tier ${tierId}, sub ${subscriptionId}`);
 
     // Get tier details to know credit amount and equipment type
     const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
 
-    if (tier) {
-        const equipmentType = tier.equipmentType;
+    if (!tier) {
+        console.error(`[WEBHOOK] CRITICAL: Tier "${tierId}" not found in MEMBERSHIP_TIERS! Payment was successful but cannot activate membership.`);
+        return;
+    }
 
-        // 1. Handle Upgrade: Cancel old subscription if ID is provided
-        if (oldSubscriptionId) {
-            try {
-                console.log(`Upgrading: Cancelling old subscription ${oldSubscriptionId}`);
-                await stripe.subscriptions.cancel(oldSubscriptionId);
-            } catch (err) {
-                console.error(`Failed to cancel old subscription ${oldSubscriptionId}:`, err);
-                // Continue anyway to activate new plan
-            }
+    const equipmentType = tier.equipmentType;
+
+    // 1. Handle Upgrade: Cancel old subscription if ID is provided
+    if (oldSubscriptionId) {
+        try {
+            console.log(`[WEBHOOK] Upgrading: Cancelling old subscription ${oldSubscriptionId}`);
+            await stripe.subscriptions.cancel(oldSubscriptionId);
+        } catch (err) {
+            console.error(`[WEBHOOK] Failed to cancel old subscription ${oldSubscriptionId}:`, err);
+            // Continue anyway to activate new plan
         }
+    }
 
-        // 2. Create/Update membership record
-        // Note: stripe.subscriptions.retrieve returns a Stripe.Subscription object
+    // 2. Create/Update membership record
+    try {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
         const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+
+        console.log(`[WEBHOOK] Activating membership: ${equipmentType} for user ${userId}, next billing: ${currentPeriodEnd.toISOString()}`);
 
         await adminService.updateMembership(
             userId,
@@ -234,10 +303,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             currentPeriodEnd
         );
 
+        console.log(`[WEBHOOK] Membership activated successfully for ${userId}`);
+
         // 3. Add initial credits
-        // For upgrades, we ADD to existing. For new, we ADD (starting from 0).
-        // The logic is unchanged: addCredits adds to current balance.
         await adminService.addCredits(userId, equipmentType, tier.credits);
+
+        console.log(`[WEBHOOK] Added ${tier.credits} ${equipmentType} credits to ${userId}. COMPLETE.`);
+    } catch (err: any) {
+        console.error(`[WEBHOOK] CRITICAL FAILURE activating membership for ${userId} (${tierId}):`, err.message || err);
+        // The safety net in verify-checkout-session will catch this
     }
 }
 
@@ -250,20 +324,25 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     // If subscription is missing or expanded object, handle strictly string ID
     if (!subscriptionId || typeof subscriptionId !== 'string') return;
 
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+    try {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
 
-    // Check if metadata exists on subscription (it should propagate from creation)
-    const userId = subscription.metadata?.userId;
-    const tierId = subscription.metadata?.tierId;
+        // Check if metadata exists on subscription (it should propagate from creation)
+        const userId = subscription.metadata?.userId;
+        const tierId = subscription.metadata?.tierId;
 
-    if (!userId || !tierId || invoice.billing_reason === 'subscription_create') {
-        return;
-    }
+        if (!userId || !tierId || invoice.billing_reason === 'subscription_create') {
+            return;
+        }
 
-    console.log(`Processing renewal for user ${userId}, tier ${tierId}`);
+        console.log(`[WEBHOOK] Processing renewal for user ${userId}, tier ${tierId}`);
 
-    const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-    if (tier && userId) {
+        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+        if (!tier) {
+            console.error(`[WEBHOOK] Tier "${tierId}" not found for renewal. User: ${userId}`);
+            return;
+        }
+
         const equipmentType = tier.equipmentType;
         const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
 
@@ -279,6 +358,134 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
         // 2. Refresh credits (Renewal)
         // Reset balance to tier amount (no rollover)
         await adminService.setCredits(userId, equipmentType, tier.credits);
+
+        console.log(`[WEBHOOK] Renewal complete for ${userId}: ${tier.credits} ${equipmentType} credits refreshed`);
+    } catch (err: any) {
+        console.error(`[WEBHOOK] RENEWAL FAILURE for invoice ${invoice.id}:`, err.message || err);
+        throw err; // Re-throw so Stripe retries
+    }
+}
+
+/**
+ * Handle failed recurring payment
+ * Deactivate membership so user can't use credits for free
+ */
+async function handlePaymentFailed(invoice: Stripe.Invoice) {
+    const subscriptionId = (invoice as any).subscription as string;
+
+    if (!subscriptionId || typeof subscriptionId !== 'string') return;
+
+    // Only act on recurring payment failures, not initial ones
+    if (invoice.billing_reason === 'subscription_create') return;
+
+    try {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+        const userId = subscription.metadata?.userId;
+        const tierId = subscription.metadata?.tierId;
+
+        if (!userId || !tierId) {
+            console.error('[WEBHOOK] Missing metadata on failed payment subscription:', subscriptionId);
+            return;
+        }
+
+        console.log(`[WEBHOOK] Payment FAILED for user ${userId}, tier ${tierId}`);
+
+        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+        if (tier) {
+            // Deactivate membership — they can reactivate once payment succeeds
+            await adminService.deactivateMembership(userId, tier.equipmentType);
+            console.log(`[WEBHOOK] Deactivated ${tier.equipmentType} membership for ${userId} due to payment failure`);
+        }
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Error handling payment failure:`, err.message || err);
+    }
+}
+
+/**
+ * Handle subscription updates (tier changes via Stripe portal)
+ * Syncs the new tier/plan to Firebase when customer upgrades/downgrades through portal
+ */
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const userId = subscription.metadata?.userId;
+    const tierId = subscription.metadata?.tierId;
+
+    if (!userId) {
+        console.log('[WEBHOOK] subscription.updated without userId metadata, skipping');
+        return;
+    }
+
+    // Check if the subscription is still active
+    if (subscription.status !== 'active') {
+        console.log(`[WEBHOOK] subscription.updated but status is "${subscription.status}", skipping tier sync`);
+        return;
+    }
+
+    try {
+        // Get the current price ID from the subscription to find the matching tier
+        const currentPriceId = subscription.items?.data?.[0]?.price?.id;
+
+        if (!currentPriceId) {
+            console.log('[WEBHOOK] subscription.updated but no price ID found, skipping');
+            return;
+        }
+
+        // Try to find the tier by Stripe price ID from our Firestore config
+        const configDoc = await db.collection('system').doc('stripe_config').get();
+        const pricesMap = configDoc.exists ? configDoc.data()?.prices || {} : {};
+
+        // Reverse lookup: find tier ID from price ID
+        let newTierId: string | null = null;
+        for (const [tierKey, priceValue] of Object.entries(pricesMap)) {
+            if (priceValue === currentPriceId) {
+                newTierId = tierKey;
+                break;
+            }
+        }
+
+        // If we couldn't find it in config, fall back to metadata tierId
+        if (!newTierId) {
+            newTierId = tierId || null;
+        }
+
+        if (!newTierId) {
+            console.error(`[WEBHOOK] subscription.updated: Could not determine tier for price ${currentPriceId}`);
+            return;
+        }
+
+        const tier = MEMBERSHIP_TIERS.find(t => t.id === newTierId);
+        if (!tier) {
+            console.error(`[WEBHOOK] subscription.updated: Tier "${newTierId}" not found in MEMBERSHIP_TIERS`);
+            return;
+        }
+
+        const equipmentType = tier.equipmentType;
+        const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000);
+
+        console.log(`[WEBHOOK] Subscription updated for user ${userId}: syncing to ${newTierId}`);
+
+        // Update membership with new tier
+        await adminService.updateMembership(
+            userId,
+            newTierId,
+            equipmentType,
+            subscription.id,
+            currentPeriodEnd
+        );
+
+        // Update subscription metadata to reflect the new tier
+        if (newTierId !== tierId) {
+            try {
+                await stripe.subscriptions.update(subscription.id, {
+                    metadata: { ...subscription.metadata, tierId: newTierId }
+                });
+            } catch (metaErr) {
+                console.error('[WEBHOOK] Failed to update subscription metadata:', metaErr);
+            }
+        }
+
+        console.log(`[WEBHOOK] Subscription update synced: ${userId} now on ${tier.name}`);
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Error handling subscription update for ${userId}:`, err.message || err);
     }
 }
 
@@ -289,13 +496,49 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const userId = subscription.metadata?.userId;
     const tierId = subscription.metadata?.tierId;
 
-    if (userId && tierId) {
-        console.log(`Processing cancellation for user ${userId}, tier ${tierId}`);
-        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-        if (tier) {
-            await adminService.deactivateMembership(userId, tier.equipmentType);
+    if (!userId) {
+        console.error('[WEBHOOK] subscription.deleted without userId metadata:', subscription.id);
+        return;
+    }
+
+    console.log(`[WEBHOOK] Processing cancellation for user ${userId}, tier ${tierId}`);
+
+    try {
+        if (tierId) {
+            const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+            if (tier) {
+                await adminService.deactivateMembership(userId, tier.equipmentType);
+                console.log(`[WEBHOOK] Cancelled ${tier.equipmentType} membership for ${userId}`);
+            } else {
+                console.warn(`[WEBHOOK] Could not find tier ${tierId} to deactivate. Trying all types...`);
+                // Fallback: deactivate all equipment types for this user
+                await deactivateAllMemberships(userId);
+            }
         } else {
-            console.warn(`Could not find tier ${tierId} to deactivate.`);
+            console.warn(`[WEBHOOK] No tierId on cancelled subscription ${subscription.id}. Deactivating all for ${userId}`);
+            await deactivateAllMemberships(userId);
+        }
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Error handling cancellation for ${userId}:`, err.message || err);
+    }
+}
+
+/**
+ * Emergency fallback: deactivate all membership types for a user
+ * Used when we can't determine which specific type to deactivate
+ */
+async function deactivateAllMemberships(userId: string) {
+    const equipmentTypes: Array<'kart' | 'rig' | 'motion'> = ['kart', 'rig', 'motion'];
+    for (const type of equipmentTypes) {
+        try {
+            const userRef = db.collection('users').doc(userId);
+            const userDoc = await userRef.get();
+            if (userDoc.exists && userDoc.data()?.memberships?.[type]?.active) {
+                await adminService.deactivateMembership(userId, type);
+                console.log(`[WEBHOOK] Deactivated ${type} membership for ${userId} (fallback)`);
+            }
+        } catch (err) {
+            console.error(`[WEBHOOK] Failed to deactivate ${type} for ${userId}:`, err);
         }
     }
 }

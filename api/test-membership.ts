@@ -8,6 +8,15 @@ export default async function handler(req: any, res: any) {
         return;
     }
 
+    // SECURITY: Block in production unless testing secret is provided
+    const testingSecret = process.env.TESTING_SECRET;
+    const providedSecret = req.headers['x-testing-secret'] || req.body?.testingSecret;
+
+    if (process.env.NODE_ENV === 'production' && (!testingSecret || providedSecret !== testingSecret)) {
+        console.warn('[TEST-MEMBERSHIP] Blocked unauthorized access in production');
+        return res.status(403).json({ error: 'Test endpoint is disabled in production' });
+    }
+
     try {
         const { userId, tierId } = req.body;
 

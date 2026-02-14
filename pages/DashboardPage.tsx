@@ -68,10 +68,15 @@ const DashboardPage: React.FC = () => {
     const [adminTab, setAdminTab] = useState<'today' | 'upcoming' | 'past'>('today');
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-    // Get real membership and credits from user profile
-    const membership = userProfile?.memberships?.kart?.active ? userProfile.memberships.kart :
-        userProfile?.memberships?.rig?.active ? userProfile.memberships.rig :
-            userProfile?.memberships?.motion?.active ? userProfile.memberships.motion : null;
+    // Get ALL active memberships from user profile
+    const activeMemberships = [
+        userProfile?.memberships?.kart?.active ? { ...userProfile.memberships.kart, equipmentType: 'kart' as const } : null,
+        userProfile?.memberships?.rig?.active ? { ...userProfile.memberships.rig, equipmentType: 'rig' as const } : null,
+        userProfile?.memberships?.motion?.active ? { ...userProfile.memberships.motion, equipmentType: 'motion' as const } : null,
+    ].filter(Boolean);
+
+    // Primary membership for display (first active one found)
+    const membership = activeMemberships.length > 0 ? activeMemberships[0] : null;
     const membershipTier = membership ? getMembershipById(membership.tier) : null;
 
     // Get credits for each equipment type
@@ -108,7 +113,6 @@ const DashboardPage: React.FC = () => {
             }
         };
 
-        fetchBookings();
         fetchBookings();
     }, [currentUser?.email]);
 

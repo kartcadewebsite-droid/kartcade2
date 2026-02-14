@@ -27,7 +27,7 @@ const CheckoutSuccessPage: React.FC = () => {
             }
 
             try {
-                // Call our verification API
+                // Call our verification API (includes membership safety net)
                 const response = await fetch(`/api/verify-checkout-session?session_id=${sessionId}`);
                 const data = await response.json();
 
@@ -36,7 +36,17 @@ const CheckoutSuccessPage: React.FC = () => {
 
                     // Refresh profile if membership
                     if (data.type === 'membership') {
+                        // If safety net activated, wait a moment for Firebase to sync
+                        if (data.safetyNet) {
+                            console.log('[SUCCESS PAGE] Safety net activated! Waiting for Firebase sync...');
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        }
                         await refreshUserProfile();
+
+                        // Double-check: retry once more after a delay if membership still not showing
+                        setTimeout(async () => {
+                            await refreshUserProfile();
+                        }, 3000);
                     }
 
                     // Celebration confetti!

@@ -1,11 +1,35 @@
 
 import { Stripe } from 'stripe';
+import admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { MEMBERSHIP_TIERS } from '../config/membership';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2024-12-18.acacia' as any,
 });
 
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
+
+// ============================================
+// FIREBASE ADMIN INIT (Same pattern as webhook)
+// ============================================
+if (!admin.apps.length) {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+        : undefined;
+
+    if (process.env.FIREBASE_PROJECT_ID) {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey,
+            }),
+        });
+    }
+}
+
+const db = getFirestore();
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'GET') {
@@ -66,7 +90,127 @@ export default async function handler(req: any, res: any) {
             });
 
         } else if (type === 'membership_purchase') {
-            // Return membership details
+            // ============================================
+            // MEMBERSHIP SAFETY NET (Mirror of booking safety net)
+            // If webhook failed, this activates the membership directly
+            // ============================================
+            const userId = metadata.userId;
+            const tierId = metadata.tierId;
+
+            if (userId && tierId) {
+                const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+
+                if (tier) {
+                    const userRef = db.collection('users').doc(userId);
+                    const userDoc = await userRef.get();
+
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        const equipmentType = tier.equipmentType;
+                        const existingMembership = userData?.memberships?.[equipmentType];
+
+                        // CHECK: Is membership already active? (webhook worked)
+                        if (existingMembership?.active) {
+                            console.log(`[VERIFY] Membership already active for ${userId} (${tierId}) - webhook worked fine`);
+                            return res.json({
+                                success: true,
+                                type: 'membership',
+                                tierId: tierId,
+                                safetyNet: false
+                            });
+                        }
+
+                        // SAFETY NET: Webhook failed! Activate membership now.
+                        console.log(`[VERIFY SAFETY NET] Activating membership for ${userId} (${tierId}) - webhook missed this!`);
+
+                        // IDEMPOTENCY: Check if this session was already processed
+                        const sessionProcessed = await db.collection('processed_stripe_events').doc(`verify_${session_id}`).get();
+                        if (sessionProcessed.exists) {
+                            console.log(`[VERIFY] Session ${session_id} already processed by safety net, skipping`);
+                            return res.json({
+                                success: true,
+                                type: 'membership',
+                                tierId: tierId,
+                                safetyNet: false
+                            });
+                        }
+
+                        try {
+                            // 1. Get subscription details from Stripe
+                            const subscriptionId = session.subscription as string;
+                            let currentPeriodEnd = new Date();
+                            currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 30); // Fallback: 30 days
+
+                            if (subscriptionId) {
+                                try {
+                                    const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+                                    currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+                                } catch (subErr) {
+                                    console.error('[VERIFY] Could not fetch subscription, using 30-day fallback:', subErr);
+                                }
+                            }
+
+                            // 2. Activate membership in Firebase
+                            await userRef.set({
+                                [`memberships`]: {
+                                    ...userData?.memberships,
+                                    [equipmentType]: {
+                                        active: true,
+                                        tier: tierId,
+                                        type: equipmentType,
+                                        stripeSubscriptionId: subscriptionId || '',
+                                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        activatedBy: 'safety_net'
+                                    }
+                                }
+                            }, { merge: true });
+
+                            // 3. Add credits
+                            const currentCredits = userData?.credits?.[equipmentType] || 0;
+                            await userRef.set({
+                                credits: {
+                                    ...userData?.credits,
+                                    [equipmentType]: currentCredits + tier.credits
+                                }
+                            }, { merge: true });
+
+                            // 4. Mark as processed (idempotency)
+                            await db.collection('processed_stripe_events').doc(`verify_${session_id}`).set({
+                                eventType: 'safety_net_activation',
+                                userId,
+                                tierId,
+                                processedAt: admin.firestore.FieldValue.serverTimestamp()
+                            });
+
+                            console.log(`[VERIFY SAFETY NET] SUCCESS: Activated ${tierId} for ${userId}, added ${tier.credits} ${equipmentType} credits`);
+
+                            return res.json({
+                                success: true,
+                                type: 'membership',
+                                tierId: tierId,
+                                safetyNet: true,
+                                creditsAdded: tier.credits
+                            });
+
+                        } catch (activationErr: any) {
+                            console.error('[VERIFY SAFETY NET] Failed to activate membership:', activationErr);
+                            // Still return success for the payment, but flag the issue
+                            return res.json({
+                                success: true,
+                                type: 'membership',
+                                tierId: tierId,
+                                safetyNet: false,
+                                activationError: activationErr.message
+                            });
+                        }
+                    } else {
+                        console.error(`[VERIFY] User document not found for ${userId}`);
+                    }
+                }
+            }
+
+            // Fallback: return basic success (no safety net possible)
             return res.json({
                 success: true,
                 type: 'membership',
