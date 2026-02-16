@@ -37,7 +37,7 @@ export const bookingService = {
      * UNIFIED FULFILLMENT: The single source of truth for completing a Stripe booking
      * Handles both the Webhook and the Browser Redirect concurrently with a lock
      */
-    async fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redirect') {
+    async fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redirect', retryCount = 0) {
         const db = getDb();
         const lockRef = db.collection('bookings_fulfillment').doc(sessionId);
 
@@ -56,9 +56,9 @@ export const bookingService = {
 
                 // If it's currently IN_PROGRESS by another process, let's wait a bit (or return pending)
                 if (lockDoc.exists && lockDoc.data()?.status === 'IN_PROGRESS') {
-                    if (source === 'redirect') {
-                        // Redirect will poll or we can just wait here in the closure
-                        console.log(`[BOOKING SERVICE] Session ${sessionId} is IN_PROGRESS by ${lockDoc.data()?.fulfilledBy}. Redirect waiting...`);
+                    if (source === 'redirect' || source === 'webhook') {
+                        // Both source types should wait and retry if another process is currently fulfilling
+                        console.log(`[BOOKING SERVICE] Session ${sessionId} is IN_PROGRESS by ${lockDoc.data()?.fulfilledBy}. ${source} waiting...`);
                         throw new Error('PENDING_LOCK');
                     }
                     return { success: true, status: 'IN_PROGRESS', message: 'Fulfillment already in progress' };
@@ -74,7 +74,14 @@ export const bookingService = {
                 // 3. Retrieve session details from Stripe
                 const session = await stripe.checkout.sessions.retrieve(sessionId);
                 const metadata = session.metadata || {};
-                const type = metadata.bookingType || (metadata.membershipTier ? 'membership_purchase' : 'unknown');
+
+                // Fixed type detection (Claude's Recommendation)
+                const type = metadata.type || metadata.bookingType || (metadata.tierId ? 'membership_purchase' : (metadata.bookingDate ? 'booking_deposit' : 'unknown'));
+
+                if (type === 'unknown') {
+                    console.warn(`[BOOKING SERVICE] Unknown payment type for session ${sessionId}. Metadata:`, metadata);
+                    throw new Error('UNKNOWN_PAYMENT_TYPE');
+                }
 
                 if (session.payment_status !== 'paid') {
                     throw new Error('SESSION_NOT_PAID');
@@ -105,7 +112,6 @@ export const bookingService = {
                         email: metadata.bookingEmail || (session.customer_details?.email || ''),
                         phone: metadata.bookingPhone || '',
                         paymentMethod: 'deposit',
-                        userId: metadata.userId || '',
                         notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
                     });
 
@@ -186,14 +192,14 @@ export const bookingService = {
                         }
                     }, { merge: true });
 
-                    // Add Credits
+                    // Add Credits (Using set {merge: true} as per Claude's recommendation)
                     const currentCredits = userData?.credits?.[equipmentType] || 0;
-                    transaction.update(userRef, {
+                    transaction.set(userRef, {
                         credits: {
                             ...userData?.credits,
                             [equipmentType]: currentCredits + tier.credits
                         }
-                    });
+                    }, { merge: true });
 
                     resultData.tierId = tierId;
                     resultData.creditsAdded = tier.credits;
@@ -225,9 +231,14 @@ export const bookingService = {
             });
         } catch (err: any) {
             if (err.message === 'PENDING_LOCK') {
-                // Wait and retry once for redirects
+                if (retryCount >= 3) {
+                    console.error(`[BOOKING SERVICE] Max retries reached for session ${sessionId}`);
+                    throw new Error('FULFILLMENT_TIMEOUT: The other process did not complete in time');
+                }
+                console.log(`[BOOKING SERVICE] Retry ${retryCount + 1}/3 for session ${sessionId}`);
+                // Wait and retry
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                return this.fulfillStripeBooking(sessionId, source);
+                return this.fulfillStripeBooking(sessionId, source, retryCount + 1);
             }
             console.error(`[BOOKING SERVICE] Fulfillment error:`, err);
             throw err;
