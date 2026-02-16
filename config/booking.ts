@@ -143,6 +143,7 @@ export const bookingApi = {
         email: string;
         phone: string;
         paymentMethod: string;
+        userId?: string;
         notes?: string;
     }) {
         if (!isApiConfigured()) {
@@ -167,6 +168,7 @@ export const bookingApi = {
                 email: bookingData.email,
                 phone: bookingData.phone,
                 paymentMethod: bookingData.paymentMethod,
+                userId: bookingData.userId || '',
                 notes: bookingData.notes || ''
             });
 

@@ -328,6 +328,7 @@ const BookingPage: React.FC = () => {
                 email: formData.email,
                 phone: formData.phone,
                 paymentMethod: paymentMethod === 'credits' ? 'credits' : paymentMethod,
+                userId: currentUser?.uid || '',
                 notes: finalNotes
             });
 
@@ -455,6 +456,7 @@ const BookingPage: React.FC = () => {
                 email: formData.email,
                 phone: formData.phone,
                 paymentMethod: 'paypal',
+                userId: currentUser?.uid || '',
                 notes: finalNotes
             });
 
