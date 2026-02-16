@@ -270,6 +270,11 @@ const BookingPage: React.FC = () => {
         );
     }, [step]);
 
+    // Auto-scroll to top when step changes
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [step]);
+
     const handleSubmit = async () => {
         if (!selectedDate || !selectedTime || !hasAnyEquipment()) return;
 
