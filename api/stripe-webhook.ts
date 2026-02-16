@@ -267,91 +267,34 @@ export default async function handler(req: any, res: any) {
     }
 }
 
+import { bookingService } from './services/bookingService';
+
 /**
- * Handle initial successful checkout
+ * Handle initial successful checkout (Unified v4)
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    const metadata = session.metadata || {};
-    const userId = metadata.userId;
-    const tierId = metadata.tierId;
-    const oldSubscriptionId = metadata.oldSubscriptionId;
-    const subscriptionId = session.subscription as string;
-
-    if (!userId || !tierId) {
-        console.error('[WEBHOOK] Missing metadata in checkout session:', { sessionId: session.id, userId, tierId });
-        return;
-    }
-
-    console.log(`[WEBHOOK] Processing new subscription for user ${userId}, tier ${tierId}, sub ${subscriptionId}`);
-
-    // Get tier details to know credit amount and equipment type
-    const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-
-    if (!tier) {
-        console.error(`[WEBHOOK] CRITICAL: Tier "${tierId}" not found in MEMBERSHIP_TIERS! Payment was successful but cannot activate membership.`);
-        return;
-    }
-
-    const equipmentType = tier.equipmentType;
-
-    // 1. Handle Upgrade: Cancel old subscription if ID is provided
-    if (oldSubscriptionId) {
-        try {
-            console.log(`[WEBHOOK] Upgrading: Cancelling old subscription ${oldSubscriptionId}`);
-            await stripe.subscriptions.cancel(oldSubscriptionId);
-        } catch (err) {
-            console.error(`[WEBHOOK] Failed to cancel old subscription ${oldSubscriptionId}:`, err);
-            // Continue anyway to activate new plan
-        }
-    }
-
-    // 2. Create/Update membership record
+    console.log(`[WEBHOOK] Transferring fulfillment to Unified Service: ${session.id}`);
     try {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-
-        console.log(`[WEBHOOK] Activating membership: ${equipmentType} for user ${userId}, next billing: ${currentPeriodEnd.toISOString()}`);
-
-        await adminService.updateMembership(
-            userId,
-            tierId,
-            equipmentType,
-            subscriptionId,
-            currentPeriodEnd
-        );
-
-        console.log(`[WEBHOOK] Membership activated successfully for ${userId}`);
-
-        // 3. Add initial credits
-        await adminService.addCredits(userId, equipmentType, tier.credits);
-
-        console.log(`[WEBHOOK] Added ${tier.credits} ${equipmentType} credits to ${userId}. COMPLETE.`);
-
-        // CRM PERMANENT LOG: Save transaction record (safe — won't affect payment)
-        const db = getDb();
-        try {
-            await db.collection('transactions_log').add({
-                userId,
-                email: session.customer_details?.email || '',
-                type: 'membership_purchase',
-                tierId,
-                tierName: tier.name,
-                equipmentType,
-                amount: (session.amount_total || 0) / 100,
-                currency: session.currency || 'usd',
-                stripeSessionId: session.id,
-                subscriptionId,
-                creditsAdded: tier.credits,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            console.log(`[CRM] Logged membership purchase for ${userId}`);
-        } catch (logErr) {
-            console.error('[CRM] Failed to log transaction (non-critical):', logErr);
-            // Non-critical — payment and membership still succeed
-        }
+        await bookingService.fulfillStripeBooking(session.id, 'webhook');
+        console.log(`[WEBHOOK] Unified fulfillment complete for session: ${session.id}`);
     } catch (err: any) {
-        console.error(`[WEBHOOK] CRITICAL FAILURE activating membership for ${userId} (${tierId}):`, err.message || err);
-        // The safety net in verify-checkout-session will catch this
+        console.error(`[WEBHOOK] Unified fulfillment failed for session ${session.id}:`, err.message);
+        // Important: throw here so Stripe retries the webhook if it's a transient error
+        throw err;
+    }
+}
+
+/**
+ * Handle individual booking deposit (Unified v4)
+ */
+async function handleBookingDeposit(session: Stripe.Checkout.Session) {
+    console.log(`[WEBHOOK] Transferring booking deposit to Unified Service: ${session.id}`);
+    try {
+        await bookingService.fulfillStripeBooking(session.id, 'webhook');
+        console.log(`[WEBHOOK] Unified booking fulfillment complete for session: ${session.id}`);
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Unified booking fulfillment failed for session ${session.id}:`, err.message);
+        throw err;
     }
 }
 
@@ -606,103 +549,3 @@ async function deactivateAllMemberships(userId: string) {
     }
 }
 
-/**
- * Handle individual booking deposit (One-time payment)
- */
-async function handleBookingDeposit(session: Stripe.Checkout.Session) {
-    const metadata = session.metadata || {};
-
-    // Check if we have enough info to create a booking
-    if (!metadata.bookingStation || !metadata.bookingDate || !metadata.bookingTime) {
-        console.error('Missing booking metadata in checkout session:', session.id);
-        return;
-    }
-
-    console.log(`Processing booking deposit for user ${metadata.userId} (Station: ${metadata.bookingStation}, Date: ${metadata.bookingDate})`);
-
-    try {
-        // Extract metadata with fallbacks
-        const drivers = metadata.bookingDrivers || '1';
-        const duration = metadata.bookingDuration || '1';
-        const stationName = metadata.bookingStation || '';
-
-        // ✅ ROBUST STATION FORMATTING
-        const stationFormatted = stationName.includes(':') && stationName.includes('(')
-            ? stationName
-            : `${stationName}:${drivers} (${duration}h)`;
-
-        console.log('[WEBHOOK] Station formatting:', {
-            original: stationName,
-            formatted: stationFormatted,
-            drivers: drivers,
-            duration: duration
-        });
-
-        // Construct URL parameters for Google Apps Script
-        const params = new URLSearchParams({
-            action: 'book',
-            date: metadata.bookingDate,
-            time: metadata.bookingTime,
-            station: stationFormatted,
-            drivers: drivers.toString(),
-            name: metadata.bookingName || 'Guest',
-            email: metadata.bookingEmail || (session.customer_details?.email || ''),
-            phone: metadata.bookingPhone || '',
-            paymentMethod: 'deposit', // Mark as paid deposit
-            notes: (metadata.bookingNotes || '') + ` [Stripe Deposit: ${session.payment_intent}]`
-        });
-
-        const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
-        console.log('[WEBHOOK] Calling Google Apps Script:', url);
-
-        // 2. Call Google Apps Script with robust fetch options
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'Kartcade-Webhook/1.0',
-                    'Accept': 'application/json'
-                },
-                redirect: 'follow'
-            });
-            const data = await response.json();
-
-            console.log('[WEBHOOK] Google Apps Script response:', data);
-
-            if (!data.success) {
-                console.error('[WEBHOOK] Apps Script returned failure:', data.error);
-                // Return success to Stripe to avoid infinite retries on Google Script errors,
-                // BUT log clearly for manual fix
-                return;
-            }
-
-            // CRM PERMANENT LOG: Save booking record
-            const db = getDb();
-            try {
-                await db.collection('transactions_log').add({
-                    userId: metadata.userId || '',
-                    email: metadata.bookingEmail || session.customer_details?.email || '',
-                    type: 'booking_deposit',
-                    station: stationFormatted,
-                    date: metadata.bookingDate,
-                    time: metadata.bookingTime,
-                    drivers: parseInt(drivers),
-                    name: metadata.bookingName || 'Guest',
-                    amount: (session.amount_total || 0) / 100,
-                    stripeSessionId: session.id,
-                    bookingId: data.bookingId || '',
-                    fulfillmentSource: 'webhook_fulfillment',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-                console.log(`[WEBHOOK][CRM] Logged booking for ${metadata.bookingEmail}`);
-            } catch (logErr) {
-                console.error('[WEBHOOK][CRM] Failed to log booking (non-critical):', logErr);
-            }
-        } catch (gasErr: any) {
-            console.error('[WEBHOOK] Fulfillment failed:', gasErr.message);
-        }
-
-    } catch (err: any) {
-        console.error('Failed to call Booking API from Webhook:', err.message);
-    }
-}
