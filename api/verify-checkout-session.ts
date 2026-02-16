@@ -10,28 +10,40 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
 
-// ============================================
-// FIREBASE ADMIN INIT (Same pattern as webhook)
-// ============================================
-if (!admin.apps.length) {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY
-        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-        : undefined;
+/**
+ * Lazy-initialize Firebase Admin and return Firestore
+ */
+function getDb() {
+    if (!admin.apps.length) {
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY
+            ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+            : undefined;
 
-    if (process.env.FIREBASE_PROJECT_ID) {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
-            }),
-        });
+        if (process.env.FIREBASE_PROJECT_ID) {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: privateKey,
+                }),
+            });
+        } else {
+            console.error('[API] FIREBASE_PROJECT_ID is missing');
+        }
     }
+    return getFirestore();
 }
 
-const db = getFirestore();
-
 export default async function handler(req: any, res: any) {
+    // Initialize DB inside the handler to prevent top-level crashes
+    let db;
+    try {
+        db = getDb();
+    } catch (dbErr: any) {
+        console.error('[API] Database init failed:', dbErr);
+        return res.status(500).json({ error: 'Internal database error' });
+    }
+
     if (req.method !== 'GET') {
         res.setHeader('Allow', 'GET');
         res.status(405).end('Method Not Allowed');

@@ -14,31 +14,35 @@ const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zs
 // FIREBASE ADMIN INIT (Inlined for Vercel Safety)
 // ============================================
 
-if (!admin.apps.length) {
-    // If running in Vercel, we need to handle the private key newlines correctly
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY
-        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-        : undefined;
+/**
+ * Lazy-initialize Firebase Admin and return Firestore
+ */
+function getDb() {
+    if (!admin.apps.length) {
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY
+            ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+            : undefined;
 
-    if (process.env.FIREBASE_PROJECT_ID) {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
-            }),
-        });
-    } else {
-        console.error('FIREBASE_PROJECT_ID is missing in environment variables.');
+        if (process.env.FIREBASE_PROJECT_ID) {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: privateKey,
+                }),
+            });
+        } else {
+            console.error('FIREBASE_PROJECT_ID is missing in environment variables.');
+        }
     }
+    return getFirestore();
 }
-
-const db = getFirestore();
 
 // ============================================
 // IDEMPOTENCY: Prevent double-processing of webhook events
 // ============================================
 async function isEventProcessed(eventId: string): Promise<boolean> {
+    const db = getDb();
     try {
         const docRef = db.collection('processed_stripe_events').doc(eventId);
         const doc = await docRef.get();
@@ -49,6 +53,7 @@ async function isEventProcessed(eventId: string): Promise<boolean> {
 }
 
 async function markEventProcessed(eventId: string, eventType: string): Promise<void> {
+    const db = getDb();
     try {
         await db.collection('processed_stripe_events').doc(eventId).set({
             eventType,
@@ -62,6 +67,7 @@ async function markEventProcessed(eventId: string, eventType: string): Promise<v
 // Inlined Admin Service
 const adminService = {
     async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+        const db = getDb();
         try {
             const userRef = db.collection('users').doc(userId);
             await db.runTransaction(async (transaction) => {
@@ -84,6 +90,7 @@ const adminService = {
         } catch (error) { console.error('Error adding credits:', error); throw error; }
     },
     async setCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+        const db = getDb();
         try {
             const userRef = db.collection('users').doc(userId);
             await db.runTransaction(async (transaction) => {
@@ -98,6 +105,7 @@ const adminService = {
         } catch (error) { console.error('Error setting credits:', error); throw error; }
     },
     async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion', subscriptionId: string, currentPeriodEnd: Date) {
+        const db = getDb();
         try {
             const userRef = db.collection('users').doc(userId);
             const updateKey = `memberships.${equipmentType}`;
@@ -127,6 +135,7 @@ const adminService = {
         }
     },
     async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion') {
+        const db = getDb();
         try {
             const userRef = db.collection('users').doc(userId);
             const updateKey = `memberships.${equipmentType}.active`;
@@ -192,10 +201,14 @@ export default async function handler(req: any, res: any) {
         return;
     }
 
+    const eventId = event.id;
+    const db = getDb();
     try {
         // IDEMPOTENCY CHECK: Skip already-processed events
-        if (await isEventProcessed(event.id)) {
-            console.log(`[WEBHOOK] Event ${event.id} already processed, skipping (idempotency guard)`);
+        const docRef = db.collection('processed_stripe_events').doc(eventId);
+        const doc = await docRef.get();
+        if (doc.exists) {
+            console.log(`[WEBHOOK] Event ${eventId} already processed, skipping (idempotency guard)`);
             return res.json({ received: true, skipped: true });
         }
 
@@ -241,7 +254,11 @@ export default async function handler(req: any, res: any) {
         }
 
         // Mark event as processed (idempotency)
-        await markEventProcessed(event.id, event.type);
+        const db = getDb();
+        await db.collection('processed_stripe_events').doc(event.id).set({
+            eventType: event.type,
+            processedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
         res.json({ received: true });
     } catch (err: any) {
@@ -311,6 +328,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         console.log(`[WEBHOOK] Added ${tier.credits} ${equipmentType} credits to ${userId}. COMPLETE.`);
 
         // CRM PERMANENT LOG: Save transaction record (safe — won't affect payment)
+        const db = getDb();
         try {
             await db.collection('transactions_log').add({
                 userId,
@@ -384,6 +402,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
         console.log(`[WEBHOOK] Renewal complete for ${userId}: ${tier.credits} ${equipmentType} credits refreshed`);
 
         // CRM PERMANENT LOG: Save renewal record (safe — won't affect renewal)
+        const db = getDb();
         try {
             await db.collection('transactions_log').add({
                 userId,
@@ -472,6 +491,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         }
 
         // Try to find the tier by Stripe price ID from our Firestore config
+        const db = getDb();
         const configDoc = await db.collection('system').doc('stripe_config').get();
         const pricesMap = configDoc.exists ? configDoc.data()?.prices || {} : {};
 
@@ -571,6 +591,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
  */
 async function deactivateAllMemberships(userId: string) {
     const equipmentTypes: Array<'kart' | 'rig' | 'motion'> = ['kart', 'rig', 'motion'];
+    const db = getDb();
     for (const type of equipmentTypes) {
         try {
             const userRef = db.collection('users').doc(userId);
@@ -629,7 +650,8 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
         if (data.success) {
             console.log(`Booking created successfully! ID: ${data.bookingId}`);
 
-            // CRM PERMANENT LOG: Save booking record (safe — won't affect booking)
+            // CRM PERMANENT LOG: Save booking record
+            const db = getDb();
             try {
                 await db.collection('transactions_log').add({
                     userId: metadata.userId || '',
