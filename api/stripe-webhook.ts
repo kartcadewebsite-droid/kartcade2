@@ -655,19 +655,26 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
         const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
         console.log('[WEBHOOK] Calling Google Apps Script:', url);
 
-        // Call Google Apps Script
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
+        // 2. Call Google Apps Script with robust fetch options
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Kartcade-Webhook/1.0',
+                    'Accept': 'application/json'
+                },
+                redirect: 'follow'
+            });
+            const data = await response.json();
+
+            console.log('[WEBHOOK] Google Apps Script response:', data);
+
+            if (!data.success) {
+                console.error('[WEBHOOK] Apps Script returned failure:', data.error);
+                // Return success to Stripe to avoid infinite retries on Google Script errors,
+                // BUT log clearly for manual fix
+                return;
             }
-        });
-
-        const data = await response.json();
-        console.log('[WEBHOOK] Google Apps Script response:', JSON.stringify(data, null, 2));
-
-        if (data.success) {
-            console.log(`[WEBHOOK] Booking created successfully! ID: ${data.bookingId}`);
 
             // CRM PERMANENT LOG: Save booking record
             const db = getDb();
@@ -676,24 +683,23 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
                     userId: metadata.userId || '',
                     email: metadata.bookingEmail || session.customer_details?.email || '',
                     type: 'booking_deposit',
-                    station: metadata.bookingStation,
+                    station: stationFormatted,
                     date: metadata.bookingDate,
                     time: metadata.bookingTime,
-                    drivers: parseInt(metadata.bookingDrivers || '1'),
+                    drivers: parseInt(drivers),
                     name: metadata.bookingName || 'Guest',
                     amount: (session.amount_total || 0) / 100,
-                    currency: session.currency || 'usd',
                     stripeSessionId: session.id,
                     bookingId: data.bookingId || '',
+                    fulfillmentSource: 'webhook_fulfillment',
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-                console.log(`[CRM] Logged booking deposit for ${metadata.bookingEmail}`);
+                console.log(`[WEBHOOK][CRM] Logged booking for ${metadata.bookingEmail}`);
             } catch (logErr) {
-                console.error('[CRM] Failed to log booking (non-critical):', logErr);
-                // Non-critical — booking still goes to Google Sheet
+                console.error('[WEBHOOK][CRM] Failed to log booking (non-critical):', logErr);
             }
-        } else {
-            console.error('Google Apps Script returned error:', data.error);
+        } catch (gasErr: any) {
+            console.error('[WEBHOOK] Fulfillment failed:', gasErr.message);
         }
 
     } catch (err: any) {

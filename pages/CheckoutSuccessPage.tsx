@@ -20,32 +20,47 @@ const CheckoutSuccessPage: React.FC = () => {
     const sessionId = searchParams.get('session_id');
 
     useEffect(() => {
-        const verifySession = async (retries = 3) => {
+        const verifySession = async () => {
             if (!sessionId) {
+                console.log('[CHECKOUT] No session ID found in URL. Exiting verification.');
+                setError('No session ID found. Please return to the previous page or contact support.');
                 setLoading(false);
                 return;
             }
 
-            for (let attempt = 1; attempt <= retries; attempt++) {
+            const maxRetries = 5;
+            let currentRetry = 0;
+            let success = false;
+
+            console.log(`[CHECKOUT] Starting verification for session: ${sessionId}`);
+
+            while (currentRetry < maxRetries && !success) {
+                if (currentRetry > 0) {
+                    console.log(`[CHECKOUT] Retrying verification (${currentRetry}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+
                 try {
-                    // Call our verification API (includes membership safety net)
                     const response = await fetch(`/api/verify-checkout-session?session_id=${sessionId}`);
                     const data = await response.json();
+                    console.log(`[CHECKOUT] Verification response (Attempt ${currentRetry + 1}):`, data);
 
                     if (data.success) {
+                        success = true;
                         setSuccessData(data);
 
                         // Refresh profile if membership
                         if (data.type === 'membership') {
                             // If safety net activated, wait a moment for Firebase to sync
                             if (data.safetyNet) {
-                                console.log('[SUCCESS PAGE] Safety net activated! Waiting for Firebase sync...');
+                                console.log('[CHECKOUT] Safety net activated! Waiting for Firebase sync...');
                                 await new Promise(resolve => setTimeout(resolve, 2000));
                             }
                             await refreshUserProfile();
 
                             // Double-check: retry once more after a delay if membership still not showing
                             setTimeout(async () => {
+                                console.log('[CHECKOUT] Second refreshUserProfile after 3s for membership sync.');
                                 await refreshUserProfile();
                             }, 3000);
                         }
@@ -60,22 +75,23 @@ const CheckoutSuccessPage: React.FC = () => {
 
                         setLoading(false);
                         return; // Exit loop on success
-                    } else if (attempt < retries) {
+                    } else if (currentRetry < maxRetries - 1) {
                         // Retry if payment is still processing or Stripe hasn't updated status yet
-                        console.log(`[SUCCESS PAGE] Verification attempt ${attempt} failed or processing, retrying in 2s...`);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        console.log(`[CHECKOUT] Verification attempt ${currentRetry + 1} failed or processing, retrying in 2s...`);
+                        currentRetry++;
                         continue;
                     } else {
-                        setError(data.error || 'Payment verification failed. Please contact support.');
+                        setError(data.error || 'Payment verification failed after multiple attempts. Please contact support.');
                         setLoading(false);
                         return;
                     }
-                } catch (err) {
-                    console.error(`[SUCCESS PAGE] Attempt ${attempt} error:`, err);
-                    if (attempt === retries) {
-                        setError('Failed to verify payment details.');
+                } catch (err: any) {
+                    console.error(`[CHECKOUT] Attempt ${currentRetry + 1} error:`, err);
+                    if (currentRetry >= maxRetries - 1) {
+                        setError('Failed to verify payment details. Please check your email for confirmation.');
                         setLoading(false);
                     } else {
+                        currentRetry++;
                         await new Promise(resolve => setTimeout(resolve, 2000));
                     }
                 }

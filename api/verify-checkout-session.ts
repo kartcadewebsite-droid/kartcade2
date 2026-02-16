@@ -58,13 +58,51 @@ export default async function handler(req: any, res: any) {
 
     try {
         const session = await stripe.checkout.sessions.retrieve(session_id);
+        const metadata = session.metadata || {};
+        const type = metadata.bookingType || (metadata.membershipTier ? 'membership_purchase' : 'unknown');
+
+        console.log(`[VERIFY] Session ${session_id} is ${session.payment_status}. Type: ${type}`);
 
         if (session.payment_status !== 'paid') {
-            return res.json({ success: false, status: session.payment_status, message: 'Payment not completed' });
+            return res.status(200).json({
+                success: false,
+                status: session.payment_status,
+                message: 'Payment not completed'
+            });
         }
 
-        const metadata = session.metadata || {};
-        const type = metadata.type;
+        // ============================================
+        // IDEMPOTENCY CHECK: Has this session already been fulfilled?
+        // ============================================
+        try {
+            const existingTx = await db.collection('transactions_log')
+                .where('stripeSessionId', '==', session_id)
+                .limit(1)
+                .get();
+
+            if (!existingTx.empty) {
+                const txData = existingTx.docs[0].data();
+                console.log(`[VERIFY] Session ${session_id} already fulfilled via Webhook. Returning success.`);
+                return res.json({
+                    success: true,
+                    type: type.includes('membership') ? 'membership' : 'booking',
+                    alreadyProcessed: true,
+                    bookingId: txData.bookingId || null,
+                    details: {
+                        station: txData.station || '',
+                        date: txData.date || '',
+                        time: txData.time || '',
+                        amount: session.amount_total
+                    }
+                });
+            }
+        } catch (dbErr) {
+            console.error('[VERIFY] Idempotency check failed (non-critical):', dbErr);
+        }
+
+        // ============================================
+        // FULFILLMENT: If not already processed, do it now
+        // ============================================
 
         if (type === 'booking_deposit') {
             // It's a booking! Let's ensure it's created in Google Sheets
@@ -75,17 +113,14 @@ export default async function handler(req: any, res: any) {
             const stationName = metadata.bookingStation || '';
 
             // ✅ ROBUST STATION FORMATTING
-            // If station already has format "Station:2 (1h)", use as-is
-            // Otherwise, rebuild it from components
             const stationFormatted = stationName.includes(':') && stationName.includes('(')
                 ? stationName
                 : `${stationName}:${drivers} (${duration}h)`;
 
-            console.log('[VERIFY] Station formatting:', {
-                original: stationName,
+            console.log('[VERIFY] Fulfilling booking via Safety Net:', {
                 formatted: stationFormatted,
-                drivers: drivers,
-                duration: duration
+                drivers,
+                duration
             });
 
             // 1. Construct parameters for Apps Script
@@ -99,34 +134,57 @@ export default async function handler(req: any, res: any) {
                 email: metadata.bookingEmail || (session.customer_details?.email || ''),
                 phone: metadata.bookingPhone || '',
                 paymentMethod: 'deposit',
-                notes: (metadata.bookingNotes || '') + ` [Stripe Verified: ${session.payment_intent}]`
+                notes: (metadata.bookingNotes || '') + ` [Stripe Redirect: ${session.payment_intent}]`
             });
 
-            // 2. Call Google Apps Script
+            // 2. Call Google Apps Script with robust fetch options
             const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
-            console.log('[VERIFY] Calling Google Apps Script:', url);
 
             try {
-                const response = await fetch(url, { method: 'GET' });
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Kartcade-Verification/1.0',
+                        'Accept': 'application/json'
+                    },
+                    redirect: 'follow'
+                });
                 const data = await response.json();
 
-                console.log('[VERIFY] Google Apps Script response:', JSON.stringify(data, null, 2));
+                console.log('[VERIFY] Google Apps Script response:', data);
 
                 if (!data.success) {
-                    console.error('[VERIFY] Apps Script returned failure:', data);
-                    return res.status(500).json({
-                        success: false,
-                        error: 'Booking creation failed',
-                        details: data.error || 'Unknown error from Apps Script',
-                        session_id
-                    });
+                    throw new Error(data.error || 'Apps Script returned failure');
                 }
 
-                // Return success with booking details
+                // CRM PERMANENT LOG: Ensure record exists in Firestore
+                try {
+                    await db.collection('transactions_log').add({
+                        userId: metadata.userId || '',
+                        email: metadata.bookingEmail || session.customer_details?.email || '',
+                        type: 'booking_deposit',
+                        station: stationFormatted,
+                        date: metadata.bookingDate,
+                        time: metadata.bookingTime,
+                        drivers: parseInt(drivers),
+                        name: metadata.bookingName || 'Guest',
+                        amount: (session.amount_total || 0) / 100,
+                        stripeSessionId: session.id,
+                        bookingId: data.bookingId || '',
+                        fulfillmentSource: 'redirect_safety_net',
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    console.log(`[VERIFY][CRM] Successfully logged booking for ${metadata.bookingEmail}`);
+                } catch (logErr) {
+                    console.error('[VERIFY][CRM] Logging failed (non-critical):', logErr);
+                }
+
+                // Return success
                 return res.json({
                     success: true,
                     type: 'booking',
                     bookingId: data.bookingId,
+                    fulfillmentSource: 'redirect_safety_net',
                     details: {
                         station: stationFormatted,
                         date: metadata.bookingDate,
@@ -135,10 +193,10 @@ export default async function handler(req: any, res: any) {
                     }
                 });
             } catch (gasErr: any) {
-                console.error('[VERIFY] Google Apps Script fetch failed:', gasErr);
+                console.error('[VERIFY] Fulfillment failed:', gasErr);
                 return res.status(500).json({
                     success: false,
-                    error: 'Failed to connect to booking system',
+                    error: 'Fulfillment process failed',
                     details: gasErr.message,
                     session_id
                 });
