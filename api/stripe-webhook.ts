@@ -621,13 +621,30 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
     console.log(`Processing booking deposit for user ${metadata.userId} (Station: ${metadata.bookingStation}, Date: ${metadata.bookingDate})`);
 
     try {
+        // Extract metadata with fallbacks
+        const drivers = metadata.bookingDrivers || '1';
+        const duration = metadata.bookingDuration || '1';
+        const stationName = metadata.bookingStation || '';
+
+        // ✅ ROBUST STATION FORMATTING
+        const stationFormatted = stationName.includes(':') && stationName.includes('(')
+            ? stationName
+            : `${stationName}:${drivers} (${duration}h)`;
+
+        console.log('[WEBHOOK] Station formatting:', {
+            original: stationName,
+            formatted: stationFormatted,
+            drivers: drivers,
+            duration: duration
+        });
+
         // Construct URL parameters for Google Apps Script
         const params = new URLSearchParams({
             action: 'book',
             date: metadata.bookingDate,
             time: metadata.bookingTime,
-            station: metadata.bookingStation,
-            drivers: (metadata.bookingDrivers || '1').toString(),
+            station: stationFormatted,
+            drivers: drivers.toString(),
             name: metadata.bookingName || 'Guest',
             email: metadata.bookingEmail || (session.customer_details?.email || ''),
             phone: metadata.bookingPhone || '',
@@ -636,6 +653,7 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
         });
 
         const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+        console.log('[WEBHOOK] Calling Google Apps Script:', url);
 
         // Call Google Apps Script
         const response = await fetch(url, {
@@ -646,9 +664,10 @@ async function handleBookingDeposit(session: Stripe.Checkout.Session) {
         });
 
         const data = await response.json();
+        console.log('[WEBHOOK] Google Apps Script response:', JSON.stringify(data, null, 2));
 
         if (data.success) {
-            console.log(`Booking created successfully! ID: ${data.bookingId}`);
+            console.log(`[WEBHOOK] Booking created successfully! ID: ${data.bookingId}`);
 
             // CRM PERMANENT LOG: Save booking record
             const db = getDb();

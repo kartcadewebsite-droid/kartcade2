@@ -51,6 +51,7 @@ export default async function handler(req: any, res: any) {
                 sessionConfig.metadata.bookingDate = bookingDetails.date;
                 sessionConfig.metadata.bookingTime = bookingDetails.time;
                 sessionConfig.metadata.bookingDrivers = bookingDetails.drivers;
+                sessionConfig.metadata.bookingDuration = bookingDetails.duration;
                 sessionConfig.metadata.bookingName = bookingDetails.name;
                 sessionConfig.metadata.bookingEmail = bookingDetails.email;
                 sessionConfig.metadata.bookingPhone = bookingDetails.phone;

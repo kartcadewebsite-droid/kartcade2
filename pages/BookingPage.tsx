@@ -392,6 +392,7 @@ const BookingPage: React.FC = () => {
                         date: formatDateForApi(selectedDate!),
                         time: selectedTime,
                         drivers: getTotalDrivers(),
+                        duration: duration,
                         name: formData.name,
                         email: formData.email,
                         phone: formData.phone,

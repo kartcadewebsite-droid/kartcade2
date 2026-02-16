@@ -20,50 +20,65 @@ const CheckoutSuccessPage: React.FC = () => {
     const sessionId = searchParams.get('session_id');
 
     useEffect(() => {
-        const verifySession = async () => {
+        const verifySession = async (retries = 3) => {
             if (!sessionId) {
                 setLoading(false);
                 return;
             }
 
-            try {
-                // Call our verification API (includes membership safety net)
-                const response = await fetch(`/api/verify-checkout-session?session_id=${sessionId}`);
-                const data = await response.json();
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                try {
+                    // Call our verification API (includes membership safety net)
+                    const response = await fetch(`/api/verify-checkout-session?session_id=${sessionId}`);
+                    const data = await response.json();
 
-                if (data.success) {
-                    setSuccessData(data);
+                    if (data.success) {
+                        setSuccessData(data);
 
-                    // Refresh profile if membership
-                    if (data.type === 'membership') {
-                        // If safety net activated, wait a moment for Firebase to sync
-                        if (data.safetyNet) {
-                            console.log('[SUCCESS PAGE] Safety net activated! Waiting for Firebase sync...');
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                        }
-                        await refreshUserProfile();
-
-                        // Double-check: retry once more after a delay if membership still not showing
-                        setTimeout(async () => {
+                        // Refresh profile if membership
+                        if (data.type === 'membership') {
+                            // If safety net activated, wait a moment for Firebase to sync
+                            if (data.safetyNet) {
+                                console.log('[SUCCESS PAGE] Safety net activated! Waiting for Firebase sync...');
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            }
                             await refreshUserProfile();
-                        }, 3000);
-                    }
 
-                    // Celebration confetti!
-                    confetti({
-                        particleCount: 150,
-                        spread: 70,
-                        origin: { y: 0.6 },
-                        colors: ['#2D9E49', '#D42428', '#FFD700'],
-                    });
-                } else {
-                    setError('Payment verification failed. Please contact support.');
+                            // Double-check: retry once more after a delay if membership still not showing
+                            setTimeout(async () => {
+                                await refreshUserProfile();
+                            }, 3000);
+                        }
+
+                        // Celebration confetti!
+                        confetti({
+                            particleCount: 150,
+                            spread: 70,
+                            origin: { y: 0.6 },
+                            colors: ['#2D9E49', '#D42428', '#FFD700'],
+                        });
+
+                        setLoading(false);
+                        return; // Exit loop on success
+                    } else if (attempt < retries) {
+                        // Retry if payment is still processing or Stripe hasn't updated status yet
+                        console.log(`[SUCCESS PAGE] Verification attempt ${attempt} failed or processing, retrying in 2s...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        continue;
+                    } else {
+                        setError(data.error || 'Payment verification failed. Please contact support.');
+                        setLoading(false);
+                        return;
+                    }
+                } catch (err) {
+                    console.error(`[SUCCESS PAGE] Attempt ${attempt} error:`, err);
+                    if (attempt === retries) {
+                        setError('Failed to verify payment details.');
+                        setLoading(false);
+                    } else {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
                 }
-            } catch (err) {
-                console.error(err);
-                setError('Failed to verify payment details.');
-            } finally {
-                setLoading(false);
             }
         };
 

@@ -69,13 +69,32 @@ export default async function handler(req: any, res: any) {
         if (type === 'booking_deposit') {
             // It's a booking! Let's ensure it's created in Google Sheets
 
+            // Extract metadata with fallbacks
+            const drivers = metadata.bookingDrivers || '1';
+            const duration = metadata.bookingDuration || '1';
+            const stationName = metadata.bookingStation || '';
+
+            // ✅ ROBUST STATION FORMATTING
+            // If station already has format "Station:2 (1h)", use as-is
+            // Otherwise, rebuild it from components
+            const stationFormatted = stationName.includes(':') && stationName.includes('(')
+                ? stationName
+                : `${stationName}:${drivers} (${duration}h)`;
+
+            console.log('[VERIFY] Station formatting:', {
+                original: stationName,
+                formatted: stationFormatted,
+                drivers: drivers,
+                duration: duration
+            });
+
             // 1. Construct parameters for Apps Script
             const params = new URLSearchParams({
                 action: 'book',
                 date: metadata.bookingDate || '',
                 time: metadata.bookingTime || '',
-                station: metadata.bookingStation || '',
-                drivers: (metadata.bookingDrivers || '1').toString(),
+                station: stationFormatted,
+                drivers: drivers.toString(),
                 name: metadata.bookingName || 'Guest',
                 email: metadata.bookingEmail || (session.customer_details?.email || ''),
                 phone: metadata.bookingPhone || '',
@@ -85,21 +104,45 @@ export default async function handler(req: any, res: any) {
 
             // 2. Call Google Apps Script
             const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
-            const response = await fetch(url, { method: 'GET' });
-            const data = await response.json();
+            console.log('[VERIFY] Calling Google Apps Script:', url);
 
-            // Return success with booking details
-            return res.json({
-                success: true,
-                type: 'booking',
-                booking: data,
-                details: {
-                    station: metadata.bookingStation,
-                    date: metadata.bookingDate,
-                    time: metadata.bookingTime,
-                    amount: session.amount_total
+            try {
+                const response = await fetch(url, { method: 'GET' });
+                const data = await response.json();
+
+                console.log('[VERIFY] Google Apps Script response:', JSON.stringify(data, null, 2));
+
+                if (!data.success) {
+                    console.error('[VERIFY] Apps Script returned failure:', data);
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Booking creation failed',
+                        details: data.error || 'Unknown error from Apps Script',
+                        session_id
+                    });
                 }
-            });
+
+                // Return success with booking details
+                return res.json({
+                    success: true,
+                    type: 'booking',
+                    bookingId: data.bookingId,
+                    details: {
+                        station: stationFormatted,
+                        date: metadata.bookingDate,
+                        time: metadata.bookingTime,
+                        amount: session.amount_total
+                    }
+                });
+            } catch (gasErr: any) {
+                console.error('[VERIFY] Google Apps Script fetch failed:', gasErr);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to connect to booking system',
+                    details: gasErr.message,
+                    session_id
+                });
+            }
 
         } else if (type === 'membership_purchase') {
             // ============================================
