@@ -1,8 +1,6 @@
 
 import { Stripe } from 'stripe';
 import { buffer } from 'micro';
-// Import config relative to this file (API folder)
-import { MEMBERSHIP_TIERS } from './config/membership';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
@@ -12,6 +10,37 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
+
+// ============================================================
+// SELF-CONTAINED CONFIG (Inlined to fix Vercel ERR_MODULE_NOT_FOUND)
+// ============================================================
+export interface MembershipTier {
+    id: string;
+    name: string;
+    level: 'bronze' | 'silver' | 'gold';
+    equipmentType: 'kart' | 'rig' | 'motion';
+    equipmentName: string;
+    price: number;
+    credits: number;
+    pricePerCredit: number;
+    regularPrice: number;
+    savings: number;
+    color: string;
+    popular?: boolean;
+    stripePriceId?: string;
+}
+
+export const MEMBERSHIP_TIERS: MembershipTier[] = [
+    { id: 'bronze_kart', name: 'Bronze Kart', level: 'bronze', equipmentType: 'kart', equipmentName: 'Racing Karts', price: 75, credits: 5, pricePerCredit: 15, regularPrice: 30, savings: 15, color: '#CD7F32', stripePriceId: 'price_placeholder_bronze_kart' },
+    { id: 'silver_kart', name: 'Silver Kart', level: 'silver', equipmentType: 'kart', equipmentName: 'Racing Karts', price: 150, credits: 10, pricePerCredit: 15, regularPrice: 30, savings: 15, color: '#C0C0C0', popular: true, stripePriceId: 'price_placeholder_silver_kart' },
+    { id: 'gold_kart', name: 'Gold Kart', level: 'gold', equipmentType: 'kart', equipmentName: 'Racing Karts', price: 300, credits: 20, pricePerCredit: 15, regularPrice: 30, savings: 15, color: '#FFD700', stripePriceId: 'price_placeholder_gold_kart' },
+    { id: 'bronze_rig', name: 'Bronze Rig', level: 'bronze', equipmentType: 'rig', equipmentName: 'Full-Size Rigs', price: 100, credits: 5, pricePerCredit: 20, regularPrice: 40, savings: 20, color: '#CD7F32', stripePriceId: 'price_placeholder_bronze_rig' },
+    { id: 'silver_rig', name: 'Silver Rig', level: 'silver', equipmentType: 'rig', equipmentName: 'Full-Size Rigs', price: 200, credits: 10, pricePerCredit: 20, regularPrice: 40, savings: 20, color: '#C0C0C0', popular: true, stripePriceId: 'price_placeholder_silver_rig' },
+    { id: 'gold_rig', name: 'Gold Rig', level: 'gold', equipmentType: 'rig', equipmentName: 'Full-Size Rigs', price: 400, credits: 20, pricePerCredit: 20, regularPrice: 40, savings: 20, color: '#FFD700', stripePriceId: 'price_placeholder_gold_rig' },
+    { id: 'bronze_motion', name: 'Bronze Motion', level: 'bronze', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 125, credits: 5, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#CD7F32', stripePriceId: 'price_placeholder_bronze_motion' },
+    { id: 'silver_motion', name: 'Silver Motion', level: 'silver', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 250, credits: 10, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#C0C0C0', popular: true, stripePriceId: 'price_placeholder_silver_motion' },
+    { id: 'gold_motion', name: 'Gold Motion', level: 'gold', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 500, credits: 20, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#FFD700', stripePriceId: 'price_placeholder_gold_motion' }
+];
 
 // Disable body parser for Vercel
 export const config = {
