@@ -1,7 +1,7 @@
 
 import { Stripe } from 'stripe';
 import { buffer } from 'micro';
-import { MEMBERSHIP_TIERS } from '../config/membership';
+import { MEMBERSHIP_TIERS } from './config/membership';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
