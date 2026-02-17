@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import confetti from 'canvas-confetti';
 
 type SuccessData = {
-    type: 'booking' | 'membership' | 'unknown';
+    type: 'booking' | 'membership' | 'booking_deposit' | 'membership_purchase' | 'unknown';
     booking?: any;
     details?: any;
 };
@@ -128,8 +128,9 @@ const CheckoutSuccessPage: React.FC = () => {
     }
 
     // Determine content based on purchase type
-    const isBooking = successData?.type === 'booking';
-    const isMembership = successData?.type === 'membership';
+    // Note: API returns 'booking_deposit' and 'membership_purchase'
+    const isBooking = successData?.type === 'booking' || successData?.type === 'booking_deposit';
+    const isMembership = successData?.type === 'membership' || successData?.type === 'membership_purchase';
 
     // Find active membership from the map (if any)
     const membership = userProfile?.memberships && Object.values(userProfile.memberships).find(m => m.active);
