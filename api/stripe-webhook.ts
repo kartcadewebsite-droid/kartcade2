@@ -82,7 +82,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
             // 3. Retrieve session details from Stripe
             const session = await stripe.checkout.sessions.retrieve(sessionId);
-            const metadata = session.metadata || {};
+            const metadata = (session.metadata || {}) as any;
 
             // Fixed type detection
             const type = metadata.type || metadata.bookingType || (metadata.tierId ? 'membership_purchase' : (metadata.bookingDate ? 'booking_deposit' : 'unknown'));
@@ -254,6 +254,109 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
     }
 }
 
+/**
+ * Handle recurring subscription payments
+ */
+async function handleInvoicePaid(invoice: Stripe.Invoice) {
+    const db = getDb();
+    const subscriptionId = invoice.subscription as string;
+
+    if (!subscriptionId) {
+        console.warn('[WEBHOOK] Invoice paid but no subscription ID present');
+        return;
+    }
+
+    try {
+        console.log(`[WEBHOOK] Processing invoice.payment_succeeded for subscription ${subscriptionId}`);
+
+        // Retrieve full subscription to get metadata
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const { userId, equipmentType, tierId } = (subscription.metadata || {}) as any;
+
+        if (!userId || !equipmentType) {
+            console.warn(`[WEBHOOK] Missing metadata on subscription ${subscriptionId}. Cannot update user membership.`);
+            return;
+        }
+
+        const userRef = db.collection('users').doc(userId);
+        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+
+        // Update membership expiry
+        await userRef.set({
+            memberships: {
+                [equipmentType]: {
+                    nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                    active: true,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastPaymentStatus: 'succeeded'
+                }
+            }
+        }, { merge: true });
+
+        console.log(`[WEBHOOK] Successfully extended membership for user ${userId} (${equipmentType}) to ${currentPeriodEnd.toISOString()}`);
+
+        // Assuming renewal DOES add credits based on tier
+        if (tierId) {
+            const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+            if (tier) {
+                const userDoc = await userRef.get();
+                const userData = userDoc.data();
+                const currentCredits = userData?.credits?.[equipmentType] || 0;
+
+                // Add Monthly Credits
+                await userRef.set({
+                    credits: {
+                        [equipmentType]: currentCredits + tier.credits
+                    }
+                }, { merge: true });
+                console.log(`[WEBHOOK] Added ${tier.credits} credits for renewal.`);
+            }
+        }
+
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Error handling invoice.payment_succeeded:`, err.message);
+        throw err;
+    }
+}
+
+/**
+ * Handle subscription cancellations/deletions
+ */
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const db = getDb();
+    const { userId, equipmentType } = (subscription.metadata || {}) as any;
+
+    if (!userId || !equipmentType) {
+        console.warn(`[WEBHOOK] Subscription deleted but missing metadata: ${subscription.id}`);
+        return;
+    }
+
+    try {
+        console.log(`[WEBHOOK] Processing customer.subscription.deleted for user ${userId}`);
+        const userRef = db.collection('users').doc(userId);
+
+        await userRef.set({
+            memberships: {
+                [equipmentType]: {
+                    active: false,
+                    canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+                    status: 'canceled'
+                }
+            }
+        }, { merge: true });
+
+        console.log(`[WEBHOOK] Deactivated membership for ${userId} (${equipmentType})`);
+
+    } catch (err: any) {
+        console.error(`[WEBHOOK] Error handling customer.subscription.deleted:`, err.message);
+        throw err;
+    }
+}
+
+async function handlePaymentFailed(invoice: Stripe.Invoice) {
+    console.error(`[WEBHOOK] Payment failed for invoice ${invoice.id}, subscription ${invoice.subscription}`);
+}
+
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -275,21 +378,50 @@ export default async function handler(req: any, res: any) {
         return;
     }
 
-    if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const sessionId = session.id;
+    // Wrap EACH event handler in its own try/catch and ALWAYS return 200
+    try {
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object as Stripe.Checkout.Session;
+            console.log(`[WEBHOOK] Starting fulfillment for session ${session.id}`);
 
-        try {
-            console.log(`[WEBHOOK] Starting fulfillment for session ${sessionId}`);
-            // Use the inlined service
-            await fulfillStripeBooking(sessionId, 'webhook');
-            res.status(200).json({ received: true });
-        } catch (err: any) {
-            console.error(`[WEBHOOK] Booking failed:`, err);
-            // Critical: Do not return 200 on error, or Stripe won't retry
-            res.status(500).send('Booking failed');
+            try {
+                await fulfillStripeBooking(session.id, 'webhook');
+                console.log(`[WEBHOOK] Fulfillment complete for session ${session.id}`);
+            } catch (fulfillErr: any) {
+                // LOG the error but ALWAYS return 200
+                // verify-checkout-session.ts safety net will catch failures
+                // Returning 500 causes Stripe to retry → race conditions!
+                console.error(`[WEBHOOK] Fulfillment failed for ${session.id}:`, fulfillErr.message);
+            }
         }
-    } else {
-        res.status(200).json({ received: true });
+        else if (event.type === 'invoice.payment_succeeded') {
+            try {
+                await handleInvoicePaid(event.data.object as Stripe.Invoice);
+            } catch (err: any) {
+                console.error('[WEBHOOK] Invoice paid handler failed:', err.message);
+            }
+        }
+        else if (event.type === 'customer.subscription.deleted') {
+            try {
+                await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+            } catch (err: any) {
+                console.error('[WEBHOOK] Subscription deleted handler failed:', err.message);
+            }
+        }
+        else if (event.type === 'invoice.payment_failed') {
+            try {
+                await handlePaymentFailed(event.data.object as Stripe.Invoice);
+            } catch (err: any) {
+                console.error('[WEBHOOK] Payment failed handler failed:', err.message);
+            }
+        }
+
+        // ALWAYS return 200 - no matter what!
+        return res.status(200).json({ received: true });
+
+    } catch (err: any) {
+        // Even catastrophic errors return 200 to Stripe to prevent retry loops
+        console.error(`[WEBHOOK] Critical error for ${event.type}:`, err.message);
+        return res.status(200).json({ received: true });
     }
 }

@@ -73,7 +73,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
             // 3. Retrieve session details from Stripe
             const session = await stripe.checkout.sessions.retrieve(sessionId);
-            const metadata = session.metadata || {};
+            const metadata = (session.metadata || {}) as any;
 
             // Fixed type detection
             const type = metadata.type || metadata.bookingType || (metadata.tierId ? 'membership_purchase' : (metadata.bookingDate ? 'booking_deposit' : 'unknown'));
