@@ -1,18 +1,24 @@
 
 import { Stripe } from 'stripe';
 import { buffer } from 'micro';
+// Import config relative to this file (API folder)
 import { MEMBERSHIP_TIERS } from './config/membership';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2024-12-18.acacia' as any,
+});
 
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlJM7zscm9Txy-5Q2MLqoqDtzbab6a0L-CtUWIRUWrN0Bo8b-GGK51iuDa6hQOBpV5UA/exec';
 
-// ============================================
-// FIREBASE ADMIN INIT (Inlined for Vercel Safety)
-// ============================================
+// Disable body parser for Vercel
+export const config = {
+    api: {
+        bodyParser: false,
+    },
+};
 
 /**
  * Lazy-initialize Firebase Admin and return Firestore
@@ -31,151 +37,222 @@ function getDb() {
                     privateKey: privateKey,
                 }),
             });
-        } else {
-            console.error('FIREBASE_PROJECT_ID is missing in environment variables.');
         }
     }
     return getFirestore();
 }
 
-// ============================================
-// IDEMPOTENCY: Prevent double-processing of webhook events
-// ============================================
-async function isEventProcessed(eventId: string): Promise<boolean> {
+/**
+ * INLINED BOOKING SERVICE LOGIC
+ * Copied directly to ensure Vercel bundles it correctly.
+ */
+async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redirect', retryCount = 0): Promise<any> {
     const db = getDb();
-    try {
-        const docRef = db.collection('processed_stripe_events').doc(eventId);
-        const doc = await docRef.get();
-        return doc.exists;
-    } catch {
-        return false; // If check fails, process anyway (safer than skipping)
-    }
-}
+    const lockRef = db.collection('bookings_fulfillment').doc(sessionId);
 
-async function markEventProcessed(eventId: string, eventType: string): Promise<void> {
-    const db = getDb();
-    try {
-        await db.collection('processed_stripe_events').doc(eventId).set({
-            eventType,
-            processedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (err) {
-        console.error('[WEBHOOK] Failed to mark event as processed:', err);
-    }
-}
+    console.log(`[WEBHOOK] Request from ${source} for session ${sessionId}`);
 
-// Inlined Admin Service
-const adminService = {
-    async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
-        const db = getDb();
-        try {
-            const userRef = db.collection('users').doc(userId);
-            await db.runTransaction(async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-                if (!userDoc.exists) throw new Error('User does not exist');
-                const userData = userDoc.data();
-                const currentCredits = userData?.credits?.[equipmentType] || 0;
-                const newCredits = currentCredits + amount;
-                transaction.set(userRef, {
-                    credits: { ...userData?.credits, [equipmentType]: newCredits }
-                }, { merge: true });
-                const transactionRef = db.collection('transactions').doc();
-                transaction.set(transactionRef, {
-                    userId, type: 'credit_add', amount, equipmentType,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp(), source: 'system'
-                });
-            });
-            console.log(`Added ${amount} ${equipmentType} credits to ${userId}`);
-            return true;
-        } catch (error) { console.error('Error adding credits:', error); throw error; }
-    },
-    async setCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
-        const db = getDb();
-        try {
-            const userRef = db.collection('users').doc(userId);
-            await db.runTransaction(async (transaction) => {
-                const userDoc = await transaction.get(userRef);
-                if (!userDoc.exists) throw new Error('User not found');
-                const userData = userDoc.data();
-                const newCredits = { ...userData?.credits };
-                newCredits[equipmentType] = amount;
-                transaction.update(userRef, { credits: newCredits });
-            });
-            return true;
-        } catch (error) { console.error('Error setting credits:', error); throw error; }
-    },
-    async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion', subscriptionId: string, currentPeriodEnd: Date) {
-        const db = getDb();
-        try {
-            const userRef = db.collection('users').doc(userId);
-            const updateKey = `memberships.${equipmentType}`;
-            const data = {
-                [updateKey]: {
-                    active: true, tier: tierId, type: equipmentType, stripeSubscriptionId: subscriptionId,
-                    nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    try {
+        // 1. Transactional Lock: Determine who is responsible for this fulfillment
+        return await db.runTransaction(async (transaction) => {
+            const lockDoc = await transaction.get(lockRef);
+
+            // If it's already finished, return the success data immediately
+            if (lockDoc.exists && lockDoc.data()?.status === 'SUCCESS') {
+                console.log(`[WEBHOOK] Session ${sessionId} already fulfilled by ${lockDoc.data()?.fulfilledBy}. Source ${source} skipped.`);
+                return { success: true, alreadyProcessed: true, ...lockDoc.data() };
+            }
+
+            // If it's currently IN_PROGRESS by another process, let's wait a bit (or return pending)
+            if (lockDoc.exists && lockDoc.data()?.status === 'IN_PROGRESS') {
+                if (source === 'redirect' || source === 'webhook') {
+                    // Both source types should wait and retry if another process is currently fulfilling
+                    console.log(`[WEBHOOK] Session ${sessionId} is IN_PROGRESS by ${lockDoc.data()?.fulfilledBy}. ${source} waiting...`);
+                    throw new Error('PENDING_LOCK');
                 }
-            };
-            await userRef.update(data);
-            return true;
-        } catch (error) {
-            // Fallback for missing parent map
-            try {
-                const userRef = db.collection('users').doc(userId);
-                const updateKey = `memberships.${equipmentType}`;
-                await userRef.set({
-                    [updateKey]: {
-                        active: true, tier: tierId, type: equipmentType, stripeSubscriptionId: subscriptionId,
-                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    }
-                }, { merge: true });
-                return true;
-            } catch (err) { console.error('Error updating membership:', err); throw err; }
-        }
-    },
-    async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion') {
-        const db = getDb();
-        try {
-            const userRef = db.collection('users').doc(userId);
-            const updateKey = `memberships.${equipmentType}.active`;
-            await userRef.update({
-                [updateKey]: false,
-                [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp()
+                return { success: true, status: 'IN_PROGRESS', message: 'Fulfillment already in progress' };
+            }
+
+            // 2. We are the Winner! Set lock to IN_PROGRESS
+            transaction.set(lockRef, {
+                status: 'IN_PROGRESS',
+                fulfilledBy: source,
+                startTime: admin.firestore.FieldValue.serverTimestamp()
             });
-            return true;
-        } catch (error) {
-            console.error('[WEBHOOK] deactivateMembership update failed, trying set+merge fallback:', error);
-            // Fallback: use set with merge (handles missing map)
-            try {
+
+            // 3. Retrieve session details from Stripe
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+            const metadata = session.metadata || {};
+
+            // Fixed type detection
+            const type = metadata.type || metadata.bookingType || (metadata.tierId ? 'membership_purchase' : (metadata.bookingDate ? 'booking_deposit' : 'unknown'));
+
+            if (type === 'unknown') {
+                console.warn(`[WEBHOOK] Unknown payment type for session ${sessionId}. Metadata:`, metadata);
+                throw new Error('UNKNOWN_PAYMENT_TYPE');
+            }
+
+            if (session.payment_status !== 'paid') {
+                throw new Error('SESSION_NOT_PAID');
+            }
+
+            // ============================================
+            // FULFILLMENT Logic (Grouped by type)
+            // ============================================
+
+            let resultData: any = { type };
+
+            if (type === 'booking_deposit') {
+                // 4a. Booking Logic
+                const drivers = metadata.bookingDrivers || '1';
+                const duration = metadata.bookingDuration || '1';
+                const stationName = metadata.bookingStation || '';
+                const stationFormatted = stationName.includes(':') && stationName.includes('(')
+                    ? stationName
+                    : `${stationName}:${drivers} (${duration}h)`;
+
+                const params = new URLSearchParams({
+                    action: 'book',
+                    date: metadata.bookingDate || '',
+                    time: metadata.bookingTime || '',
+                    station: stationFormatted,
+                    drivers: drivers.toString(),
+                    name: metadata.bookingName || 'Guest',
+                    email: metadata.bookingEmail || (session.customer_details?.email || ''),
+                    phone: metadata.bookingPhone || '',
+                    paymentMethod: 'deposit',
+                    notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
+                });
+
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+
+                const gasResponse = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'User-Agent': 'Kartcade-Service/4.0', 'Accept': 'application/json' },
+                    redirect: 'follow'
+                });
+                const gasData = await gasResponse.json();
+
+                if (!gasData.success) {
+                    throw new Error(gasData.error || 'Google Apps Script failed');
+                }
+
+                resultData.bookingId = gasData.bookingId;
+                resultData.details = {
+                    station: stationFormatted,
+                    date: metadata.bookingDate,
+                    time: metadata.bookingTime,
+                    amount: session.amount_total
+                };
+
+                // CRM Log
+                transaction.set(db.collection('transactions_log').doc(), {
+                    userId: metadata.userId || '',
+                    email: metadata.bookingEmail || session.customer_details?.email || '',
+                    type: 'booking_deposit',
+                    station: stationFormatted,
+                    date: metadata.bookingDate,
+                    time: metadata.bookingTime,
+                    drivers: parseInt(drivers),
+                    name: metadata.bookingName || 'Guest',
+                    amount: (session.amount_total || 0) / 100,
+                    stripeSessionId: sessionId,
+                    bookingId: gasData.bookingId,
+                    fulfillmentSource: source,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+            } else if (type === 'membership_purchase') {
+                // 4b. Membership Logic
+                const userId = metadata.userId;
+                const tierId = metadata.tierId;
+                if (!userId || !tierId) throw new Error('MISSING_METADATA');
+
+                const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
+                if (!tier) throw new Error('INVALID_TIER');
+
+                const subscriptionId = session.subscription as string;
+                let currentPeriodEnd = new Date();
+                currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 30);
+
+                if (subscriptionId) {
+                    const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+                    currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+                }
+
+                const equipmentType = tier.equipmentType;
                 const userRef = db.collection('users').doc(userId);
-                await userRef.set({
+                const userDoc = await transaction.get(userRef);
+                const userData = userDoc.data();
+
+                // Activate Membership
+                transaction.set(userRef, {
                     memberships: {
+                        ...userData?.memberships,
                         [equipmentType]: {
-                            active: false,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                            active: true,
+                            tier: tierId,
+                            type: equipmentType,
+                            stripeSubscriptionId: subscriptionId || '',
+                            nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            activatedBy: source
                         }
                     }
                 }, { merge: true });
-                return true;
-            } catch (fallbackErr) {
-                console.error('[WEBHOOK] deactivateMembership fallback also failed:', fallbackErr);
-                throw fallbackErr;
+
+                // Add Credits
+                const currentCredits = userData?.credits?.[equipmentType] || 0;
+                transaction.set(userRef, {
+                    credits: {
+                        ...userData?.credits,
+                        [equipmentType]: currentCredits + tier.credits
+                    }
+                }, { merge: true });
+
+                resultData.tierId = tierId;
+                resultData.creditsAdded = tier.credits;
+
+                // CRM Log
+                transaction.set(db.collection('transactions_log').doc(), {
+                    userId,
+                    email: session.customer_details?.email || '',
+                    type: 'membership_purchase',
+                    tierId,
+                    amount: (session.amount_total || 0) / 100,
+                    stripeSessionId: sessionId,
+                    fulfillmentSource: source,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
             }
+
+            const finalResult = {
+                ...resultData,
+                status: 'SUCCESS',
+                fulfilledBy: source,
+                completedAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+
+            // Update the lock to SUCCESS
+            transaction.set(lockRef, finalResult);
+
+            return { ...finalResult, success: true };
+        });
+    } catch (err: any) {
+        if (err.message === 'PENDING_LOCK') {
+            if (retryCount >= 3) {
+                console.error(`[WEBHOOK] Max retries reached for session ${sessionId}`);
+                throw new Error('FULFILLMENT_TIMEOUT: The other process did not complete in time');
+            }
+            console.log(`[WEBHOOK] Retry ${retryCount + 1}/3 for session ${sessionId}`);
+            // Wait and retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return fulfillStripeBooking(sessionId, source, retryCount + 1);
         }
+        console.error(`[WEBHOOK] Fulfillment error:`, err);
+        throw err;
     }
-};
-
-// ============================================
-// MAIN HANDLER
-// ============================================
-
-// Disable body parser for this route (required for signature verification)
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
+}
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
@@ -186,366 +263,33 @@ export default async function handler(req: any, res: any) {
 
     const buf = await buffer(req);
     const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
     let event: Stripe.Event;
 
     try {
-        if (!sig || !webhookSecret) {
-            throw new Error('Missing signature or webhook secret');
-        }
-        event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
+        if (!sig || !endpointSecret) throw new Error('Missing stripe signature or secret');
+        event = stripe.webhooks.constructEvent(buf, sig, endpointSecret);
     } catch (err: any) {
-        console.error(`Webhook signature verification failed: ${err.message}`);
+        console.error(`[WEBHOOK] Error verifying webhook signature: ${err.message}`);
         res.status(400).send(`Webhook Error: ${err.message}`);
         return;
     }
 
-    const eventId = event.id;
-    const db = getDb();
-    try {
-        // IDEMPOTENCY CHECK: Skip already-processed events
-        const docRef = db.collection('processed_stripe_events').doc(eventId);
-        const doc = await docRef.get();
-        if (doc.exists) {
-            console.log(`[WEBHOOK] Event ${eventId} already processed, skipping (idempotency guard)`);
-            return res.json({ received: true, skipped: true });
-        }
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const sessionId = session.id;
 
-        switch (event.type) {
-            case 'checkout.session.completed': {
-                const session = event.data.object as Stripe.Checkout.Session;
-                const type = session.metadata?.type;
-
-                if (type === 'booking_deposit') {
-                    await handleBookingDeposit(session);
-                } else {
-                    await handleCheckoutCompleted(session);
-                }
-                break;
-            }
-
-            case 'invoice.payment_succeeded': {
-                const invoice = event.data.object as Stripe.Invoice;
-                await handleInvoicePaid(invoice);
-                break;
-            }
-
-            case 'invoice.payment_failed': {
-                const invoice = event.data.object as Stripe.Invoice;
-                await handlePaymentFailed(invoice);
-                break;
-            }
-
-            case 'customer.subscription.updated': {
-                const subscription = event.data.object as Stripe.Subscription;
-                await handleSubscriptionUpdated(subscription);
-                break;
-            }
-
-            case 'customer.subscription.deleted': {
-                const subscription = event.data.object as Stripe.Subscription;
-                await handleSubscriptionDeleted(subscription);
-                break;
-            }
-
-            default:
-                console.log(`[WEBHOOK] Unhandled event type ${event.type}`);
-        }
-
-        // Mark event as processed (idempotency)
-        const db = getDb();
-        await db.collection('processed_stripe_events').doc(event.id).set({
-            eventType: event.type,
-            processedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        res.json({ received: true });
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Error handling ${event.type} event: ${err.message}`);
-        res.status(500).json({ error: 'Webhook handler failed' });
-    }
-}
-
-import { bookingService } from './services/bookingService';
-
-/**
- * Handle initial successful checkout (Unified v4)
- */
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    console.log(`[WEBHOOK] Transferring fulfillment to Unified Service: ${session.id}`);
-    try {
-        await bookingService.fulfillStripeBooking(session.id, 'webhook');
-        console.log(`[WEBHOOK] Unified fulfillment complete for session: ${session.id}`);
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Unified fulfillment failed for session ${session.id}:`, err.message);
-        // Important: throw here so Stripe retries the webhook if it's a transient error
-        throw err;
-    }
-}
-
-/**
- * Handle individual booking deposit (Unified v4)
- */
-async function handleBookingDeposit(session: Stripe.Checkout.Session) {
-    console.log(`[WEBHOOK] Transferring booking deposit to Unified Service: ${session.id}`);
-    try {
-        await bookingService.fulfillStripeBooking(session.id, 'webhook');
-        console.log(`[WEBHOOK] Unified booking fulfillment complete for session: ${session.id}`);
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Unified booking fulfillment failed for session ${session.id}:`, err.message);
-        throw err;
-    }
-}
-
-/**
- * Handle recurring payment success (Renewals)
- */
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
-    const subscriptionId = (invoice as any).subscription as string;
-
-    // If subscription is missing or expanded object, handle strictly string ID
-    if (!subscriptionId || typeof subscriptionId !== 'string') return;
-
-    try {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
-
-        // Check if metadata exists on subscription (it should propagate from creation)
-        const userId = subscription.metadata?.userId;
-        const tierId = subscription.metadata?.tierId;
-
-        if (!userId || !tierId || invoice.billing_reason === 'subscription_create') {
-            return;
-        }
-
-        console.log(`[WEBHOOK] Processing renewal for user ${userId}, tier ${tierId}`);
-
-        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-        if (!tier) {
-            console.error(`[WEBHOOK] Tier "${tierId}" not found for renewal. User: ${userId}`);
-            return;
-        }
-
-        const equipmentType = tier.equipmentType;
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-
-        // 1. Extend membership date
-        await adminService.updateMembership(
-            userId,
-            tierId,
-            equipmentType,
-            subscriptionId,
-            currentPeriodEnd
-        );
-
-        // 2. Refresh credits (Renewal)
-        // Reset balance to tier amount (no rollover)
-        await adminService.setCredits(userId, equipmentType, tier.credits);
-
-        console.log(`[WEBHOOK] Renewal complete for ${userId}: ${tier.credits} ${equipmentType} credits refreshed`);
-
-        // CRM PERMANENT LOG: Save renewal record (safe — won't affect renewal)
-        const db = getDb();
         try {
-            await db.collection('transactions_log').add({
-                userId,
-                type: 'membership_renewal',
-                tierId,
-                tierName: tier.name,
-                equipmentType,
-                amount: (invoice.amount_paid || 0) / 100,
-                currency: invoice.currency || 'usd',
-                stripeInvoiceId: invoice.id,
-                subscriptionId,
-                creditsRefreshed: tier.credits,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            console.log(`[CRM] Logged renewal for ${userId}`);
-        } catch (logErr) {
-            console.error('[CRM] Failed to log renewal (non-critical):', logErr);
+            console.log(`[WEBHOOK] Starting fulfillment for session ${sessionId}`);
+            // Use the inlined service
+            await fulfillStripeBooking(sessionId, 'webhook');
+            res.status(200).json({ received: true });
+        } catch (err: any) {
+            console.error(`[WEBHOOK] Booking failed:`, err);
+            // Critical: Do not return 200 on error, or Stripe won't retry
+            res.status(500).send('Booking failed');
         }
-    } catch (err: any) {
-        console.error(`[WEBHOOK] RENEWAL FAILURE for invoice ${invoice.id}:`, err.message || err);
-        throw err; // Re-throw so Stripe retries
+    } else {
+        res.status(200).json({ received: true });
     }
 }
-
-/**
- * Handle failed recurring payment
- * Deactivate membership so user can't use credits for free
- */
-async function handlePaymentFailed(invoice: Stripe.Invoice) {
-    const subscriptionId = (invoice as any).subscription as string;
-
-    if (!subscriptionId || typeof subscriptionId !== 'string') return;
-
-    // Only act on recurring payment failures, not initial ones
-    if (invoice.billing_reason === 'subscription_create') return;
-
-    try {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
-        const userId = subscription.metadata?.userId;
-        const tierId = subscription.metadata?.tierId;
-
-        if (!userId || !tierId) {
-            console.error('[WEBHOOK] Missing metadata on failed payment subscription:', subscriptionId);
-            return;
-        }
-
-        console.log(`[WEBHOOK] Payment FAILED for user ${userId}, tier ${tierId}`);
-
-        const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-        if (tier) {
-            // Deactivate membership — they can reactivate once payment succeeds
-            await adminService.deactivateMembership(userId, tier.equipmentType);
-            console.log(`[WEBHOOK] Deactivated ${tier.equipmentType} membership for ${userId} due to payment failure`);
-        }
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Error handling payment failure:`, err.message || err);
-    }
-}
-
-/**
- * Handle subscription updates (tier changes via Stripe portal)
- * Syncs the new tier/plan to Firebase when customer upgrades/downgrades through portal
- */
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-    const tierId = subscription.metadata?.tierId;
-
-    if (!userId) {
-        console.log('[WEBHOOK] subscription.updated without userId metadata, skipping');
-        return;
-    }
-
-    // Check if the subscription is still active
-    if (subscription.status !== 'active') {
-        console.log(`[WEBHOOK] subscription.updated but status is "${subscription.status}", skipping tier sync`);
-        return;
-    }
-
-    try {
-        // Get the current price ID from the subscription to find the matching tier
-        const currentPriceId = subscription.items?.data?.[0]?.price?.id;
-
-        if (!currentPriceId) {
-            console.log('[WEBHOOK] subscription.updated but no price ID found, skipping');
-            return;
-        }
-
-        // Try to find the tier by Stripe price ID from our Firestore config
-        const db = getDb();
-        const configDoc = await db.collection('system').doc('stripe_config').get();
-        const pricesMap = configDoc.exists ? configDoc.data()?.prices || {} : {};
-
-        // Reverse lookup: find tier ID from price ID
-        let newTierId: string | null = null;
-        for (const [tierKey, priceValue] of Object.entries(pricesMap)) {
-            if (priceValue === currentPriceId) {
-                newTierId = tierKey;
-                break;
-            }
-        }
-
-        // If we couldn't find it in config, fall back to metadata tierId
-        if (!newTierId) {
-            newTierId = tierId || null;
-        }
-
-        if (!newTierId) {
-            console.error(`[WEBHOOK] subscription.updated: Could not determine tier for price ${currentPriceId}`);
-            return;
-        }
-
-        const tier = MEMBERSHIP_TIERS.find(t => t.id === newTierId);
-        if (!tier) {
-            console.error(`[WEBHOOK] subscription.updated: Tier "${newTierId}" not found in MEMBERSHIP_TIERS`);
-            return;
-        }
-
-        const equipmentType = tier.equipmentType;
-        const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000);
-
-        console.log(`[WEBHOOK] Subscription updated for user ${userId}: syncing to ${newTierId}`);
-
-        // Update membership with new tier
-        await adminService.updateMembership(
-            userId,
-            newTierId,
-            equipmentType,
-            subscription.id,
-            currentPeriodEnd
-        );
-
-        // Update subscription metadata to reflect the new tier
-        if (newTierId !== tierId) {
-            try {
-                await stripe.subscriptions.update(subscription.id, {
-                    metadata: { ...subscription.metadata, tierId: newTierId }
-                });
-            } catch (metaErr) {
-                console.error('[WEBHOOK] Failed to update subscription metadata:', metaErr);
-            }
-        }
-
-        console.log(`[WEBHOOK] Subscription update synced: ${userId} now on ${tier.name}`);
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Error handling subscription update for ${userId}:`, err.message || err);
-    }
-}
-
-/**
- * Handle cancellation
- */
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata?.userId;
-    const tierId = subscription.metadata?.tierId;
-
-    if (!userId) {
-        console.error('[WEBHOOK] subscription.deleted without userId metadata:', subscription.id);
-        return;
-    }
-
-    console.log(`[WEBHOOK] Processing cancellation for user ${userId}, tier ${tierId}`);
-
-    try {
-        if (tierId) {
-            const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
-            if (tier) {
-                await adminService.deactivateMembership(userId, tier.equipmentType);
-                console.log(`[WEBHOOK] Cancelled ${tier.equipmentType} membership for ${userId}`);
-            } else {
-                console.warn(`[WEBHOOK] Could not find tier ${tierId} to deactivate. Trying all types...`);
-                // Fallback: deactivate all equipment types for this user
-                await deactivateAllMemberships(userId);
-            }
-        } else {
-            console.warn(`[WEBHOOK] No tierId on cancelled subscription ${subscription.id}. Deactivating all for ${userId}`);
-            await deactivateAllMemberships(userId);
-        }
-    } catch (err: any) {
-        console.error(`[WEBHOOK] Error handling cancellation for ${userId}:`, err.message || err);
-    }
-}
-
-/**
- * Emergency fallback: deactivate all membership types for a user
- * Used when we can't determine which specific type to deactivate
- */
-async function deactivateAllMemberships(userId: string) {
-    const equipmentTypes: Array<'kart' | 'rig' | 'motion'> = ['kart', 'rig', 'motion'];
-    const db = getDb();
-    for (const type of equipmentTypes) {
-        try {
-            const userRef = db.collection('users').doc(userId);
-            const userDoc = await userRef.get();
-            if (userDoc.exists && userDoc.data()?.memberships?.[type]?.active) {
-                await adminService.deactivateMembership(userId, type);
-                console.log(`[WEBHOOK] Deactivated ${type} membership for ${userId} (fallback)`);
-            }
-        } catch (err) {
-            console.error(`[WEBHOOK] Failed to deactivate ${type} for ${userId}:`, err);
-        }
-    }
-}
-
