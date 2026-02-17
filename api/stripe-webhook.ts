@@ -257,7 +257,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 /**
  * Handle recurring subscription payments
  */
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
+async function handleInvoicePaid(invoice: any) {
     const db = getDb();
     const subscriptionId = invoice.subscription as string;
 
@@ -270,7 +270,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
         console.log(`[WEBHOOK] Processing invoice.payment_succeeded for subscription ${subscriptionId}`);
 
         // Retrieve full subscription to get metadata
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
         const { userId, equipmentType, tierId } = (subscription.metadata || {}) as any;
 
         if (!userId || !equipmentType) {
@@ -322,7 +322,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 /**
  * Handle subscription cancellations/deletions
  */
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+async function handleSubscriptionDeleted(subscription: any) {
     const db = getDb();
     const { userId, equipmentType } = (subscription.metadata || {}) as any;
 
@@ -353,7 +353,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     }
 }
 
-async function handlePaymentFailed(invoice: Stripe.Invoice) {
+async function handlePaymentFailed(invoice: any) {
     console.error(`[WEBHOOK] Payment failed for invoice ${invoice.id}, subscription ${invoice.subscription}`);
 }
 
@@ -381,7 +381,7 @@ export default async function handler(req: any, res: any) {
     // Wrap EACH event handler in its own try/catch and ALWAYS return 200
     try {
         if (event.type === 'checkout.session.completed') {
-            const session = event.data.object as Stripe.Checkout.Session;
+            const session = event.data.object as any;
             console.log(`[WEBHOOK] Starting fulfillment for session ${session.id}`);
 
             try {
@@ -396,21 +396,21 @@ export default async function handler(req: any, res: any) {
         }
         else if (event.type === 'invoice.payment_succeeded') {
             try {
-                await handleInvoicePaid(event.data.object as Stripe.Invoice);
+                await handleInvoicePaid(event.data.object as any);
             } catch (err: any) {
                 console.error('[WEBHOOK] Invoice paid handler failed:', err.message);
             }
         }
         else if (event.type === 'customer.subscription.deleted') {
             try {
-                await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+                await handleSubscriptionDeleted(event.data.object as any);
             } catch (err: any) {
                 console.error('[WEBHOOK] Subscription deleted handler failed:', err.message);
             }
         }
         else if (event.type === 'invoice.payment_failed') {
             try {
-                await handlePaymentFailed(event.data.object as Stripe.Invoice);
+                await handlePaymentFailed(event.data.object as any);
             } catch (err: any) {
                 console.error('[WEBHOOK] Payment failed handler failed:', err.message);
             }
