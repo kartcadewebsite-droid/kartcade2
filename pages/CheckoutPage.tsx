@@ -210,22 +210,16 @@ const CheckoutPage: React.FC = () => {
                 )}
 
                 {/* Checkout Button */}
+                {/* TEMPORARY: Disable Stripe until Adam switches to live keys */}
+                {/* Re-enable after switching to live Stripe keys */}
                 <button
                     onClick={handleCheckout}
-                    disabled={loading}
-                    className="w-full py-4 bg-[#2D9E49] text-white rounded-full font-display uppercase tracking-widest font-bold text-sm hover:bg-[#248a3f] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    disabled={true}
+                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                    className="w-full py-4 bg-[#2D9E49] text-white rounded-full font-display uppercase tracking-widest font-bold text-sm hover:bg-[#248a3f] transition-colors flex items-center justify-center gap-2"
                 >
-                    {loading ? (
-                        <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Processing...
-                        </>
-                    ) : (
-                        <>
-                            <CreditCard className="w-5 h-5" />
-                            Pay ${tier.price} / month
-                        </>
-                    )}
+                    <CreditCard className="w-5 h-5" />
+                    Pay ${tier.price} / month (Temporarily Offline)
                 </button>
 
                 {/* Security Note */}

@@ -1288,13 +1288,16 @@ const BookingPage: React.FC = () => {
 
                                                             <div className="space-y-4">
                                                                 {/* Option A: Stripe */}
+                                                                {/* TEMPORARY: Disable Stripe until Adam switches to live keys */}
+                                                                {/* Re-enable after switching to live Stripe keys */}
                                                                 <button
                                                                     onClick={handleStripeDeposit}
-                                                                    disabled={loadingStripe}
+                                                                    disabled={true}
+                                                                    style={{ opacity: 0.5, cursor: 'not-allowed' }}
                                                                     className="w-full p-4 bg-[#635BFF] text-white rounded-xl font-bold hover:bg-[#5851E3] transition-colors flex items-center justify-center gap-3"
                                                                 >
-                                                                    {loadingStripe ? <Loader2 className="animate-spin" /> : <CreditCard />}
-                                                                    Pay with Card / G-Pay
+                                                                    <CreditCard />
+                                                                    Card / G-Pay (Temporarily Offline)
                                                                 </button>
 
                                                                 <div className="text-center text-xs text-white/30 uppercase tracking-widest">
