@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -18,6 +18,13 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
     maxDate
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+
+    // ✅ PROPHETIC FIX: Close modal whenever selectedDate changes from parent or internal select
+    useEffect(() => {
+        if (isOpen) {
+            setIsOpen(false);
+        }
+    }, [selectedDate]);
 
     const formatDisplayDate = (date: Date | null) => {
         if (!date) return 'Select a date';
@@ -77,11 +84,14 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
                         <DatePicker
                             selected={selectedDate}
-                            onChange={(date) => {
+                            onSelect={(date) => {
                                 if (date) {
                                     onDateChange(date);
                                     setIsOpen(false);
                                 }
+                            }}
+                            onChange={(date) => {
+                                if (date) onDateChange(date);
                             }}
                             minDate={minDate}
                             maxDate={maxDate}

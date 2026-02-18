@@ -148,7 +148,6 @@ const BookingPage: React.FC = () => {
         return null;
     });
     const [selectedTime, setSelectedTime] = useState<string | null>(searchParams.get('time') || null);
-    const [drivers, setDrivers] = useState(1);
 
     // SECURITY FIX: Default to 'deposit' instead of 'venue' to prevent accidental unpaid bookings.
     // 'venue' is restricted to Admins only, so it should never be the default state.
@@ -180,10 +179,23 @@ const BookingPage: React.FC = () => {
         notes: ''
     });
 
-    // Get equipment type for credits
-    const equipmentType = selectedStation ? getEquipmentTypeFromStation(selectedStation) : null;
+    const hasAnyEquipment = () => {
+        return Object.values(equipmentCart).some(qty => qty > 0);
+    };
+
+    // Cart helper: get total items (drivers)
+    const getTotalDrivers = () => {
+        return Object.values(equipmentCart).reduce((sum, qty) => sum + qty, 0);
+    };
+
+    // Get equipment type for credits - UPDATED for multi-booking "Cart"
+    const cartEntries = Object.entries(equipmentCart).filter(([_, qty]) => qty > 0);
+    const isSingleTypeCart = cartEntries.length === 1;
+    const firstEquipId = cartEntries[0]?.[0];
+    const equipmentType = firstEquipId ? getEquipmentTypeFromStation(firstEquipId) : null;
+    const totalCartDrivers = getTotalDrivers();
     const availableCredits = equipmentType ? getCredits(equipmentType) : 0;
-    const canUseCredits = equipmentType && hasEnoughCredits(equipmentType, drivers);
+    const canUseCredits = equipmentType && isSingleTypeCart && hasEnoughCredits(equipmentType, totalCartDrivers * duration);
 
     // Auto-fill user details if logged in (but NOT for admins, so they can enter customer data)
     useEffect(() => {
@@ -290,7 +302,8 @@ const BookingPage: React.FC = () => {
         try {
             // If paying with credits, deduct them first
             if (paymentMethod === 'credits' && equipmentType) {
-                const creditsUsed = await useCredits(equipmentType, drivers);
+                const totalCreditsNeeded = getTotalDrivers() * duration;
+                const creditsUsed = await useCredits(equipmentType, totalCreditsNeeded);
                 if (!creditsUsed) {
                     setError('Failed to use credits. Please try again or choose a different payment method.');
                     setIsSubmitting(false);
@@ -302,9 +315,7 @@ const BookingPage: React.FC = () => {
             let finalNotes = formData.notes;
 
             // Add credit info if applicable
-            if (paymentMethod === 'credits') {
-                finalNotes += ` [Paid with ${drivers} credit(s)]`;
-            }
+            finalNotes += ` [Paid with ${getTotalDrivers() * duration} credit(s)]`;
 
             // Add Driver Tech Specs (for Adam's reference)
             if (userProfile) {
@@ -352,6 +363,7 @@ const BookingPage: React.FC = () => {
                         equipment: equipmentBreakdown,
                         drivers: getTotalDrivers(),
                         duration,
+                        creditsCharged: getTotalDrivers() * duration,
                         date: formatDateForApi(selectedDate),
                         time: selectedTime,
                         calculatedPrice: calculateTotal(),
@@ -445,7 +457,6 @@ const BookingPage: React.FC = () => {
                     finalNotes += ` \n[DRIVER SPECS: ${specs.join(' | ')}]`;
                 }
             }
-
             const result = await bookingApi.createBooking({
                 date: formatDateForApi(selectedDate!),
                 time: selectedTime!,
@@ -479,6 +490,7 @@ const BookingPage: React.FC = () => {
                         equipment: equipmentBreakdown,
                         drivers: getTotalDrivers(),
                         duration,
+                        creditsCharged: getTotalDrivers() * duration,
                         date: formatDateForApi(selectedDate!),
                         time: selectedTime!,
                         calculatedPrice: calculateTotal(),
@@ -505,7 +517,7 @@ const BookingPage: React.FC = () => {
         // If using legacy single-station mode
         if (selectedStation && !hasAnyEquipment()) {
             if (!selectedStationData) return 0;
-            return selectedStationData.price * drivers * duration;
+            return selectedStationData.price * getTotalDrivers() * duration;
         }
         // Multi-equipment mode
         let total = 0;
@@ -514,16 +526,6 @@ const BookingPage: React.FC = () => {
             total += station.price * qty * duration;
         });
         return total;
-    };
-
-    // Cart helper: check if any equipment is selected
-    const hasAnyEquipment = () => {
-        return Object.values(equipmentCart).some(qty => qty > 0);
-    };
-
-    // Cart helper: get total items (drivers)
-    const getTotalDrivers = () => {
-        return Object.values(equipmentCart).reduce((sum, qty) => sum + qty, 0);
     };
 
     // Cart helper: get cart summary text
@@ -648,7 +650,7 @@ const BookingPage: React.FC = () => {
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-white/50">Drivers</span>
-                                        <span className="font-medium">{drivers}</span>
+                                        <span className="font-medium">{getTotalDrivers()}</span>
                                     </div>
                                     <div className="flex justify-between border-t border-white/10 pt-4">
                                         <span className="text-white/50">Total</span>
@@ -813,7 +815,6 @@ const BookingPage: React.FC = () => {
                                             onDateChange={(date) => {
                                                 setSelectedDate(date);
                                                 setSelectedTime(null);
-                                                setDrivers(1);
                                             }}
                                             minDate={(() => {
                                                 const min = new Date();
@@ -890,7 +891,6 @@ const BookingPage: React.FC = () => {
                                                                 onClick={() => {
                                                                     if (!isDisabled) {
                                                                         setSelectedTime(time);
-                                                                        setDrivers(1);
                                                                     }
                                                                 }}
                                                                 disabled={isDisabled}
@@ -1142,7 +1142,7 @@ const BookingPage: React.FC = () => {
                                                         <Zap className="w-6 h-6 text-yellow-500" />
                                                         <div className="flex-1">
                                                             <div className="font-bold flex items-center gap-2 text-yellow-400">
-                                                                Use {drivers} Credit{drivers > 1 ? 's' : ''}
+                                                                Use {getTotalDrivers() * duration} Credit{(getTotalDrivers() * duration) > 1 ? 's' : ''}
                                                                 <span className="text-[10px] bg-yellow-500 text-black px-2 py-0.5 rounded-full uppercase font-bold">
                                                                     50% OFF
                                                                 </span>
@@ -1155,16 +1155,19 @@ const BookingPage: React.FC = () => {
                                                     </button>
                                                 )}
 
-                                                {/* Show credits info if not enough */}
+                                                {/* Show credits info if not enough OR mixed cart */}
                                                 {equipmentType && availableCredits > 0 && !canUseCredits && (
                                                     <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-4">
                                                         <Zap className="w-6 h-6 text-yellow-500/50" />
                                                         <div className="flex-1">
                                                             <div className="font-bold text-white/50">
-                                                                Not enough credits
+                                                                {!isSingleTypeCart ? 'Mixed Equipment' : 'Not enough credits'}
                                                             </div>
                                                             <div className="text-sm text-white/40">
-                                                                You have {availableCredits} but need {drivers} credits
+                                                                {!isSingleTypeCart
+                                                                    ? 'Credits apply to one equipment type at a time. Please book separately to use credits.'
+                                                                    : `You have ${availableCredits} but need ${getTotalDrivers() * duration} credits`
+                                                                }
                                                             </div>
                                                         </div>
                                                     </div>

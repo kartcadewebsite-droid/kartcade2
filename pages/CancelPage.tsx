@@ -11,12 +11,23 @@ const CREDIT_VALUES = {
     motion: 25   // $125 / 5 credits
 };
 
-// Hourly rates for calculating refund (approximate)
+// Hourly rates for calculating refund (for Cash/Card users)
 const HOURLY_RATES = {
     'Racing Karts': 30,
     'Full-Size Rigs': 40,
     'Motion Simulator': 50,
     'Flight Simulator': 50
+};
+
+// Precise hour calculation
+const getHoursUntilBooking = (bookingDate: string, bookingTime: string): number => {
+    const [hours, minutes] = (bookingTime || "00:00").split(':').map(Number);
+    const booking = new Date(bookingDate);
+    booking.setHours(hours, minutes, 0, 0);
+
+    const now = new Date();
+    const diffMs = booking.getTime() - now.getTime();
+    return diffMs / (1000 * 60 * 60);
 };
 
 // Map station name to credit type
@@ -45,28 +56,28 @@ const getDaysUntilBooking = (bookingDate: string): number => {
 
 // Determine refund eligibility
 type RefundType = 'full' | 'credit50' | 'none' | 'venue';
-const getRefundType = (daysUntilBooking: number, isEvent: boolean, paymentMethod: string): RefundType => {
+const getRefundType = (hoursUntilBooking: number, isEvent: boolean, paymentMethod: string): RefundType => {
     // Pay at venue = no payment made, just cancel
     if (paymentMethod === 'venue') {
         return 'venue';
     }
 
     if (isEvent) {
-        // Events: > 7 days = full, 0-7 days = 50% credit
-        if (daysUntilBooking > 7) return 'full';
-        if (daysUntilBooking > 0) return 'credit50';
+        // Events: > 7 days (168h) = full, 0-7 days = 50% credit
+        if (hoursUntilBooking > 168) return 'full';
+        if (hoursUntilBooking > 0) return 'credit50';
         return 'none';
     } else {
         // Standard bookings
         // If pay with Credits: > 48h = Full Refund, < 48h = No refund
         if (paymentMethod === 'credits') {
-            if (daysUntilBooking > 2) return 'full'; // > 48 hours
+            if (hoursUntilBooking >= 48) return 'full';
             return 'none';
         }
 
         // If pay with Cash/Card: > 7 days = Full, 48h-7d = 50% Credit
-        if (daysUntilBooking > 7) return 'full';
-        if (daysUntilBooking > 2) return 'credit50'; // > 48 hours
+        if (hoursUntilBooking > 168) return 'full';
+        if (hoursUntilBooking >= 48) return 'credit50';
         return 'none';
     }
 };
@@ -81,29 +92,37 @@ interface CreditRefund {
 const calculateCreditRefund = (booking: any, refundType: RefundType): CreditRefund => {
     const station = booking.station || '';
     const drivers = parseInt(booking.drivers) || 1;
-    const hours = booking.hours || 1;
+    const hours = parseInt(booking.hours) || 1;
+    const paymentMethod = booking.paymentMethod;
 
-    // Calculate total value
-    const hourlyRate = HOURLY_RATES[station as keyof typeof HOURLY_RATES] || 35;
-    const totalValue = hourlyRate * hours * drivers;
+    // ✅ FIX Bug #2: If paid with credits, refund is 1:1 based on drivers, not division math
+    if (paymentMethod === 'credits') {
+        const equipmentType = getEquipmentType(station);
+        if (!equipmentType) return { kart: 0, rig: 0, motion: 0 };
 
-    // Refund Multiplier: Full = 1.0, Credit50 = 0.5
-    const multiplier = refundType === 'full' ? 1.0 : 0.5;
-    const refundValue = totalValue * multiplier;
+        // Full = 100%, Credit50 = 50%
+        const multiplier = refundType === 'full' ? 1.0 : 0.5;
+        const refundQty = Math.floor(drivers * multiplier);
 
-    const equipmentType = getEquipmentType(station);
-
-    // For Full Space / Events, split across all types
-    if (drivers >= 6 || station.includes('Full Space')) {
-        const creditsPerType = Math.floor(refundValue / 3 / CREDIT_VALUES.rig);
         return {
-            kart: creditsPerType,
-            rig: creditsPerType,
-            motion: creditsPerType
+            kart: equipmentType === 'kart' ? refundQty : 0,
+            rig: equipmentType === 'rig' ? refundQty : 0,
+            motion: equipmentType === 'motion' ? refundQty : 0
         };
     }
 
-    // For single station type
+    // Standard cash/deposit calculation (conversion to credits)
+    const hourlyRate = HOURLY_RATES[station as keyof typeof HOURLY_RATES] || 35;
+    const totalValue = hourlyRate * hours * drivers;
+    const multiplier = refundType === 'full' ? 1.0 : 0.5;
+    const refundValue = totalValue * multiplier;
+    const equipmentType = getEquipmentType(station);
+
+    if (drivers >= 6 || station.includes('Full Space')) {
+        const creditsPerType = Math.floor(refundValue / 3 / CREDIT_VALUES.rig);
+        return { kart: creditsPerType, rig: creditsPerType, motion: creditsPerType };
+    }
+
     if (equipmentType) {
         const credits = Math.floor(refundValue / CREDIT_VALUES[equipmentType]);
         return {
@@ -162,11 +181,51 @@ const CancelPage: React.FC = () => {
     }, [bookingId]);
 
     // Calculate refund info for display
-    const daysUntilBooking = booking ? getDaysUntilBooking(booking.date) : 0;
+    const hoursUntilBooking = booking ? getHoursUntilBooking(booking.date, booking.time) : 0;
     const isEvent = booking ? isEventBooking(booking) : false;
     const paymentMethod = booking?.paymentMethod || 'venue';
-    const refundType = booking ? getRefundType(daysUntilBooking, isEvent, paymentMethod) : 'none';
-    const potentialCredits = booking ? calculateCreditRefund(booking, refundType) : null;
+    const refundType = booking ? getRefundType(hoursUntilBooking, isEvent, paymentMethod) : 'none';
+
+    // ✅ NEW: Use actual driver count (which equals credits spent)
+    const calculateRefundCredits = () => {
+        if (!booking || paymentMethod !== 'credits') return null;
+
+        // Parse station string to get equipment types, driver counts, and duration
+        const stationStr = booking.station || '';
+        const driversPerSlot = parseInt(booking.drivers) || 0;
+
+        // Extract duration from station string like "Racing Karts (2h)"
+        let durationHours = 1;
+        const durationMatch = stationStr.match(/\((\d+)h\)/);
+        if (durationMatch && durationMatch[1]) {
+            durationHours = parseInt(durationMatch[1]);
+        }
+
+        // Total credits spent is drivers * duration
+        const totalCreditsSpent = driversPerSlot * durationHours;
+
+        // Determine equipment type from station string
+        let equipmentType: 'kart' | 'rig' | 'motion' | null = null;
+        const stationLower = stationStr.toLowerCase();
+
+        if (stationLower.includes('kart')) equipmentType = 'kart';
+        else if (stationLower.includes('rig')) equipmentType = 'rig';
+        else if (stationLower.includes('motion')) equipmentType = 'motion';
+
+        if (!equipmentType) return null;
+
+        // ✅ FIXED: Return total credits spent (drivers * duration)
+        // NOT calculated from division math
+        return {
+            kart: equipmentType === 'kart' ? totalCreditsSpent : 0,
+            rig: equipmentType === 'rig' ? totalCreditsSpent : 0,
+            motion: equipmentType === 'motion' ? totalCreditsSpent : 0
+        };
+    };
+
+    const potentialCredits = calculateRefundCredits();
+
+    const daysUntilBooking = Math.ceil(hoursUntilBooking / 24);
 
     // DEBUG LOGS
     useEffect(() => {
@@ -192,20 +251,31 @@ const CancelPage: React.FC = () => {
             const data = await response.json();
 
             if (data.success) {
-                // If eligible for 50% credit refund, add credits
-                if (refundType === 'credit50' && currentUser && potentialCredits) {
+                // ✅ FIX Bug #1: Trigger for BOTH 'full' and 'credit50'
+                if ((refundType === 'full' || refundType === 'credit50') && currentUser && potentialCredits) {
                     try {
+                        // Determine refund amount based on type
+                        const refundMultiplier = refundType === 'full' ? 1 : 0.5;
+
+                        // ✅ FIXED: Use actual drivers count (potentialCredits), not recalculated value
+                        const refundCredits = {
+                            kart: Math.floor(potentialCredits.kart * refundMultiplier),
+                            rig: Math.floor(potentialCredits.rig * refundMultiplier),
+                            motion: Math.floor(potentialCredits.motion * refundMultiplier)
+                        };
+
                         // Add credits for each type
-                        if (potentialCredits.kart > 0) {
-                            await addCredits('kart', potentialCredits.kart);
+                        if (refundCredits.kart > 0) {
+                            await addCredits('kart', refundCredits.kart);
                         }
-                        if (potentialCredits.rig > 0) {
-                            await addCredits('rig', potentialCredits.rig);
+                        if (refundCredits.rig > 0) {
+                            await addCredits('rig', refundCredits.rig);
                         }
-                        if (potentialCredits.motion > 0) {
-                            await addCredits('motion', potentialCredits.motion);
+                        if (refundCredits.motion > 0) {
+                            await addCredits('motion', refundCredits.motion);
                         }
-                        setCreditsAwarded(potentialCredits);
+
+                        setCreditsAwarded(refundCredits);
                     } catch (creditError) {
                         console.error('Failed to add credits:', creditError);
                         // Still mark as cancelled even if credits fail
