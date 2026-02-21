@@ -166,21 +166,89 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 };
 
                 // CRM Log
+                // Calculate the real estimated value for CRM stats
+                const equipmentBreakdown = metadata.bookingEquipment ? JSON.parse(metadata.bookingEquipment) : null;
+                const durationHours = parseInt(metadata.bookingDuration || '1');
+
+                let calculatedPrice = 0;
+                if (equipmentBreakdown) {
+                    const prices: Record<string, number> = { karts: 30, rigs: 40, motion: 50, flight: 40 };
+                    for (const [type, qty] of Object.entries(equipmentBreakdown)) {
+                        calculatedPrice += (prices[type] || 0) * (qty as number) * durationHours;
+                    }
+                }
+
+                // Create Transaction Log
                 transaction.set(db.collection('transactions_log').doc(), {
                     userId: metadata.userId || '',
                     email: metadata.bookingEmail || session.customer_details?.email || '',
-                    type: 'booking_deposit',
+                    type: metadata.isParty === 'true' ? 'party_booking' : 'booking_deposit',
                     station: stationFormatted,
+                    equipment: equipmentBreakdown,
                     date: metadata.bookingDate,
                     time: metadata.bookingTime,
                     drivers: parseInt(drivers),
+                    duration: durationHours,
                     name: metadata.bookingName || 'Guest',
-                    amount: (session.amount_total || 0) / 100,
+                    amount: (session.amount_total || 0) / 100, // Actual paid amount
+                    calculatedPrice: calculatedPrice || (session.amount_total || 0) / 100, // Total estimated value
                     stripeSessionId: sessionId,
                     bookingId: gasData.bookingId,
                     fulfillmentSource: source,
+                    status: 'confirmed', // CRITICAL: This activates CRM stats
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
+
+                if (metadata.isParty === 'true') {
+                    const partyRef = db.collection('parties').doc();
+                    const partyId = partyRef.id;
+
+                    // 🔥 FIX 1: Safely catch 'duration' from Stripe metadata
+                    const durationStr = metadata.bookingDuration || metadata.duration || '2';
+                    const durationInt = parseInt(durationStr);
+
+                    const amountPaid = (session.amount_total || 0) / 100;
+
+                    // 🔥 FIX 2: Guaranteed Pricing Math
+                    const PARTY_PRICES: Record<number, number> = { 2: 400, 3: 600, 4: 800 };
+                    const totalPrice = PARTY_PRICES[durationInt] || 400;
+
+                    // 🔥 FIX 3: Never allow a negative balance
+                    const remainingBalance = Math.max(0, totalPrice - amountPaid);
+
+                    // 1. Create the Party Doc
+                    transaction.set(partyRef, {
+                        partyId: partyId,
+                        hostUserId: metadata.hostUserId || metadata.userId || '',
+                        hostName: metadata.bookingName || 'Guest',
+                        hostEmail: metadata.bookingEmail || session.customer_details?.email || '',
+                        hostPhone: metadata.bookingPhone || '',
+                        bookingDate: metadata.bookingDate,
+                        bookingTime: metadata.bookingTime,
+                        duration: durationInt,
+                        totalPrice: totalPrice,
+                        depositPaid: amountPaid, // Used as 'Amount Paid'
+                        remainingBalance: remainingBalance,
+                        maxGuests: 15,
+                        registeredGuests: [],
+                        status: 'confirmed',
+                        source: 'stripe',
+                        bookingId: gasData.bookingId,
+                        stripeSessionId: sessionId,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // 2. Link Party to User Profile
+                    if (metadata.userId) {
+                        const userRef = db.collection('users').doc(metadata.userId);
+                        transaction.set(userRef, {
+                            partyInfo: {
+                                hostingParties: admin.firestore.FieldValue.arrayUnion(partyId)
+                            }
+                        }, { merge: true });
+                    }
+                }
 
             } else if (type === 'membership_purchase') {
                 // 4b. Membership Logic

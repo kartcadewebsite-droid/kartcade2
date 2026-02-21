@@ -5,11 +5,12 @@ import { Loader2 } from 'lucide-react';
 
 interface PayPalCheckoutProps {
     amount: number;
-    onSuccess: (paymentDetails: any) => void;
-    onError: (error: any) => void;
+    onSuccess: (details: any) => void;
+    onError: (err: any) => void;
+    metadata?: Record<string, any>;
 }
 
-const PayPalCheckout: React.FC<PayPalCheckoutProps> = ({ amount, onSuccess, onError }) => {
+const PayPalCheckout: React.FC<PayPalCheckoutProps> = ({ amount, onSuccess, onError, metadata }) => {
     // If no client ID is provided, show a disabled state or error
     if (!bookingConfig.paypalClientId) {
         return (
@@ -37,7 +38,8 @@ const PayPalCheckout: React.FC<PayPalCheckoutProps> = ({ amount, onSuccess, onEr
                                         currency_code: "USD", // Should match provider currency
                                         value: amount.toString(),
                                     },
-                                    description: "Kartcade Booking"
+                                    description: "Kartcade Booking",
+                                    custom_id: metadata ? JSON.stringify(metadata) : undefined
                                 },
                             ],
                         });

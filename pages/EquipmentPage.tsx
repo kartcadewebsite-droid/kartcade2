@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowRight, Users, Gauge, Monitor, Plane } from 'lucide-react';
+import { ArrowRight, Users, Gauge, Monitor, Plane, Play, Image as ImageIcon } from 'lucide-react';
 
 const equipment = [
     {
@@ -171,6 +171,60 @@ const EquipmentPage: React.FC = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            </section>
+
+            {/* Rig Specs Placeholder */}
+            <section className="py-24 px-6 md:px-12 bg-black/40 relative overflow-hidden">
+                {/* Background Decor */}
+                <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#2D9E49]/20 to-transparent" />
+
+                <div className="max-w-6xl mx-auto">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+                        <div>
+                            <span className="text-[#2D9E49] text-xs font-bold tracking-[0.3em] uppercase mb-6 block">Technical Deep Dive</span>
+                            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-8">
+                                COMING SOON:<br />
+                                <span className="text-[#D42428]">DETAILED RIG SPECS</span>
+                            </h2>
+                            <p className="text-lg text-white/50 leading-relaxed mb-10 max-w-xl">
+                                We're preparing a full technical breakdown of our simulators. From direct-drive motor torque to pedal load cell ratings and PC hardware specs.
+                            </p>
+
+                            <div className="space-y-6">
+                                <div className="flex items-start gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                                    <div className="w-10 h-10 bg-[#2D9E49]/10 rounded-full flex items-center justify-center flex-shrink-0 text-[#2D9E49]">
+                                        <Play className="w-5 h-5 fill-[#2D9E49]" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg mb-1">FPV Action Previews</h3>
+                                        <p className="text-sm text-white/30">First-person-view videos showing every rig in action across our entire simulator lineup.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                                    <div className="w-10 h-10 bg-[#D42428]/10 rounded-full flex items-center justify-center flex-shrink-0 text-[#D42428]">
+                                        <Monitor className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg mb-1">Component Level Data</h3>
+                                        <p className="text-sm text-white/30">Detailed lists of GPUs, displays, and peripheral hardware for the true tech enthusiasts.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative group">
+                            <div className="absolute -inset-4 bg-gradient-to-r from-[#2D9E49]/20 to-[#D42428]/20 blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
+                            <div className="relative rounded-[3rem] overflow-hidden border border-white/10 aspect-[4/5] bg-[#141414] flex items-center justify-center">
+                                <ImageIcon className="w-20 h-20 text-white/5 animate-pulse" />
+                                <div className="absolute bottom-10 left-10 right-10">
+                                    <div className="h-2 w-24 bg-[#2D9E49] rounded-full mb-4" />
+                                    <div className="h-8 w-48 bg-white/5 rounded-lg mb-2" />
+                                    <div className="h-4 w-32 bg-white/5 rounded-lg" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

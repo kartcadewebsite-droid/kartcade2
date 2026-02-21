@@ -20,6 +20,7 @@ import EventsPage from './pages/EventsPage';
 import EquipmentPage from './pages/EquipmentPage';
 import FAQPage from './pages/FAQPage';
 import BookingPage from './pages/BookingPage';
+import PartyBookingPage from './pages/PartyBookingPage';
 import CancelPage from './pages/CancelPage';
 import GalleryPage from './pages/GalleryPage';
 import RulesPage from './pages/RulesPage';
@@ -107,6 +108,7 @@ const App: React.FC = () => {
                   <Route path="/faq" element={<FAQPage />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
+                  <Route path="/book-party" element={<ProtectedRoute><PartyBookingPage /></ProtectedRoute>} />
                   <Route path="/gallery" element={<GalleryPage />} />
                   <Route path="/cancel" element={<CancelPage />} />
                   <Route path="/rules" element={<RulesPage />} />

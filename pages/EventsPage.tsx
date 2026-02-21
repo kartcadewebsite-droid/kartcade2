@@ -9,11 +9,11 @@ const eventPackages = [
     {
         icon: <Cake className="w-10 h-10" />,
         title: "Birthday Party Package",
-        price: "Starting at $400",
+        price: "Starting at $720",
         features: [
             "2 hours of racing time",
-            "Up to 40 guests (10 drivers concurrently)",
-            "Reserved simulator space",
+            "Up to 15 guests (Unlimited racing)",
+            "Entire facility reservation",
             "Bring your own decorations and cake",
             "Staff assistance throughout"
         ],
@@ -98,7 +98,7 @@ const EventsPage: React.FC = () => {
                     </h1>
                     <p className="event-hero-text text-lg md:text-xl text-white/70 max-w-md leading-relaxed">
                         Kartcade is the perfect venue for birthday parties, corporate team building, bachelor/bachelorette parties.
-                        We can accommodate up to 10 people simultaneously with our full fleet of simulators.
+                        We can accommodate up to 15 people with our full fleet of 10 simulators.
                     </p>
                 </div>
             </section>

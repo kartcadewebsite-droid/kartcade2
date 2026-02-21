@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 signup-qr-code.png
 signup-qr-code-prod.png
+
+.vercel

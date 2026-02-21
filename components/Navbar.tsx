@@ -103,6 +103,7 @@ const Navbar: React.FC = () => {
   const mainLinks = [
     { name: 'Pricing', path: '/pricing' },
     { name: 'Events', path: '/events' },
+    { name: 'Gallery', path: '/gallery' },
   ];
 
   // Dropdown links under "Experiences"

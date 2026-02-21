@@ -171,11 +171,16 @@ export const bookingApi = {
             });
 
             const url = `${bookingConfig.API_URL}?${params.toString()}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for booking
+
             const response = await fetch(url, {
                 method: 'GET',
-                redirect: 'follow'
+                redirect: 'follow',
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             const data = await response.json();
             return data;
         } catch (error) {

@@ -12,7 +12,7 @@ const PricingPage: React.FC = () => {
         document.title = "Pricing | Kartcade Racing Simulator Lounge";
         const metaDesc = document.querySelector('meta[name="description"]');
         if (metaDesc) {
-            metaDesc.setAttribute('content', 'Kartcade pricing: $25/hour adults, $20/hour youth. Birthday party packages from $400. Book your racing simulator session today.');
+            metaDesc.setAttribute('content', 'Kartcade pricing: $30-50/hour. Birthday party packages from $720. Book your racing simulator session today.');
         }
     }, []);
 
@@ -89,9 +89,9 @@ const PricingPage: React.FC = () => {
     const eventPackages = [
         {
             title: "Birthday Party",
-            price: "From $400",
-            description: "2 hours, up to 40 guests (10 racing at once)",
-            features: ["Reserved simulator space", "Bring your own cake & decorations", "Staff assistance"]
+            price: "From $720",
+            description: "2 hours, up to 15 guests (Unlimited racing)",
+            features: ["Entire facility reservation", "Bring your own cake & decorations", "Staff assistance"]
         },
         {
             title: "Corporate Events",

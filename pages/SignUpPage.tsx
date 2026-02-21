@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Mail, Lock, User, Phone, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const SignUpPage: React.FC = () => {
     const navigate = useNavigate();
-    const { signUp, loginWithGoogle } = useAuth();
+    const [searchParams] = useSearchParams();
+    const partyId = searchParams.get('party'); // Detect /signup?party=ABC123
+    const { signUp, loginWithGoogle, currentUser, userProfile } = useAuth();
 
     const [formData, setFormData] = useState({
         name: '',
@@ -27,6 +29,21 @@ const SignUpPage: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [modalAcceptRules, setModalAcceptRules] = useState(false);
     const [modalAcceptWaiver, setModalAcceptWaiver] = useState(false);
+
+    // Auto-join for already logged-in users
+    React.useEffect(() => {
+        if (currentUser && partyId) {
+            console.log("[SIGNUP] Existing user detected with party ID, auto-joining...");
+            handlePartyGuestRegistration(partyId, currentUser.uid, userProfile?.name || currentUser.displayName || '', currentUser.email || '')
+                .then((result) => {
+                    if (result.success) {
+                        navigate('/dashboard', { state: { message: result.alreadyRegistered ? 'Welcome back! You are already in this party.' : 'You have successfully joined the party!' } });
+                    } else {
+                        setError(result.error || 'Failed to join party.');
+                    }
+                });
+        }
+    }, [currentUser, partyId]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -54,7 +71,7 @@ const SignUpPage: React.FC = () => {
 
         try {
             setLoading(true);
-            await signUp(
+            const user = await signUp(
                 formData.email,
                 formData.password,
                 formData.name,
@@ -67,8 +84,19 @@ const SignUpPage: React.FC = () => {
                     settings: formData.settings
                 }
             );
+
+            // Handle Party Guest Registration
+            if (partyId && user) {
+                const regResult = await handlePartyGuestRegistration(partyId, user.uid, formData.name, formData.email);
+                if (!regResult.success) {
+                    // If party join fails but signup succeeded, we go to dashboard but show the error
+                    navigate('/dashboard', { state: { error: `Signup successful, but: ${regResult.error}` } });
+                    return;
+                }
+            }
+
             // Email sign up collects data inline, so go straight to dashboard
-            navigate('/dashboard');
+            navigate('/dashboard', { state: { message: partyId ? 'Welcome to the party!' : 'Profile created successfully!' } });
         } catch (err: any) {
             if (err.code === 'auth/email-already-in-use') {
                 setError('An account with this email already exists.');
@@ -97,17 +125,84 @@ const SignUpPage: React.FC = () => {
         try {
             setLoading(true);
             setShowModal(false);
-            const { isNewUser } = await loginWithGoogle();
+            const { isNewUser, user } = await loginWithGoogle();
+
+            if (partyId && user) {
+                const regResult = await handlePartyGuestRegistration(partyId, user.uid, user.displayName || '', user.email || '');
+                if (!regResult.success) {
+                    navigate('/dashboard', { state: { error: `Login successful, but: ${regResult.error}` } });
+                    return;
+                }
+            }
 
             if (isNewUser) {
-                navigate('/onboarding');
+                navigate('/onboarding', { state: { message: partyId ? 'Welcome to the party!' : '' } });
             } else {
-                navigate('/dashboard');
+                navigate('/dashboard', { state: { message: partyId ? 'Joined the party!' : '' } });
             }
         } catch (err: any) {
             setError('Failed to sign in with Google. Please try again.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Helper: Register guest for a party
+    const handlePartyGuestRegistration = async (pid: string, uid: string, name?: string, email?: string) => {
+        try {
+            const { doc, runTransaction, arrayUnion } = await import('firebase/firestore');
+            const { db } = await import('../config/firebase');
+
+            const partyRef = doc(db, 'parties', pid);
+            const userRef = doc(db, 'users', uid);
+
+            await runTransaction(db, async (transaction) => {
+                const partySnap = await transaction.get(partyRef);
+                if (!partySnap.exists()) {
+                    throw new Error('Party session not found.');
+                }
+
+                const partyData = partySnap.data();
+
+                // 2. Check if party is full
+                const currentGuestCount = partyData.registeredGuests?.length || 0;
+                const maxGuests = partyData.maxGuests || 15;
+                if (currentGuestCount >= maxGuests) {
+                    throw new Error('This party has reached its maximum guest capacity.');
+                }
+
+                // 3. Check if guest is already registered
+                const isAlreadyRegistered = partyData.registeredGuests?.some((g: any) => g.uid === uid || (email && g.email === email));
+                if (isAlreadyRegistered) {
+                    console.log('User already registered for this party, skipping linking.');
+                    throw { alreadyRegistered: true }; // Use throw to exit transaction and pass data back
+                }
+
+                const guestObj = {
+                    uid,
+                    name: name || 'Unknown Guest',
+                    email: email || '',
+                    registeredAt: new Date().toISOString()
+                };
+
+                // 4. Atomic Updates
+                transaction.update(partyRef, {
+                    registeredGuests: arrayUnion(guestObj),
+                    updatedAt: new Date()
+                });
+                transaction.update(userRef, {
+                    'partyInfo.attendingParties': arrayUnion(pid)
+                });
+            });
+
+            console.log(`Successfully registered guest ${uid} for party ${pid}`);
+            return { success: true };
+        } catch (err: any) {
+            if (err.alreadyRegistered) {
+                return { success: true, alreadyRegistered: true };
+            }
+            console.error('Failed to link party guest:', err);
+            return { success: false, error: err.message };
         }
     };
 
@@ -250,6 +345,13 @@ const SignUpPage: React.FC = () => {
                             Create Your<br />
                             <span className="text-[#D42428]">Driver Profile</span>
                         </h1>
+                        {partyId && (
+                            <div className="mb-6 p-4 bg-[#2D9E49]/10 border border-[#2D9E49]/30 rounded-lg flex items-center gap-3 animate-pulse">
+                                <CheckCircle className="w-5 h-5 text-[#2D9E49]" />
+                                <p className="text-[#2D9E49] text-xs font-bold uppercase tracking-widest">Registering for Party Invite</p>
+                            </div>
+                        )}
+
                         <p className="text-white/60 font-sans text-sm">
                             Sign up to book sessions and join the racing community
                         </p>

@@ -9,7 +9,7 @@ import {
     onAuthStateChanged,
     sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
 import { UserCredits, UserMembership, UserMembershipsMap, DEFAULT_CREDITS, DEFAULT_MEMBERSHIPS } from '../config/membership';
 import { bookingConfig } from '../config/booking';
@@ -59,9 +59,9 @@ interface AuthContextType {
             favRig?: string;
             settings?: string;
         }
-    ) => Promise<void>;
+    ) => Promise<User>;
     login: (email: string, password: string) => Promise<void>;
-    loginWithGoogle: () => Promise<{ isNewUser: boolean }>;
+    loginWithGoogle: () => Promise<{ isNewUser: boolean, user: User }>;
     updateProfile: (data: Partial<UserProfile>) => Promise<void>;
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
@@ -170,10 +170,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (currentCredits < amount) return false;
 
         const userRef = doc(db, 'users', currentUser.uid);
-        const newCredits = { ...userProfile.credits };
-        newCredits[equipmentType] = currentCredits - amount;
 
-        await updateDoc(userRef, { credits: newCredits });
+        await updateDoc(userRef, {
+            [`credits.${equipmentType}`]: increment(-amount)
+        });
         await refreshUserProfile();
 
         return true;
@@ -181,13 +181,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Add credits (called by webhook or admin)
     const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<void> => {
-        if (!currentUser || !userProfile) return;
+        if (!currentUser) throw new Error('Not authenticated');
+        // No longer strictly blocked by stale userProfile state for the update itself
 
         const userRef = doc(db, 'users', currentUser.uid);
-        const newCredits = { ...userProfile.credits };
-        newCredits[equipmentType] = (newCredits[equipmentType] || 0) + amount;
 
-        await updateDoc(userRef, { credits: newCredits });
+        // Atomic increment on the server side prevents race conditions
+        await updateDoc(userRef, {
+            [`credits.${equipmentType}`]: increment(amount)
+        });
+
         await refreshUserProfile();
     };
 
@@ -227,6 +230,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await setDoc(userRef, profileData);
 
         await fetchUserProfile(user.uid);
+        return user;
     };
 
     // Login with email/password
@@ -235,11 +239,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Login with Google - Returns isNewUser
-    const loginWithGoogle = async (): Promise<{ isNewUser: boolean }> => {
+    const loginWithGoogle = async (): Promise<{ isNewUser: boolean, user: User }> => {
         const { user } = await signInWithPopup(auth, googleProvider);
         const isNewUser = await createUserProfile(user, { name: user.displayName || '' });
         await fetchUserProfile(user.uid);
-        return { isNewUser };
+        return { isNewUser, user };
     };
 
     // Update profile

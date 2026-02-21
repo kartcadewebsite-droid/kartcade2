@@ -7,12 +7,13 @@ import CustomerProfileModal from './CustomerProfileModal';
 interface Props {
     customers: CustomerAnalytics[];
     loading: boolean;
+    onRefresh?: () => void;
 }
 
 type SortField = 'name' | 'totalSpend' | 'visitCount' | 'totalHours' | 'lastVisit' | 'favoriteEquipment' | 'membershipTier';
 type SortDir = 'asc' | 'desc';
 
-const CustomersTable: React.FC<Props> = ({ customers, loading }) => {
+const CustomersTable: React.FC<Props> = ({ customers, loading, onRefresh }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortField, setSortField] = useState<SortField>('totalSpend');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -266,6 +267,7 @@ const CustomersTable: React.FC<Props> = ({ customers, loading }) => {
                 <CustomerProfileModal
                     customer={selectedCustomer}
                     onClose={() => setSelectedCustomer(null)}
+                    onRefresh={onRefresh}
                 />
             )}
         </div>

@@ -26,6 +26,7 @@ export default async function handler(req: any, res: any) {
             cancel_url: `${req.headers.origin}/checkout/cancel`,
             metadata: {
                 userId: userId,
+                hostUserId: userId,
                 type: mode === 'payment' ? 'booking_deposit' : 'membership_purchase',
             }
         };
@@ -58,6 +59,17 @@ export default async function handler(req: any, res: any) {
                 // Truncate notes if needed to avoid 500 char limit
                 if (bookingDetails.notes) {
                     sessionConfig.metadata.bookingNotes = bookingDetails.notes.substring(0, 400);
+                }
+                if (bookingDetails.stationEquipment) {
+                    sessionConfig.metadata.bookingEquipment = JSON.stringify(bookingDetails.stationEquipment);
+                }
+
+                // Party Specific Metadata
+                if (bookingDetails.isParty === 'true') {
+                    sessionConfig.metadata.isParty = 'true';
+                    sessionConfig.metadata.totalPrice = bookingDetails.totalPrice?.toString() || '0';
+                    sessionConfig.metadata.depositPaid = (amount / 100).toString(); // Stripe amount is in cents
+                    sessionConfig.metadata.remainingBalance = (parseFloat(bookingDetails.totalPrice || '0') - (amount / 100)).toString();
                 }
             }
         } else {

@@ -175,7 +175,47 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 };
 
                 // CRM Log
-                transaction.set(db.collection('transactions_log').doc(), {
+                const transactionLogRef = db.collection('transactions_log').doc();
+                const isParty = metadata.isParty === 'true';
+                let partyDocId = '';
+
+                // If it's a party, create the party metadata first
+                if (isParty) {
+                    const partyRef = db.collection('parties').doc();
+                    partyDocId = partyRef.id;
+                    transaction.set(partyRef, {
+                        partyId: partyDocId,
+                        hostUserId: metadata.userId || '',
+                        hostName: metadata.bookingName || 'Guest',
+                        hostEmail: metadata.bookingEmail || session.customer_details?.email || '',
+                        bookingDate: metadata.bookingDate || '',
+                        bookingTime: metadata.bookingTime || '',
+                        duration: parseInt(duration),
+                        totalPrice: (session.amount_total || 0) * 2 / 100, // 50% deposit was paid
+                        depositPaid: (session.amount_total || 0) / 100,
+                        remainingBalance: (session.amount_total || 0) / 100,
+                        maxGuests: 15,
+                        registeredGuests: [],
+                        status: 'confirmed',
+                        source: 'stripe',
+                        stripeSessionId: sessionId,
+                        bookingId: gasData.bookingId,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    // Update user's party hosting info
+                    if (metadata.userId) {
+                        const userRef = db.collection('users').doc(metadata.userId);
+                        transaction.set(userRef, {
+                            partyInfo: {
+                                hostingParties: admin.firestore.FieldValue.arrayUnion(partyDocId)
+                            }
+                        }, { merge: true });
+                    }
+                }
+
+                transaction.set(transactionLogRef, {
                     userId: metadata.userId || '',
                     email: metadata.bookingEmail || session.customer_details?.email || '',
                     type: 'booking_deposit',
@@ -187,6 +227,8 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     amount: (session.amount_total || 0) / 100,
                     stripeSessionId: sessionId,
                     bookingId: gasData.bookingId,
+                    partyId: partyDocId || null,
+                    isPartyBooking: isParty,
                     fulfillmentSource: source,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });

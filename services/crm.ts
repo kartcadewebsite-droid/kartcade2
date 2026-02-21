@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 // Equipment prices (must match booking.ts)
@@ -125,18 +125,31 @@ export const crmService = {
                 );
 
                 // Separate by type and status
-                const bookings = userTx.filter((tx: any) => tx.type === 'booking');
-                const confirmedBookings = bookings.filter((tx: any) => tx.status !== 'cancelled');
-                const cancelledBookings = bookings.filter((tx: any) => tx.status === 'cancelled');
-                const membershipTx = userTx.filter((tx: any) =>
-                    tx.type === 'membership_purchase' || tx.type === 'membership_renewal'
+                const allBookings = userTx.filter((tx: any) =>
+                    ['booking', 'booking_deposit', 'party_booking'].includes(tx.type)
                 );
 
-                // Calculate spend from equipment prices
+                // CRITICAL BUSINESS RULE: Only include 'confirmed' or 'completed' status
+                // We also allow !tx.status for legacy bookings that haven't been explicitly cancelled
+                const confirmedBookings = allBookings.filter((tx: any) => {
+                    const status = tx.status?.toLowerCase();
+                    return status === 'confirmed' || status === 'completed' || !tx.status;
+                });
+                const cancelledBookings = allBookings.filter((tx: any) => tx.status?.toLowerCase() === 'cancelled');
+
+                const membershipTx = userTx.filter((tx: any) =>
+                    (tx.type === 'membership_purchase' || tx.type === 'membership_renewal') &&
+                    (tx.status === 'confirmed' || tx.status === 'completed' || !tx.status) // Memberships usually don't have status yet, assume confirmed if missing
+                );
+
+                // Calculate spend from equipment prices or actual amount paid
                 let bookingSpend = 0;
                 confirmedBookings.forEach((tx: any) => {
-                    if (tx.calculatedPrice) {
-                        // Use pre-calculated price if available
+                    if (tx.type === 'party_booking' || tx.isPartyBooking) {
+                        // For parties, use the pre-calculated total price or the amount paid
+                        bookingSpend += tx.totalPrice || tx.amount || 0;
+                    } else if (tx.calculatedPrice) {
+                        // Use pre-calculated price if available (Standardized Stripe Flow)
                         bookingSpend += tx.calculatedPrice;
                     } else if (tx.equipment) {
                         // Calculate from equipment breakdown
@@ -159,7 +172,7 @@ export const crmService = {
                 const sortedBookings = confirmedBookings
                     .filter((tx: any) => tx.date)
                     .sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
-                const lastVisit = sortedBookings.length > 0 ? sortedBookings[0].date : null;
+                const lastVisit = sortedBookings.length > 0 ? (sortedBookings[0] as any).date : null;
 
                 // Favorite equipment
                 const favoriteEquipment = this.calculateFavoriteEquipment(confirmedBookings);
@@ -248,5 +261,13 @@ export const crmService = {
     async cancelTransaction(transactionId: string): Promise<void> {
         const txRef = doc(db, 'transactions_log', transactionId);
         await updateDoc(txRef, { status: 'cancelled' });
+    },
+
+    /**
+     * Delete a transaction record permanently
+     */
+    async deleteTransaction(transactionId: string): Promise<void> {
+        const txRef = doc(db, 'transactions_log', transactionId);
+        await deleteDoc(txRef);
     }
 };
