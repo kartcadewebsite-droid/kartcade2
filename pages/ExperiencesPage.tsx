@@ -16,20 +16,21 @@ interface Game {
 const racingGames: { [key: string]: Game[] } = {
     ultraRealistic: [
         { id: 'iracing', name: 'iRacing', description: 'What the pros use to train. This sim on our motion rig is the best that it gets', tags: ['Simulation', 'Motion Support'] },
-        { id: 'assetto-corsa', name: 'Assetto Corsa', description: 'Any car or track, compete against your friends, plus custom-designed elements for you to explore', tags: ['Mod Support', 'Drifting'] },
-        { id: 'automobilista-2', name: 'Automobilista 2', description: 'Global tracks with a wide array of car choices, ranging from go karts to hypercars', tags: ['VR Ready', 'Graphics'] },
+        { id: 'assetto-corsa', name: 'Assetto Corsa', description: 'Any car or track, compete against your friends, plus custom-designed elements for you to explore', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/assetto-corsa%20(1).mp4?alt=media&token=e0f8b768-d644-4689-af56-43cbe2caae03', tags: ['Mod Support', 'Drifting'] },
+        { id: 'automobilista-2', name: 'Automobilista 2', description: 'Global tracks with a wide array of car choices, ranging from go karts to hypercars', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/Automobilista%20(1).mp4?alt=media&token=b9beee21-ebe3-4d03-9348-15fe8cb06bb3', tags: ['VR Ready', 'Graphics'] },
+        { id: 'f1-25', name: 'F1 25', description: 'The official video game of the 2025 FIA Formula One World Championship™, featuring a revamped My Team mode and pro-level physics.', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/F1%202025.MOV%20(1).mp4?alt=media&token=f2ba986c-7684-4957-b3e3-c92371f923bc', tags: ['Official Sim', 'Career Mode'] },
         { id: 'lemans', name: 'Le Mans Ultimate', description: 'The official Le Mans endurance racing sim with laser-scanned tracks', tags: ['Endurance', 'Official Sim'] },
-        { id: 'ac-rally', name: 'Assetto Corsa Rally', description: "Just released to wide acclaim! We have this installed on the motion rig and one adult rig and it's a blast", tags: ['Rally', 'Motion Support'] },
+        { id: 'ac-rally', name: 'Assetto Corsa Rally', description: "Just released to wide acclaim! We have this installed on the motion rig and one adult rig and it's a blast", videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/assetto-rally%20(1).MOV?alt=media&token=3f44f6b1-c601-4143-ad93-09253931b241', tags: ['Rally', 'Motion Support'] },
         { id: 'dirt-2', name: 'Dirt Rally 2.0', description: 'Punishing, realistic rally racing across gravel, tarmac, and snow', tags: ['Rally', 'Hardcore'] },
         { id: 'wrc', name: 'WRC', description: 'Rally racing in an easier-to-handle format with amazing graphics', tags: ['Rally', 'Modern'] },
         { id: 'rbr', name: 'Richard Burns Rally', description: "The hardest of the hardcore rally simulators - loved by the pro's and purists", tags: ['Simulation', 'Legacy'] },
     ],
     competitive: [
-        { id: 'grid-legends', name: 'Grid Legends', description: 'Arcade-meets-sim racing with intense wheel-to-wheel action', tags: ['Arcade-Sim', 'Story Mode'] },
+        { id: 'grid-legends', name: 'Grid Legends', description: 'Arcade-meets-sim racing with intense wheel-to-wheel action', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/grid-legends%20(1).mov?alt=media&token=1ff2d2d2-3fed-4cfa-bf7c-ce093ca433a8', tags: ['Arcade-Sim', 'Story Mode'] },
         { id: 'carx', name: 'CarX Drift Online', description: 'Master the art of drifting with realistic physics and multiplayer competition', tags: ['Drifting', 'Multiplayer'] },
     ],
     arcadeFun: [
-        { id: 'wreckfest', name: 'Wreckfest (1 & 2)', description: 'Full-contact racing with destruction derby chaos', tags: ['Destruction', 'Fun'] },
+        { id: 'wreckfest', name: 'Wreckfest (1 & 2)', description: 'Full-contact racing with destruction derby chaos', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/Wreckfest%20(1).MOV?alt=media&token=61c10948-aaf3-4306-a096-ff8bdda6cdf2', tags: ['Destruction', 'Fun'] },
         { id: 'deathsprint', name: 'Deathsprint 66', description: 'High-speed futuristic racing with violent obstacles', tags: ['Futuristic', 'Combat'] },
         { id: 'beamng', name: 'BeamNG', description: 'Realistic crash physics and open-world exploration', tags: ['Sandbox', 'Physics'] },
         { id: 'truck-sim', name: 'American Truck Simulator', description: 'Relax with cross-country trucking across the American West', tags: ['Relaxing', 'Open World'] },
@@ -40,7 +41,7 @@ const flightGames: { [key: string]: Game[] } = {
     simulation: [
         { id: 'msfs', name: 'Microsoft Flight Simulator', description: 'Fly the world, take off and land from real airports, fly missions, and explore in 200+ planes', tags: ['Simulation', 'Open World'] },
         { id: 'squadrons', name: 'Star Wars Squadrons', description: 'Space combat in iconic Star Wars starfighters (flight sim)', tags: ['Space', 'VR Ready'] },
-        { id: 'ace-combat', name: 'Ace Combat 7', description: 'Dogfight other planes Top Gun style', tags: ['Action', 'Story'] },
+        { id: 'ace-combat', name: 'Ace Combat 7', description: 'Become an ace pilot and soar through photorealistic skies with full 360 degree movement; down enemy aircraft and experience the thrill of engaging in realistic sorties! Aerial combat has never looked or felt better!', videoUrl: 'https://firebasestorage.googleapis.com/v0/b/kartcade-website.firebasestorage.app/o/acecombat%20(1).mp4?alt=media&token=2f32e8ba-0d9e-45c9-b104-fd3e7fe992f2', tags: ['Action', 'Story'] },
         { id: 'dcs', name: 'Digital Combat Simulator', description: 'Fly real historic missions with real objectives', tags: ['Military', 'Hardcore'] },
     ],
     arcade: [
@@ -322,7 +323,8 @@ const ExperiencesPage: React.FC = () => {
                                 {/* Mobile: Absolute Background. Desktop: Right Side Block (45% width for ~4:5 aspect ratio) */}
                                 <div className="absolute inset-0 md:relative md:w-[45%] md:order-2 bg-black h-full md:h-full">
                                     <video
-                                        src="/videos/experiences-trailer.mp4"
+                                        key={selectedGame.videoUrl || 'default'}
+                                        src={selectedGame.videoUrl || "/videos/experiences-trailer.mp4"}
                                         autoPlay
                                         muted
                                         loop
