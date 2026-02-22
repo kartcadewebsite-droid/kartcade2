@@ -9,7 +9,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import FloatingCallButton from './components/FloatingCallButton';
 import ProtectedRoute from './components/ProtectedRoute';
-import Chatbot from './components/Chatbot';
+// import Chatbot from './components/Chatbot'; // DISABLED - removed AI chatbot
 
 // Pages
 import Home from './pages/Home';
@@ -94,7 +94,7 @@ const App: React.FC = () => {
           <div className="relative min-h-screen">
             <Navbar />
             <FloatingCallButton />
-            <Chatbot />
+            {/* <Chatbot /> */}{/* DISABLED - AI chatbot removed */}
 
             {/* Main Content Wrapper */}
             <main className="relative z-10 w-full">
