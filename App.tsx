@@ -18,6 +18,7 @@ import Contact from './pages/Contact';
 import PricingPage from './pages/PricingPage';
 import EventsPage from './pages/EventsPage';
 import EquipmentPage from './pages/EquipmentPage';
+import EquipmentDetailPage from './pages/EquipmentDetailPage';
 import FAQPage from './pages/FAQPage';
 import BookingPage from './pages/BookingPage';
 import PartyBookingPage from './pages/PartyBookingPage';
@@ -105,6 +106,7 @@ const App: React.FC = () => {
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
                   <Route path="/equipment" element={<EquipmentPage />} />
+                  <Route path="/equipment/:id" element={<EquipmentDetailPage />} />
                   <Route path="/faq" element={<FAQPage />} />
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />

@@ -116,10 +116,10 @@ const GalleryPage: React.FC = () => {
 
     // Static videos (marketing assets)
     const videos = [
-        { src: "/videos/racing1.mp4", poster: "/images/kartcade/karts.png", title: "Racing Action" },
-        { src: "/videos/motion.mp4", poster: "/images/kartcade/motion.png", title: "Motion Simulator" },
-        { src: "/videos/rigs.mp4", poster: "/images/kartcade/rigs.png", title: "Full-Size Rigs" },
-        { src: "/videos/flight.mp4", poster: "/images/kartcade/flight.png", title: "Flight Sim" },
+        { src: "/videos/racing1.mp4", poster: "/images/kartcade/hero.webp", title: "Racing Action" },
+        { src: "/videos/motion.mp4", poster: "/images/kartcade/motion.webp", title: "Motion Simulator" },
+        { src: "/videos/rigs.mp4", poster: "/images/kartcade/rigs.webp", title: "Full-Size Rigs" },
+        { src: "/videos/flight.mp4", poster: "/images/kartcade/flight.webp", title: "Flight Sim" },
     ];
 
     return (

@@ -1,8 +1,8 @@
-import React, { useRef } from 'react';
+﻿import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowRight, Users, Gauge, Monitor, Plane, Play, Image as ImageIcon } from 'lucide-react';
+import { ArrowRight, Users, Gauge, Monitor, Plane } from 'lucide-react';
 
 const equipment = [
     {
@@ -10,7 +10,7 @@ const equipment = [
         title: "Racing Karts",
         subtitle: "5 Units",
         icon: <Gauge className="w-12 h-12" />,
-        image: "/images/kartcade/karts.png",
+        image: "/images/kartcade/karts.webp",
         description: "Our racing karts are designed for younger drivers and anyone under about 5'6\". These setups provide comfortable seating positions and adjusted controls, making them perfect for kids and teens who want the full racing experience.",
         specs: [
             { label: "Best For", value: "Kids ages 5+, teens, smaller adults" },
@@ -18,29 +18,31 @@ const equipment = [
             { label: "Experience", value: "Beginner-friendly" },
             { label: "Controls", value: "Adjusted for smaller drivers" }
         ],
-        color: "#2D9E49"
+        color: "#2D9E49",
+        route: "/equipment/karts"
     },
     {
         id: "02",
         title: "Full-Size Racing Rigs",
         subtitle: "4 Units",
         icon: <Monitor className="w-12 h-12" />,
-        image: "/images/kartcade/rigs.png",
-        description: "These are our workhorses—professional-quality racing simulators with direct-drive force feedback wheels, load cell pedals, and comfortable racing seats. These rigs can handle everything from gentle cruising in American Truck Simulator to white-knuckle racing in Le Mans Ultimate.",
+        image: "/images/kartcade/rigs.webp",
+        description: "These are our workhorsesΓÇöprofessional-quality racing simulators with direct-drive force feedback wheels, load cell pedals, and comfortable racing seats. These rigs can handle everything from gentle cruising in American Truck Simulator to white-knuckle racing in Le Mans Ultimate.",
         specs: [
             { label: "Best For", value: "Adults, serious sim racers" },
             { label: "Height", value: "4'8\" minimum, up to 6'6\"" },
             { label: "Weight Limit", value: "~300 lbs for comfort" },
             { label: "Features", value: "Direct-drive wheels, load cell pedals" }
         ],
-        color: "#FFFFFF"
+        color: "#FFFFFF",
+        route: "/equipment/rigs"
     },
     {
         id: "03",
         title: "Triple-Screen Motion Simulator",
         subtitle: "1 Unit - Crown Jewel",
         icon: <Monitor className="w-12 h-12" />,
-        image: "/images/kartcade/motion.png",
+        image: "/images/kartcade/hero.webp",
         description: "This is the crown jewel of Kartcade. Our motion simulator features three screens that wrap around you for incredible immersion, plus a motion platform that physically moves with the action. Feel every bump, drift, and collision as the simulator pitches, rolls, and vibrates beneath you.",
         specs: [
             { label: "Best For", value: "Ultimate experience, special occasions" },
@@ -48,14 +50,15 @@ const equipment = [
             { label: "Features", value: "Triple screens, motion platform" },
             { label: "Note", value: "Not for motion-sensitive guests" }
         ],
-        color: "#D42428"
+        color: "#D42428",
+        route: "/equipment/motion"
     },
     {
         id: "04",
         title: "Flight Simulator",
         subtitle: "1 Unit",
         icon: <Plane className="w-12 h-12" />,
-        image: "/images/kartcade/flight.png",
+        image: "/images/kartcade/flight.webp",
         description: "Not everything needs wheels! Our flight simulator lets you take to the skies with a full HOTAS (hands-on throttle and stick) setup. Perfect for a change of pace or anyone who loves aerial combat.",
         specs: [
             { label: "Featured Game", value: "Star Wars Squadrons" },
@@ -63,7 +66,8 @@ const equipment = [
             { label: "Best For", value: "Flight fans, Star Wars lovers" },
             { label: "Experience", value: "All skill levels" }
         ],
-        color: "#2D9E49"
+        color: "#2D9E49",
+        route: "/equipment/flight"
     }
 ];
 
@@ -84,7 +88,7 @@ const EquipmentPage: React.FC = () => {
                 {/* Background Image */}
                 <div className="absolute inset-0">
                     <img
-                        src="/images/kartcade/rigs.png"
+                        src="/images/equipment/Motion/IMG_7831.webp"
                         alt="Kartcade Equipment"
                         className="w-full h-full object-cover"
                     />
@@ -102,7 +106,7 @@ const EquipmentPage: React.FC = () => {
                         <span className="text-[#D42428]">Equipment</span>
                     </h1>
                     <p className="equip-hero-text text-lg md:text-xl text-white/70 max-w-md leading-relaxed mb-8">
-                        10 simulators total. Something for everyone—from kids to pros.
+                        10 simulators total. Something for everyoneΓÇöfrom kids to pros.
                     </p>
 
                     {/* Stats */}
@@ -168,61 +172,70 @@ const EquipmentPage: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* Explore CTA */}
+                                <div className="mt-8">
+                                    <Link
+                                        to={item.route}
+                                        className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:gap-3 transition-all duration-200"
+                                        style={{ color: item.color === '#FFFFFF' ? '#FFFFFF' : item.color }}
+                                    >
+                                        Explore This Rig <ArrowRight className="w-4 h-4" />
+                                    </Link>
+                                </div>
                             </div>
                         </div>
                     ))}
                 </div>
             </section>
 
-            {/* Rig Specs Placeholder */}
-            <section className="py-24 px-6 md:px-12 bg-black/40 relative overflow-hidden">
-                {/* Background Decor */}
-                <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-[#2D9E49]/20 to-transparent" />
-
+            {/* Bento Photo Grid */}
+            <section className="py-20 px-6 md:px-12">
                 <div className="max-w-6xl mx-auto">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-                        <div>
-                            <span className="text-[#2D9E49] text-xs font-bold tracking-[0.3em] uppercase mb-6 block">Technical Deep Dive</span>
-                            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-8">
-                                COMING SOON:<br />
-                                <span className="text-[#D42428]">DETAILED RIG SPECS</span>
-                            </h2>
-                            <p className="text-lg text-white/50 leading-relaxed mb-10 max-w-xl">
-                                We're preparing a full technical breakdown of our simulators. From direct-drive motor torque to pedal load cell ratings and PC hardware specs.
-                            </p>
-
-                            <div className="space-y-6">
-                                <div className="flex items-start gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
-                                    <div className="w-10 h-10 bg-[#2D9E49]/10 rounded-full flex items-center justify-center flex-shrink-0 text-[#2D9E49]">
-                                        <Play className="w-5 h-5 fill-[#2D9E49]" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-lg mb-1">FPV Action Previews</h3>
-                                        <p className="text-sm text-white/30">First-person-view videos showing every rig in action across our entire simulator lineup.</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
-                                    <div className="w-10 h-10 bg-[#D42428]/10 rounded-full flex items-center justify-center flex-shrink-0 text-[#D42428]">
-                                        <Monitor className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-lg mb-1">Component Level Data</h3>
-                                        <p className="text-sm text-white/30">Detailed lists of GPUs, displays, and peripheral hardware for the true tech enthusiasts.</p>
-                                    </div>
-                                </div>
-                            </div>
+                    <div className="flex items-center gap-4 mb-10">
+                        <h2 className="text-3xl font-bold tracking-tight uppercase font-display">Inside the Lab</h2>
+                        <div className="h-px flex-1 bg-white/5" />
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 auto-rows-[220px]">
+                        {/* Large left cell */}
+                        <div className="col-span-1 row-span-2 overflow-hidden rounded-2xl border border-white/10 group">
+                            <img
+                                src="/images/equipment/Wheels/IMG_7911.webp"
+                                alt="Wheel collection"
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
                         </div>
-
-                        <div className="relative group">
-                            <div className="absolute -inset-4 bg-gradient-to-r from-[#2D9E49]/20 to-[#D42428]/20 blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
-                            <div className="relative rounded-[3rem] overflow-hidden border border-white/10 aspect-[4/5] bg-[#141414] flex items-center justify-center">
-                                <ImageIcon className="w-20 h-20 text-white/5 animate-pulse" />
-                                <div className="absolute bottom-10 left-10 right-10">
-                                    <div className="h-2 w-24 bg-[#2D9E49] rounded-full mb-4" />
-                                    <div className="h-8 w-48 bg-white/5 rounded-lg mb-2" />
-                                    <div className="h-4 w-32 bg-white/5 rounded-lg" />
-                                </div>
-                            </div>
+                        {/* Top middle */}
+                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
+                            <img
+                                src="/images/equipment/Wheels/IMG_7915.webp"
+                                alt="Steering wheels"
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
+                        </div>
+                        {/* Top right */}
+                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
+                            <img
+                                src="/images/equipment/Shop/IMG_7948.webp"
+                                alt="The shop"
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
+                        </div>
+                        {/* Bottom middle */}
+                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
+                            <img
+                                src="/images/equipment/Motion/IMG_7837.webp"
+                                alt="Motion simulator detail"
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
+                        </div>
+                        {/* Bottom right */}
+                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
+                            <img
+                                src="/images/equipment/Motion/IMG_7850.webp"
+                                alt="Motion simulator interior"
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            />
                         </div>
                     </div>
                 </div>

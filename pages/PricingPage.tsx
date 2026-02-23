@@ -114,7 +114,7 @@ const PricingPage: React.FC = () => {
                 {/* Background Image */}
                 <div className="absolute inset-0">
                     <img
-                        src="/images/kartcade/karts.png"
+                        src="/images/kartcade/karts.webp"
                         alt="Kartcade Pricing"
                         className="w-full h-full object-cover"
                     />

@@ -79,7 +79,7 @@ const EventsPage: React.FC = () => {
                 {/* Background Image */}
                 <div className="absolute inset-0">
                     <img
-                        src="/images/kartcade/motion.png"
+                        src="/images/kartcade/rigs.webp"
                         alt="Kartcade Events"
                         className="w-full h-full object-cover"
                     />

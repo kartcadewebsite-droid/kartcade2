@@ -58,7 +58,7 @@ const About: React.FC = () => {
                 {/* Background Image */}
                 <div className="absolute inset-0">
                     <img
-                        src="/images/kartcade/hero.png"
+                        src="/images/kartcade/hero.webp"
                         alt="Kartcade Racing Lounge"
                         className="w-full h-full object-cover"
                     />
