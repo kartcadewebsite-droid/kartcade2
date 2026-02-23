@@ -13,8 +13,7 @@ const equipment = [
         image: "/images/kartcade/karts.webp",
         description: "Our racing karts are designed for younger drivers and anyone under about 5'6\". These setups provide comfortable seating positions and adjusted controls, making them perfect for kids and teens who want the full racing experience.",
         specs: [
-            { label: "Best For", value: "Kids ages 5+, teens, smaller adults" },
-            { label: "Height", value: "4'0\" minimum" },
+            { label: "Ages", value: "5+ (Adjustable cockpits)" },
             { label: "Experience", value: "Beginner-friendly" },
             { label: "Controls", value: "Adjusted for smaller drivers" }
         ],
@@ -26,11 +25,10 @@ const equipment = [
         title: "Full-Size Racing Rigs",
         subtitle: "4 Units",
         icon: <Monitor className="w-12 h-12" />,
-        image: "/images/kartcade/rigs.webp",
+        image: "/images/equipment/Rigs/IMG_0505.webp",
         description: "These are our workhorsesΓÇöprofessional-quality racing simulators with direct-drive force feedback wheels, load cell pedals, and comfortable racing seats. These rigs can handle everything from gentle cruising in American Truck Simulator to white-knuckle racing in Le Mans Ultimate.",
         specs: [
-            { label: "Best For", value: "Adults, serious sim racers" },
-            { label: "Height", value: "4'8\" minimum, up to 6'6\"" },
+            { label: "Wheelbase", value: "Fanatec direct-drive (12-20nm)" },
             { label: "Weight Limit", value: "~300 lbs for comfort" },
             { label: "Features", value: "Direct-drive wheels, load cell pedals" }
         ],
@@ -42,11 +40,10 @@ const equipment = [
         title: "Triple-Screen Motion Simulator",
         subtitle: "1 Unit - Crown Jewel",
         icon: <Monitor className="w-12 h-12" />,
-        image: "/images/kartcade/hero.webp",
+        image: "/images/equipment/Motion/IMG_7831.webp",
         description: "This is the crown jewel of Kartcade. Our motion simulator features three screens that wrap around you for incredible immersion, plus a motion platform that physically moves with the action. Feel every bump, drift, and collision as the simulator pitches, rolls, and vibrates beneath you.",
         specs: [
-            { label: "Best For", value: "Ultimate experience, special occasions" },
-            { label: "Age", value: "12+ recommended" },
+            { label: "Immersion", value: "Full-motion platform & haptics" },
             { label: "Features", value: "Triple screens, motion platform" },
             { label: "Note", value: "Not for motion-sensitive guests" }
         ],
@@ -58,11 +55,10 @@ const equipment = [
         title: "Flight Simulator",
         subtitle: "1 Unit",
         icon: <Plane className="w-12 h-12" />,
-        image: "/images/kartcade/flight.webp",
+        image: "/images/equipment/Flight/IMG_7886.webp",
         description: "Not everything needs wheels! Our flight simulator lets you take to the skies with a full HOTAS (hands-on throttle and stick) setup. Perfect for a change of pace or anyone who loves aerial combat.",
         specs: [
-            { label: "Featured Game", value: "Star Wars Squadrons" },
-            { label: "Controls", value: "Full HOTAS setup" },
+            { label: "Config", value: "Boeing-spec cockpit (Full HOTAS)" },
             { label: "Best For", value: "Flight fans, Star Wars lovers" },
             { label: "Experience", value: "All skill levels" }
         ],
@@ -137,13 +133,19 @@ const EquipmentPage: React.FC = () => {
                                 }`}
                         >
                             {/* Image */}
-                            <div className={`relative overflow-hidden rounded-2xl ${index % 2 === 1 ? 'lg:order-2' : ''}`}>
-                                <img
-                                    src={item.image}
-                                    alt={item.title}
-                                    className="w-full h-[400px] object-cover"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                            <div className={`relative overflow-hidden rounded-2xl group ${index % 2 === 1 ? 'lg:order-2' : ''}`}>
+                                {/* Image with Link */}
+                                <Link
+                                    to={item.route}
+                                    className="block relative h-full w-full overflow-hidden"
+                                >
+                                    <img
+                                        src={item.image}
+                                        alt={item.title}
+                                        className="w-full h-[400px] object-cover transform group-hover:scale-110 transition-transform duration-700"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                                </Link>
                                 <div className="absolute bottom-6 left-6">
                                     <span
                                         className="inline-block px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest"

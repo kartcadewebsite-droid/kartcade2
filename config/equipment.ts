@@ -48,13 +48,15 @@ const rigWheelImages = [
     '/images/equipment/Wheels/IMG_7919.webp',
     '/images/equipment/Wheels/IMG_7914.webp',
     '/images/equipment/Rigs/White Rig - Left/IMG_7857.webp',
+    '/images/equipment/Karts/IMG_7895.webp',
 ];
 const rigWheelNames = [
-    'Fanatec Formula 2.5',
-    'Porsche Vision GT',
     'CSL GT3',
-    'CSL P1',
+    'Porsche Vision GT',
+    'Wheels',
     'F1 eSports v2',
+    'Fanatec Formula 2.5',
+    'CSL P1',
 ];
 
 // ─── Equipment Data ───────────────────────────────────────────────────────────
@@ -161,9 +163,9 @@ export const equipmentData: EquipmentItem[] = [
                     '/images/equipment/Rigs/White Rig - Left/IMG_7929.webp',
                 ],
                 keyFeatures: [
+                    { stat: 'VR Ready', label: 'Bigscreen Beyond 2' },
                     { stat: '20nm', label: 'Force Feedback' },
                     { stat: '57" 4K', label: '240Hz Screen' },
-                    { stat: 'RTX 4070ti', label: 'GPU' },
                 ],
                 specGroups: [
                     {
@@ -172,6 +174,7 @@ export const equipmentData: EquipmentItem[] = [
                         items: [
                             { label: 'GPU', value: 'Nvidia RTX 4070ti' },
                             { label: 'Display', value: 'Samsung 57" Odyssey Neo G9 240Hz 4K' },
+                            { label: 'VR', value: 'Bigscreen Beyond 2 VR Headset' },
                         ],
                     },
                     {
@@ -197,6 +200,15 @@ export const equipmentData: EquipmentItem[] = [
                         subheading: 'Interchangeable',
                         items: [
                             { label: 'Compatible', value: 'Formula 2.5 · Porsche Vision GT · CSL GT3 · CSL P1 · F1 eSports v2' },
+                        ],
+                    },
+                    {
+                        heading: 'VR SPOTLIGHT',
+                        subheading: 'Bigscreen Beyond 2',
+                        items: [
+                            { label: 'Display', value: 'Dual 2.5K Micro-OLED' },
+                            { label: 'Weight', value: '127g (Ultra-Lightweight)' },
+                            { label: 'Resolution', value: '5120 x 2560 (13.1MP)' },
                         ],
                     },
                 ],
@@ -254,12 +266,11 @@ export const equipmentData: EquipmentItem[] = [
             },
             {
                 id: 'trakrace',
-                label: 'TrakRace (black)',
+                label: 'Trak Racer TR8 Pro',
                 galleryImages: [
-                    '/images/equipment/Rigs/Black Rig/IMG20250906185358.webp',
                     '/images/equipment/Rigs/Black Rig/IMG_7875.webp',
                     '/images/equipment/Rigs/Black Rig/IMG_7871.webp',
-                    '/images/equipment/Rigs/Black Rig/IMG_7944.webp',
+                    '/images/equipment/Rigs/Black Rig/IMG_7879.webp',
                     '/images/equipment/Rigs/Black Rig/IMG_7908.webp',
                 ],
                 keyFeatures: [
@@ -290,7 +301,7 @@ export const equipmentData: EquipmentItem[] = [
                         heading: 'COCKPIT',
                         subheading: 'The Cockpit',
                         items: [
-                            { label: 'Frame', value: 'TrakRacer TR8 Pro' },
+                            { label: 'Frame', value: 'Trak Racer TR8 Pro' },
                             { label: 'Seat', value: 'O-Rouge Air Conditioned' },
                         ],
                     },
@@ -384,7 +395,7 @@ export const equipmentData: EquipmentItem[] = [
         description:
             'Built for kids, brilliant for everyone. Our kart cockpits put you low and close to the action — paddles at your fingertips, eyes locked on the screen. A gateway to sim racing the whole family can enjoy.',
         route: '/equipment/karts',
-        hasInterchangeableWheels: true,
+        hasInterchangeableWheels: false,
         wheelImages: [
             '/images/equipment/Wheels/IMG_7912.webp',
             '/images/equipment/Wheels/IMG_7915.webp',
