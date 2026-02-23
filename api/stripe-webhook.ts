@@ -272,12 +272,11 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     }
                 }, { merge: true });
 
-                // Add Credits
-                const currentCredits = userData?.credits?.[equipmentType] || 0;
+                // Set credits to tier amount (RESET, not accumulate)
                 transaction.set(userRef, {
                     credits: {
                         ...userData?.credits,
-                        [equipmentType]: currentCredits + tier.credits
+                        [equipmentType]: tier.credits
                     }
                 }, { merge: true });
 
@@ -352,35 +351,26 @@ async function handleInvoicePaid(invoice: any) {
         const userRef = db.collection('users').doc(userId);
         const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
 
-        // Update membership expiry
-        await userRef.set({
-            memberships: {
-                [equipmentType]: {
-                    nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                    active: true,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    lastPaymentStatus: 'succeeded'
-                }
-            }
-        }, { merge: true });
+        // ✅ FIX: Use dot-notation paths so we only update specific sub-fields.
+        // Previously used nested object spread which OVERWROTE the entire membership
+        // document, causing tier, stripeSubscriptionId, etc. to be lost on renewal.
+        await userRef.update({
+            [`memberships.${equipmentType}.nextBillingDate`]: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+            [`memberships.${equipmentType}.active`]: true,
+            [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp(),
+            [`memberships.${equipmentType}.lastPaymentStatus`]: 'succeeded',
+        });
 
         console.log(`[WEBHOOK] Successfully extended membership for user ${userId} (${equipmentType}) to ${currentPeriodEnd.toISOString()}`);
 
-        // Assuming renewal DOES add credits based on tier
+        // Reset credits to tier amount on renewal ("use it or lose it")
         if (tierId) {
             const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
             if (tier) {
-                const userDoc = await userRef.get();
-                const userData = userDoc.data();
-                const currentCredits = userData?.credits?.[equipmentType] || 0;
-
-                // Add Monthly Credits
-                await userRef.set({
-                    credits: {
-                        [equipmentType]: currentCredits + tier.credits
-                    }
-                }, { merge: true });
-                console.log(`[WEBHOOK] Added ${tier.credits} credits for renewal.`);
+                await userRef.update({
+                    [`credits.${equipmentType}`]: tier.credits
+                });
+                console.log(`[WEBHOOK] Reset credits to ${tier.credits} for ${userId} (${equipmentType}) on renewal.`);
             }
         }
 
@@ -413,6 +403,10 @@ async function handleSubscriptionDeleted(subscription: any) {
                     canceledAt: admin.firestore.FieldValue.serverTimestamp(),
                     status: 'canceled'
                 }
+            },
+            // Zero out membership credits (bonusCredits remain until their own expiry)
+            credits: {
+                [equipmentType]: 0
             }
         }, { merge: true });
 

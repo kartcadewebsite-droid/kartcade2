@@ -2,23 +2,23 @@
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin if not already done
-if (!admin.apps.length) {
-    // Option 1: Full JSON in FIREBASE_SERVICE_ACCOUNT_KEY (recommended)
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+function getDb() {
+    if (!admin.apps.length) {
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY
+            ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+            : undefined;
+
+        if (process.env.FIREBASE_PROJECT_ID) {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: privateKey,
+                }),
+            });
+        }
     }
-    // Option 2: Individual keys (legacy)
-    else if (process.env.FIREBASE_PROJECT_ID) {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            } as admin.ServiceAccount),
-        });
-    }
+    return getFirestore();
 }
 
 export default async function handler(req: any, res: any) {
@@ -29,7 +29,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const db = getFirestore();
+        const db = getDb();
         const doc = await db.collection('system').doc('stripe_config').get();
 
         if (!doc.exists) {
