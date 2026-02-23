@@ -11,7 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
-import { UserCredits, UserMembership, UserMembershipsMap, DEFAULT_CREDITS, DEFAULT_MEMBERSHIPS } from '../config/membership';
+import { UserCredits, BonusCredits, UserMembership, UserMembershipsMap, DEFAULT_CREDITS, DEFAULT_BONUS_CREDITS, DEFAULT_MEMBERSHIPS } from '../config/membership';
 import { bookingConfig } from '../config/booking';
 
 // Types
@@ -39,6 +39,7 @@ interface UserProfile {
     }>;
     // Credits and Membership
     credits: UserCredits;
+    bonusCredits: BonusCredits;
     memberships: UserMembershipsMap;
 }
 
@@ -67,7 +68,7 @@ interface AuthContextType {
     resetPassword: (email: string) => Promise<void>;
     // Credits functions
     useCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<boolean>;
-    addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<void>;
+    addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number, target?: 'membership' | 'bonus') => Promise<void>;
     getCredits: (equipmentType: 'kart' | 'rig' | 'motion') => number;
     hasEnoughCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => boolean;
     refreshUserProfile: () => Promise<void>;
@@ -119,6 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 createdAt: serverTimestamp(),
                 // Initialize with empty credits and no membership
                 credits: DEFAULT_CREDITS,
+                bonusCredits: DEFAULT_BONUS_CREDITS,
                 memberships: DEFAULT_MEMBERSHIPS,
             };
 
@@ -139,6 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const profile: UserProfile = {
                 ...data,
                 credits: data.credits || DEFAULT_CREDITS,
+                bonusCredits: data.bonusCredits || DEFAULT_BONUS_CREDITS,
                 memberships: data.memberships || DEFAULT_MEMBERSHIPS,
             } as UserProfile;
             setUserProfile(profile);
@@ -152,9 +155,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-    // Get credits for a specific equipment type
+    // Get credits for a specific equipment type (combines membership + non-expired bonus)
     const getCredits = (equipmentType: 'kart' | 'rig' | 'motion'): number => {
-        return userProfile?.credits?.[equipmentType] || 0;
+        const membershipCredits = userProfile?.credits?.[equipmentType] || 0;
+        const bonusAmount = userProfile?.bonusCredits?.[equipmentType] || 0;
+        const expiryKey = `${equipmentType}ExpiresAt` as keyof BonusCredits;
+        const expiresAt = userProfile?.bonusCredits?.[expiryKey];
+
+        // Check if bonus credits have expired
+        let validBonus = 0;
+        if (bonusAmount > 0 && expiresAt) {
+            const expiryDate = expiresAt instanceof Date ? expiresAt : (expiresAt as any)?.toDate?.() || new Date(expiresAt as any);
+            if (expiryDate > new Date()) {
+                validBonus = bonusAmount;
+            }
+        }
+
+        return membershipCredits + validBonus;
     };
 
     // Check if user has enough credits
@@ -162,34 +179,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return getCredits(equipmentType) >= amount;
     };
 
-    // Use credits for a booking
+    // Helper: get valid (non-expired) bonus credits for a type
+    const getValidBonusCredits = (equipmentType: 'kart' | 'rig' | 'motion'): number => {
+        const bonusAmount = userProfile?.bonusCredits?.[equipmentType] || 0;
+        if (bonusAmount <= 0) return 0;
+        const expiryKey = `${equipmentType}ExpiresAt` as keyof BonusCredits;
+        const expiresAt = userProfile?.bonusCredits?.[expiryKey];
+        if (!expiresAt) return 0;
+        const expiryDate = expiresAt instanceof Date ? expiresAt : (expiresAt as any)?.toDate?.() || new Date(expiresAt as any);
+        return expiryDate > new Date() ? bonusAmount : 0;
+    };
+
+    // Use credits for a booking (deducts from bonus first, then membership)
     const useCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<boolean> => {
         if (!currentUser || !userProfile) return false;
 
-        const currentCredits = getCredits(equipmentType);
-        if (currentCredits < amount) return false;
+        const totalAvailable = getCredits(equipmentType);
+        if (totalAvailable < amount) return false;
+
+        const validBonus = getValidBonusCredits(equipmentType);
+        const membershipCredits = userProfile?.credits?.[equipmentType] || 0;
+
+        // FIFO: deduct from bonus first (they expire sooner), then membership
+        const fromBonus = Math.min(validBonus, amount);
+        const fromMembership = amount - fromBonus;
 
         const userRef = doc(db, 'users', currentUser.uid);
 
-        await updateDoc(userRef, {
-            [`credits.${equipmentType}`]: increment(-amount)
-        });
+        // Single atomic updateDoc call — both fields update or neither does
+        const updates: Record<string, any> = {};
+        if (fromBonus > 0) {
+            updates[`bonusCredits.${equipmentType}`] = increment(-fromBonus);
+        }
+        if (fromMembership > 0) {
+            updates[`credits.${equipmentType}`] = increment(-fromMembership);
+        }
+
+        await updateDoc(userRef, updates);
         await refreshUserProfile();
 
         return true;
     };
 
-    // Add credits (called by webhook or admin)
-    const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<void> => {
+    // Add credits (called by cancel refunds or webhook)
+    // target: 'membership' = monthly credits (set by webhook), 'bonus' = refund credits (with 30-day expiry)
+    const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number, target: 'membership' | 'bonus' = 'bonus'): Promise<void> => {
         if (!currentUser) throw new Error('Not authenticated');
-        // No longer strictly blocked by stale userProfile state for the update itself
 
         const userRef = doc(db, 'users', currentUser.uid);
 
-        // Atomic increment on the server side prevents race conditions
-        await updateDoc(userRef, {
-            [`credits.${equipmentType}`]: increment(amount)
-        });
+        if (target === 'bonus') {
+            // Refund / promo credits → add to bonusCredits with 30-day expiry
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+
+            await updateDoc(userRef, {
+                [`bonusCredits.${equipmentType}`]: increment(amount),
+                [`bonusCredits.${equipmentType}ExpiresAt`]: expiresAt
+            });
+        } else {
+            // Membership credits → atomic increment
+            await updateDoc(userRef, {
+                [`credits.${equipmentType}`]: increment(amount)
+            });
+        }
 
         await refreshUserProfile();
     };
@@ -225,6 +278,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             waiverAcceptedAt: serverTimestamp(),
             createdAt: serverTimestamp(),
             credits: DEFAULT_CREDITS,
+            bonusCredits: DEFAULT_BONUS_CREDITS,
             memberships: DEFAULT_MEMBERSHIPS,
         };
         await setDoc(userRef, profileData);

@@ -180,9 +180,9 @@ const CancelPage: React.FC = () => {
                             motion: Math.floor(potentialCredits.motion * multiplier)
                         };
 
-                        if (refundCredits.kart > 0) await addCredits('kart', refundCredits.kart);
-                        if (refundCredits.rig > 0) await addCredits('rig', refundCredits.rig);
-                        if (refundCredits.motion > 0) await addCredits('motion', refundCredits.motion);
+                        if (refundCredits.kart > 0) await addCredits('kart', refundCredits.kart, 'bonus');
+                        if (refundCredits.rig > 0) await addCredits('rig', refundCredits.rig, 'bonus');
+                        if (refundCredits.motion > 0) await addCredits('motion', refundCredits.motion, 'bonus');
 
                         setCreditsAwarded(refundCredits);
 

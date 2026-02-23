@@ -212,11 +212,30 @@ export interface UserMembershipsMap {
     motion?: UserMembership;
 }
 
+// Bonus credits with per-equipment expiry (30-day expiry from refunds/promos)
+export interface BonusCredits {
+    kart: number;
+    kartExpiresAt: Date | null;
+    rig: number;
+    rigExpiresAt: Date | null;
+    motion: number;
+    motionExpiresAt: Date | null;
+}
+
 // Default empty values
 export const DEFAULT_CREDITS: UserCredits = {
     kart: 0,
     rig: 0,
     motion: 0
+};
+
+export const DEFAULT_BONUS_CREDITS: BonusCredits = {
+    kart: 0,
+    kartExpiresAt: null,
+    rig: 0,
+    rigExpiresAt: null,
+    motion: 0,
+    motionExpiresAt: null
 };
 
 export const DEFAULT_MEMBERSHIPS: UserMembershipsMap = {};

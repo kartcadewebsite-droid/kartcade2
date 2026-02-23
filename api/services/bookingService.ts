@@ -192,12 +192,11 @@ export const bookingService = {
                         }
                     }, { merge: true });
 
-                    // Add Credits (Using set {merge: true} as per Claude's recommendation)
-                    const currentCredits = userData?.credits?.[equipmentType] || 0;
+                    // Set credits to tier amount (RESET, not accumulate)
                     transaction.set(userRef, {
                         credits: {
                             ...userData?.credits,
-                            [equipmentType]: currentCredits + tier.credits
+                            [equipmentType]: tier.credits
                         }
                     }, { merge: true });
 
