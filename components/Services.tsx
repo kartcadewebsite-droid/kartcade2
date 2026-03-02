@@ -26,7 +26,7 @@ const simulators = [
     subtitle: "1 Unit - The Crown Jewel",
     description: "Three screens wrap around you for incredible immersion, plus a motion platform that physically moves with the action. Feel every bump, drift, and collision as the simulator pitches, rolls, and vibrates.",
     bestFor: "Ages 12+, ultimate experience, special occasions",
-    image: "/images/kartcade/hero.webp"
+    image: "/images/kartcade/motion_home.webp"
   },
   {
     id: "04",
@@ -34,7 +34,7 @@ const simulators = [
     subtitle: "1 Unit - Take to the Skies",
     description: "Not everything needs wheels! Full HOTAS (hands-on throttle and stick) setup for aerial combat and space flight. Perfect for a change of pace or anyone who loves dogfighting in Star Wars Squadrons.",
     bestFor: "Star Wars fans, flight enthusiasts, variety seekers",
-    image: "/images/kartcade/flight.webp"
+    image: "/images/kartcade/flight_home.webp"
   }
 ];
 

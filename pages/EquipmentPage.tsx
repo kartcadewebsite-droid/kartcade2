@@ -1,8 +1,8 @@
-﻿import React, { useRef } from 'react';
+﻿import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ArrowRight, Users, Gauge, Monitor, Plane } from 'lucide-react';
+import { ArrowRight, Users, Gauge, Monitor, Plane, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const equipment = [
     {
@@ -40,7 +40,7 @@ const equipment = [
         title: "Triple-Screen Motion Simulator",
         subtitle: "1 Unit - Crown Jewel",
         icon: <Monitor className="w-12 h-12" />,
-        image: "/images/equipment/Motion/IMG_7831.webp",
+        image: "/images/equipment/Motion/IMG_7835.webp",
         description: "This is the crown jewel of Kartcade. Our motion simulator features three screens that wrap around you for incredible immersion, plus a motion platform that physically moves with the action. Feel every bump, drift, and collision as the simulator pitches, rolls, and vibrates beneath you.",
         specs: [
             { label: "Immersion", value: "Full-motion platform & haptics" },
@@ -55,7 +55,7 @@ const equipment = [
         title: "Flight Simulator",
         subtitle: "1 Unit",
         icon: <Plane className="w-12 h-12" />,
-        image: "/images/equipment/Flight/IMG_7886.webp",
+        image: "/images/equipment/Flight/IMG_7891.webp",
         description: "Not everything needs wheels! Our flight simulator lets you take to the skies with a full HOTAS (hands-on throttle and stick) setup. Perfect for a change of pace or anyone who loves aerial combat.",
         specs: [
             { label: "Config", value: "Boeing-spec cockpit (Full HOTAS)" },
@@ -69,6 +69,15 @@ const equipment = [
 
 const EquipmentPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [labIndex, setLabIndex] = useState(0);
+
+    const labImages = [
+        { src: '/images/equipment/Wheels/IMG_7911.webp', alt: 'Wheel collection' },
+        { src: '/images/equipment/Wheels/IMG_7915.webp', alt: 'Steering wheels' },
+        { src: '/images/equipment/Shop/IMG_7948.webp', alt: 'The shop' },
+        { src: '/images/equipment/Motion/IMG_7837.webp', alt: 'Motion simulator detail' },
+        { src: '/images/equipment/Motion/IMG_7850.webp', alt: 'Motion simulator interior' },
+    ];
 
     useGSAP(() => {
         gsap.fromTo(".equip-hero-text",
@@ -191,54 +200,61 @@ const EquipmentPage: React.FC = () => {
                 </div>
             </section>
 
-            {/* Bento Photo Grid */}
+            {/* Inside the Lab */}
             <section className="py-20 px-6 md:px-12">
                 <div className="max-w-6xl mx-auto">
                     <div className="flex items-center gap-4 mb-10">
                         <h2 className="text-3xl font-bold tracking-tight uppercase font-display">Inside the Lab</h2>
                         <div className="h-px flex-1 bg-white/5" />
+                        <span className="md:hidden text-xs text-white/30 font-mono">{labIndex + 1} / {labImages.length}</span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 auto-rows-[220px]">
-                        {/* Large left cell */}
+
+                    {/* Mobile Carousel */}
+                    <div className="md:hidden relative">
+                        <div className="relative overflow-hidden rounded-2xl border border-white/10 aspect-[4/3]">
+                            <img
+                                key={labIndex}
+                                src={labImages[labIndex].src}
+                                alt={labImages[labIndex].alt}
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                        <button
+                            onClick={() => setLabIndex(i => (i - 1 + labImages.length) % labImages.length)}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm"
+                            aria-label="Previous image"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => setLabIndex(i => (i + 1) % labImages.length)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm"
+                            aria-label="Next image"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                        <div className="flex justify-center gap-1.5 mt-4">
+                            {labImages.map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setLabIndex(i)}
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${i === labIndex ? 'bg-white w-4' : 'bg-white/30 w-1.5'}`}
+                                    aria-label={`Go to image ${i + 1}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Desktop Bento Grid */}
+                    <div className="hidden md:grid grid-cols-3 gap-4 auto-rows-[220px]">
                         <div className="col-span-1 row-span-2 overflow-hidden rounded-2xl border border-white/10 group">
-                            <img
-                                src="/images/equipment/Wheels/IMG_7911.webp"
-                                alt="Wheel collection"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
+                            <img src={labImages[0].src} alt={labImages[0].alt} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                         </div>
-                        {/* Top middle */}
-                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
-                            <img
-                                src="/images/equipment/Wheels/IMG_7915.webp"
-                                alt="Steering wheels"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
-                        </div>
-                        {/* Top right */}
-                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
-                            <img
-                                src="/images/equipment/Shop/IMG_7948.webp"
-                                alt="The shop"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
-                        </div>
-                        {/* Bottom middle */}
-                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
-                            <img
-                                src="/images/equipment/Motion/IMG_7837.webp"
-                                alt="Motion simulator detail"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
-                        </div>
-                        {/* Bottom right */}
-                        <div className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
-                            <img
-                                src="/images/equipment/Motion/IMG_7850.webp"
-                                alt="Motion simulator interior"
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                            />
-                        </div>
+                        {labImages.slice(1).map((img, i) => (
+                            <div key={i} className="col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
+                                <img src={img.src} alt={img.alt} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>

@@ -74,7 +74,7 @@ export const equipmentData: EquipmentItem[] = [
         route: '/equipment/motion',
         hasInterchangeableWheels: false,
         galleryImages: [
-            '/images/equipment/Motion/IMG_7829.webp',
+            '/images/equipment/Motion/IMG_7835.webp',
             '/images/equipment/Motion/IMG_7834.webp',
             '/images/equipment/Motion/IMG_7837.webp',
             '/images/equipment/Motion/IMG_7845.webp',
@@ -330,7 +330,7 @@ export const equipmentData: EquipmentItem[] = [
         route: '/equipment/flight',
         hasInterchangeableWheels: false,
         galleryImages: [
-            '/images/equipment/Flight/IMG_7880.webp',
+            '/images/equipment/Flight/IMG_7891.webp',
             '/images/equipment/Flight/IMG_7886.webp',
             '/images/equipment/Flight/IMG_7884.webp',
             '/images/equipment/Flight/IMG_7890.webp',

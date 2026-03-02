@@ -3,7 +3,7 @@ import { Link, useParams, Navigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import equipmentData from '../config/equipment';
 import type { EquipmentItem } from '../config/equipment';
 
@@ -42,10 +42,12 @@ const EquipmentDetailPage: React.FC = () => {
 
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeVariant, setActiveVariant] = useState(0);
+    const [carouselIndex, setCarouselIndex] = useState(0);
 
     useEffect(() => {
         window.scrollTo(0, 0);
         setActiveVariant(0);
+        setCarouselIndex(0);
     }, [id]);
 
     useEffect(() => {
@@ -228,15 +230,60 @@ const EquipmentDetailPage: React.FC = () => {
                 </div>
             </section>
 
-            {/* ── 5. PHOTO BENTO GALLERY ───────────────────────────────────────── */}
+            {/* ── 5. PHOTO GALLERY ───────────────────────────────────────────── */}
             <section className="gallery-section py-20 px-6 md:px-12 border-t border-white/5">
                 <div className="max-w-6xl mx-auto">
                     <div className="flex items-center gap-4 mb-8">
                         <h2 className="text-2xl font-bold uppercase tracking-tight">Gallery</h2>
                         <div className="h-px flex-1 bg-white/5" />
+                        {/* Mobile counter */}
+                        <span className="md:hidden text-xs text-white/30 font-mono">{carouselIndex + 1} / {galleryImages.length}</span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 auto-rows-[200px] md:auto-rows-[240px]">
-                        {/* Large cell — spans 2 rows on the left */}
+
+                    {/* ── Mobile Carousel ── */}
+                    <div className="md:hidden relative">
+                        <div className="relative overflow-hidden rounded-2xl border border-white/10 aspect-[4/3]">
+                            <img
+                                key={carouselIndex}
+                                src={galleryImages[carouselIndex]}
+                                alt={`${item.title} photo ${carouselIndex + 1}`}
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                        {/* Prev / Next buttons */}
+                        {galleryImages.length > 1 && (
+                            <>
+                                <button
+                                    onClick={() => setCarouselIndex(i => (i - 1 + galleryImages.length) % galleryImages.length)}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm"
+                                    aria-label="Previous image"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => setCarouselIndex(i => (i + 1) % galleryImages.length)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm"
+                                    aria-label="Next image"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </>
+                        )}
+                        {/* Dot indicator */}
+                        <div className="flex justify-center gap-1.5 mt-4">
+                            {galleryImages.map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCarouselIndex(i)}
+                                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === carouselIndex ? 'bg-white w-4' : 'bg-white/30'}`}
+                                    aria-label={`Go to image ${i + 1}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* ── Desktop Bento Grid ── */}
+                    <div className="hidden md:grid grid-cols-3 gap-4 auto-rows-[240px]">
                         <div className="gallery-cell col-span-1 row-span-2 overflow-hidden rounded-2xl border border-white/10 group">
                             <img
                                 src={galleryImages[0]}
@@ -244,7 +291,6 @@ const EquipmentDetailPage: React.FC = () => {
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
                         </div>
-                        {/* 4 smaller tiles */}
                         {galleryImages.slice(1).map((src, i) => (
                             <div key={i} className="gallery-cell col-span-1 row-span-1 overflow-hidden rounded-2xl border border-white/10 group">
                                 <img

@@ -9,7 +9,7 @@ const eventPackages = [
     {
         icon: <Cake className="w-10 h-10" />,
         title: "Birthday Party Package",
-        price: "Starting at $720",
+        price: "Starting at $400 ($720 value)",
         features: [
             "2 hours of racing time",
             "Up to 15 guests (Unlimited racing)",

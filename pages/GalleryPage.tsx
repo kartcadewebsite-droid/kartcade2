@@ -209,12 +209,7 @@ const GalleryPage: React.FC = () => {
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-                                <div className="absolute bottom-6 left-6 flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
-                                        <Play className="w-5 h-5 text-white fill-white" />
-                                    </div>
-                                    <p className="text-white font-bold text-lg tracking-tight">{video.title}</p>
-                                </div>
+
                             </div>
                         ))}
                     </div>
