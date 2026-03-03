@@ -169,7 +169,7 @@ const BookingPage: React.FC = () => {
         motion: 0,
         flight: 0
     });
-    const [duration, setDuration] = useState(1); // 1, 2, or 3 hours
+    const [duration, setDuration] = useState(0.5); // 0.5, 1, 1.5, 2, 2.5, 3 hours
     const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({});
 
     const [formData, setFormData] = useState({
@@ -392,7 +392,7 @@ const BookingPage: React.FC = () => {
 
         setLoadingStripe(true);
         try {
-            const depositAmount = calculateTotal() / 2 * 100; // 50% in cents
+            const depositAmount = Math.round(calculateTotal() / 2) * 100; // 50% in cents, rounded to whole dollar
 
             const response = await fetch('/api/create-checkout-session', {
                 method: 'POST',
@@ -466,7 +466,7 @@ const BookingPage: React.FC = () => {
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
-                paymentMethod: 'paypal',
+                paymentMethod: isDeposit ? 'paypal_deposit' : 'paypal',
                 notes: finalNotes
             });
 
@@ -495,7 +495,7 @@ const BookingPage: React.FC = () => {
                         date: formatDateForApi(selectedDate!),
                         time: selectedTime!,
                         calculatedPrice: calculateTotal(),
-                        paymentMethod: 'paypal',
+                        paymentMethod: isDeposit ? 'paypal_deposit' : 'paypal',
                         bookingId: result.bookingId || '',
                         status: 'confirmed',
                         createdAt: serverTimestamp()
@@ -772,17 +772,24 @@ const BookingPage: React.FC = () => {
                                             <Clock className="w-4 h-4 inline mr-2" />
                                             Session Duration
                                         </label>
-                                        <div className="flex gap-2 sm:gap-4">
-                                            {[1, 2, 3].map((hrs) => (
+                                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                            {[
+                                                { value: 0.5, label: '30 min' },
+                                                { value: 1, label: '1 hr' },
+                                                { value: 1.5, label: '1h 30m' },
+                                                { value: 2, label: '2 hrs' },
+                                                { value: 2.5, label: '2h 30m' },
+                                                { value: 3, label: '3 hrs' },
+                                            ].map(({ value, label }) => (
                                                 <button
-                                                    key={hrs}
-                                                    onClick={() => setDuration(hrs)}
-                                                    className={`flex-1 py-3 sm:py-4 rounded-xl text-center text-sm sm:text-base font-bold transition-all ${duration === hrs
+                                                    key={value}
+                                                    onClick={() => setDuration(value)}
+                                                    className={`py-3 rounded-xl text-center text-sm font-bold transition-all ${duration === value
                                                         ? 'bg-[#2D9E49] text-white'
                                                         : 'bg-[#141414] border border-white/10 hover:border-white/30'
                                                         }`}
                                                 >
-                                                    {hrs}hr{hrs > 1 ? 's' : ''}
+                                                    {label}
                                                 </button>
                                             ))}
                                         </div>

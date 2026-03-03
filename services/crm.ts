@@ -78,8 +78,8 @@ function parseStationString(station: string): { equipment: Record<string, number
     let duration = 1;
 
     // Extract duration from "(Xh)" pattern
-    const durationMatch = station.match(/\((\d+)h\)/);
-    if (durationMatch) duration = parseInt(durationMatch[1]);
+    const durationMatch = station.match(/\(([\d.]+)h\)/);
+    if (durationMatch) duration = parseFloat(durationMatch[1]);
 
     // Extract equipment from "Type:Qty" patterns
     const patterns = station.match(/(\w+):(\d+)/g);

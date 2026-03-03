@@ -150,6 +150,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     email: metadata.bookingEmail || (session.customer_details?.email || ''),
                     phone: metadata.bookingPhone || '',
                     paymentMethod: 'deposit',
+                    durationMinutes: (parseFloat(duration) * 60).toString(),
                     notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
                 });
 
