@@ -1342,13 +1342,16 @@ const BookingPage: React.FC = () => {
                                                                     - or -
                                                                 </div>
 
-                                                                {/* Option B: PayPal — temporarily disabled until GAS v2.4 is deployed */}
-                                                                <div className="relative z-0 opacity-40 cursor-not-allowed">
-                                                                    <div className="w-full p-4 rounded-xl border border-white/10 bg-[#141414] flex items-center justify-center gap-3 text-white/50 text-sm font-bold select-none">
-                                                                        <span className="text-lg italic font-extrabold text-white/30">P</span>
-                                                                        PayPal — Temporarily Unavailable
-                                                                    </div>
-                                                                    <p className="text-center text-xs text-white/30 mt-2">Please use Card / G-Pay for deposits</p>
+                                                                {/* Option B: PayPal */}
+                                                                <div className="relative z-0">
+                                                                    <PayPalCheckout
+                                                                        amount={Math.round(calculateTotal() / 2)}
+                                                                        onSuccess={(details) => {
+                                                                            setShowPaymentModal(false);
+                                                                            handlePayPalSuccess(details);
+                                                                        }}
+                                                                        onError={(err) => setError('PayPal Error: ' + err)}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                         </div>
