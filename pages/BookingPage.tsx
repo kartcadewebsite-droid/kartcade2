@@ -991,10 +991,28 @@ const BookingPage: React.FC = () => {
                                         <ArrowLeft className="w-4 h-4" /> Back to time selection
                                     </button>
 
-                                    <h2 className="font-display text-2xl font-bold uppercase mb-8 text-center">
+                                    <h2 className="font-display text-2xl font-bold uppercase mb-6 text-center">
                                         Your Details
                                     </h2>
 
+                                    {/* Warning: logged-in but phone missing from profile */}
+                                    {currentUser && !isAdmin && !userProfile?.phone && (
+                                        <div className="max-w-lg mx-auto mb-6 flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                                            <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                                            <div className="text-sm">
+                                                <p className="font-bold text-yellow-300 mb-1">Phone number required to complete booking</p>
+                                                <p className="text-yellow-400/80">Your profile doesn't have a phone number yet. Please enter it below, or <Link to="/dashboard" className="underline hover:text-yellow-200">update your profile</Link> first.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Info: logged-in, details pre-filled */}
+                                    {currentUser && !isAdmin && userProfile?.phone && (
+                                        <div className="max-w-lg mx-auto mb-6 flex items-start gap-3 p-3 bg-[#2D9E49]/10 border border-[#2D9E49]/20 rounded-xl">
+                                            <CheckCircle className="w-4 h-4 text-[#2D9E49] flex-shrink-0 mt-0.5" />
+                                            <p className="text-xs text-[#2D9E49]/80">Your details have been pre-filled from your driver profile. Review and update if needed.</p>
+                                        </div>
+                                    )}
                                     <div className="max-w-lg mx-auto space-y-6">
                                         <div>
                                             <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Full Name *</label>
@@ -1004,7 +1022,7 @@ const BookingPage: React.FC = () => {
                                                 value={formData.name}
                                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                                 className="w-full bg-[#141414] border border-white/10 rounded-xl px-4 py-4 text-white focus:border-[#2D9E49] focus:outline-none transition-colors"
-                                                placeholder="John Smith"
+                                                placeholder="Enter your full name"
                                             />
                                         </div>
 
@@ -1050,8 +1068,13 @@ const BookingPage: React.FC = () => {
                                                             setFormErrors(prev => ({ ...prev, phone: 'Please enter a valid phone number (10+ digits)' }));
                                                         }
                                                     }}
-                                                    className={`w-full bg-[#141414] border rounded-xl px-4 py-4 text-white focus:outline-none transition-colors ${formErrors.phone ? 'border-red-500 focus:border-red-500' : 'border-white/10 focus:border-[#2D9E49]'}`}
-                                                    placeholder="(503) 555-1234"
+                                                    className={`w-full bg-[#141414] border rounded-xl px-4 py-4 text-white focus:outline-none transition-colors ${formErrors.phone
+                                                            ? 'border-red-500 focus:border-red-500'
+                                                            : (currentUser && !isAdmin && !userProfile?.phone)
+                                                                ? 'border-yellow-500/50 focus:border-yellow-400'
+                                                                : 'border-white/10 focus:border-[#2D9E49]'
+                                                        }`}
+                                                    placeholder="Enter your phone number"
                                                 />
                                                 {formErrors.phone && (
                                                     <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>
