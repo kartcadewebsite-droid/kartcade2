@@ -42,10 +42,11 @@ service cloud.firestore {
       // Users can create their own profile (on signup)
       allow create: if request.auth != null && request.auth.uid == userId;
       
-      // Users can update their own profile, but CANNOT change the 'role' field
-      allow update: if request.auth != null 
-                    && request.auth.uid == userId
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      // Users can update their own profile (but not 'role'), admins can update any user
+      allow update: if request.auth != null && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+        || isAdmin()
+      );
       
       // No one can delete user profiles (admin does this manually if needed)
       allow delete: if false;
@@ -74,6 +75,25 @@ service cloud.firestore {
     match /transactions/{transactionId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow write: if false; // Only admin/backend can write
+    }
+    
+    // Lap Times — Fastest Lap feature
+    match /lap_times/{lapId} {
+      // Anyone can read approved times (public leaderboard)
+      allow read: if resource.data.status == 'approved' || 
+                     (request.auth != null && request.auth.uid == resource.data.userId) ||
+                     isAdmin();
+      // Any authenticated user can submit their own lap time
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      // Only admins can update (approve/reject)
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Competitions — created and managed by admins only
+    match /competitions/{compId} {
+      allow read: if true; // Public — visible on leaderboard
+      allow write: if isAdmin();
     }
     
     // Deny all other access by default

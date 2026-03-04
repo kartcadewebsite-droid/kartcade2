@@ -34,6 +34,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import DriverProfilePage from './pages/DriverProfilePage';
 import CheckoutPage from './pages/CheckoutPage';
+import LeaderboardPage from './pages/LeaderboardPage';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
 import OnboardingPage from './pages/OnboardingPage';
@@ -120,6 +121,7 @@ const App: React.FC = () => {
                   <Route path="/signup" element={<SignUpPage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/driver-profile" element={<DriverProfilePage />} />
+                  <Route path="/leaderboard" element={<LeaderboardPage />} />
                   <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
                   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

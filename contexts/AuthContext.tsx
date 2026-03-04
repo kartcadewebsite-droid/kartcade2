@@ -41,6 +41,9 @@ interface UserProfile {
     credits: UserCredits;
     bonusCredits: BonusCredits;
     memberships: UserMembershipsMap;
+    // Fastest Lap
+    isPro?: boolean;
+    competitionWins?: { daily: number; weekly: number; monthly: number; total: number };
 }
 
 interface AuthContextType {
