@@ -62,6 +62,18 @@ const DashboardPage: React.FC = () => {
         }
     }, [location.state]);
 
+    // Lock body scroll when BTP modal is open to prevent background scrolling
+    useEffect(() => {
+        if (showBtpModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showBtpModal]);
+
     // Edit Profile State
     const [showEditModal, setShowEditModal] = useState(false);
     const [editFormData, setEditFormData] = useState({
@@ -126,7 +138,7 @@ const DashboardPage: React.FC = () => {
     const [adminPartyTab, setAdminPartyTab] = useState<'active' | 'archive'>('active');
 
     //  Lap Times State 
-    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com', 'devansh7704patel@gmail.com'];
+    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com'];
     const isSuperAdmin = !!(currentUser?.email && SUPER_ADMIN_EMAILS.includes(currentUser.email));
     const [myLapTimes, setMyLapTimes] = useState<any[]>([]);
     const [adminLapTimes, setAdminLapTimes] = useState<any[]>([]);
@@ -2258,7 +2270,7 @@ const DashboardPage: React.FC = () => {
                     {/* BTP Purchase Modal */}
                     {showBtpModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { if (!btpPurchasing) setShowBtpModal(false); }}>
-                            <div className="bg-[#141414] border border-[#FFD700]/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="bg-[#141414] border border-[#FFD700]/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-[#FFD700]/20" onClick={e => e.stopPropagation()}>
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-2">
                                         <Trophy className="w-5 h-5 text-[#FFD700]" />
