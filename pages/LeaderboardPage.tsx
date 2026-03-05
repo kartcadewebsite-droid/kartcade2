@@ -30,6 +30,7 @@ interface LapTime {
     status: 'pending' | 'approved' | 'rejected';
     submittedAt: Timestamp;
     competitionWins?: { daily: number; weekly: number; monthly: number; total: number };
+    challengeId?: string | null;
 }
 
 interface Competition {
@@ -156,6 +157,26 @@ const LeaderboardPage: React.FC = () => {
         return () => unsub();
     }, []);
 
+    // ── Active competition per type (with date range check) ────────────────
+    const getLocalToday = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const todayStr = getLocalToday();
+
+    const findActive = (type: 'daily' | 'weekly' | 'monthly') => {
+        return competitions.find(c =>
+            c.type === type &&
+            c.status === 'active' &&
+            c.startDate <= todayStr &&
+            c.endDate >= todayStr
+        );
+    };
+
+    const activeDaily = findActive('daily');
+    const activeWeekly = findActive('weekly');
+    const activeMonthly = findActive('monthly');
+
     // ── Cascade filter options (derived from live data) ───────────────────
     const allGames = [...new Set(allTimes.map(t => t.game).filter(Boolean))].sort();
     const tracksForGame = [...new Set(allTimes.filter(t => t.game === filterGame).map(t => t.track).filter(Boolean))].sort();
@@ -169,14 +190,29 @@ const LeaderboardPage: React.FC = () => {
         if (t.track !== filterTrack) return false;
         if (filterCar && t.car !== filterCar) return false;
 
-        // Period filter
+        // Period filter / Challenge ID filter
         if (competitionFilter !== 'all') {
-            const bounds = getPeriodBounds(competitionFilter);
-            if (bounds && t.submittedAt) {
-                const ts = t.submittedAt instanceof Timestamp
-                    ? t.submittedAt.toDate()
-                    : new Date(t.submittedAt as any);
-                if (ts < bounds.start || ts > bounds.end) return false;
+            const activeComp = competitionFilter === 'daily' ? activeDaily : competitionFilter === 'weekly' ? activeWeekly : activeMonthly;
+
+            if (activeComp) {
+                // STRICT CHECK: If there is an active challenge for this type, 
+                // only show entries that were specifically submitted for it
+                if (t.challengeId !== activeComp.id) return false;
+            } else {
+                // NO ACTIVE CHALLENGE for this type.
+                // We should EXCLUDE any entry that has a challengeId (because it belongs to some other challenge)
+                if (t.challengeId) return false;
+
+                // Fallback for general entries (no challengeId) that fall within the date range
+                const bounds = getPeriodBounds(competitionFilter);
+                if (bounds && t.submittedAt) {
+                    const ts = t.submittedAt instanceof Timestamp
+                        ? t.submittedAt.toDate()
+                        : new Date(t.submittedAt as any);
+                    if (ts < bounds.start || ts > bounds.end) return false;
+                } else {
+                    return false;
+                }
             }
         }
         return true;
@@ -220,25 +256,18 @@ const LeaderboardPage: React.FC = () => {
             : <ChevronDown size={12} className="text-[#2D9E49] inline ml-1" />;
     };
 
-    // ── Active competition per type (with date range check) ────────────────
-    const getLocalToday = () => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-    const todayStr = getLocalToday();
-
-    const findActive = (type: 'daily' | 'weekly' | 'monthly') => {
-        return competitions.find(c =>
-            c.type === type &&
-            c.status === 'active' &&
-            c.startDate <= todayStr &&
-            c.endDate >= todayStr
-        );
-    };
-
-    const activeDaily = findActive('daily');
-    const activeWeekly = findActive('weekly');
-    const activeMonthly = findActive('monthly');
+    // ── Default View Automation ───────────────────────────────────────────
+    useEffect(() => {
+        if (!loading && competitions.length > 0 && !filterGame && !filterTrack) {
+            const daily = findActive('daily');
+            if (daily) {
+                setFilterGame(daily.game);
+                setFilterTrack(daily.track);
+                setFilterCar(daily.car || '');
+                setCompetitionFilter('daily');
+            }
+        }
+    }, [loading, competitions]);
 
     const heroCards = [
         {
@@ -313,7 +342,18 @@ const LeaderboardPage: React.FC = () => {
                         return (
                             <button
                                 key={type}
-                                onClick={() => setCompetitionFilter(isActive ? 'all' : type)}
+                                onClick={() => {
+                                    if (isActive) {
+                                        setCompetitionFilter('all');
+                                    } else {
+                                        setCompetitionFilter(type);
+                                        if (comp) {
+                                            setFilterGame(comp.game);
+                                            setFilterTrack(comp.track);
+                                            setFilterCar(comp.car || '');
+                                        }
+                                    }
+                                }}
                                 className={`relative group rounded-2xl border-2 p-6 text-left transition-all duration-300 overflow-hidden
                                     ${isActive
                                         ? `${borderColor} bg-gradient-to-br ${bgGlow} to-transparent`
@@ -555,19 +595,24 @@ const LeaderboardPage: React.FC = () => {
                                                     )}
                                                 </div>
                                                 {/* Win badges */}
-                                                {wins && wins.total > 0 && (
+                                                {(wins && wins.total > 0 || entry.challengeId) && (
                                                     <div className="flex gap-1 mt-0.5 flex-wrap">
-                                                        {wins.daily > 0 && (
+                                                        {entry.challengeId && (
+                                                            <span className="text-[9px] font-bold uppercase tracking-tight bg-[#2D9E49]/20 text-[#2D9E49] px-1.5 py-0.5 rounded border border-[#2D9E49]/20">
+                                                                Challenge Entry
+                                                            </span>
+                                                        )}
+                                                        {wins && wins.daily > 0 && (
                                                             <span className="text-[10px] text-[#FFD700] bg-[#FFD700]/10 rounded px-1 py-0.5">
                                                                 🏆 {wins.daily}
                                                             </span>
                                                         )}
-                                                        {wins.weekly > 0 && (
+                                                        {wins && wins.weekly > 0 && (
                                                             <span className="text-[10px] text-[#C0C0C0] bg-[#C0C0C0]/10 rounded px-1 py-0.5">
                                                                 🥇 {wins.weekly}
                                                             </span>
                                                         )}
-                                                        {wins.monthly > 0 && (
+                                                        {wins && wins.monthly > 0 && (
                                                             <span className="text-[10px] text-[#CD7F32] bg-[#CD7F32]/10 rounded px-1 py-0.5">
                                                                 🎖️ {wins.monthly}
                                                             </span>

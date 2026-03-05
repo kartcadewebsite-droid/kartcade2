@@ -185,7 +185,7 @@ const DashboardPage: React.FC = () => {
     const [lapTimeSuccess, setLapTimeSuccess] = useState(false);
     const [editingCarId, setEditingCarId] = useState<string | null>(null);
     const [editingCarValue, setEditingCarValue] = useState('');
-    const [newComp, setNewComp] = useState({ type: 'daily', equipment: 'karts', game: '', track: '', car: '', referenceTime: '', startDate: '', endDate: '' });
+    const [newComp, setNewComp] = useState({ type: 'daily', equipment: 'karts', game: '', track: '', car: '', referenceTime: '', setByName: userProfile?.name || 'Admin', startDate: '', endDate: '' });
     const [compSubmitting, setCompSubmitting] = useState(false);
     // Give Credits (super-admin only)
     const [creditSearch, setCreditSearch] = useState('');
@@ -1000,7 +1000,7 @@ const DashboardPage: React.FC = () => {
         try {
             await addDoc(collection(db, 'competitions'), {
                 ...newComp,
-                setByName: userProfile?.name || 'Admin',
+                setByName: newComp.setByName || userProfile?.name || 'Admin',
                 referenceTimeMs: ms,
                 creditReward: newComp.type === 'daily' ? 1 : newComp.type === 'weekly' ? 3 : 5,
                 status: 'active',
@@ -1008,7 +1008,7 @@ const DashboardPage: React.FC = () => {
                 winnerName: null,
                 createdAt: serverTimestamp()
             });
-            setNewComp({ type: 'daily', equipment: 'karts', game: '', track: '', car: '', referenceTime: '', startDate: '', endDate: '' });
+            setNewComp({ type: 'daily', equipment: 'karts', game: '', track: '', car: '', referenceTime: '', setByName: userProfile?.name || 'Admin', startDate: '', endDate: '' });
         } catch { alert('Failed to create competition.'); }
         finally { setCompSubmitting(false); }
     };
@@ -1799,6 +1799,12 @@ const DashboardPage: React.FC = () => {
                                                                         <option value="motion">Motion Simulator</option>
                                                                         <option value="flight">Flight Simulator</option>
                                                                     </select>
+                                                                </div>
+                                                                <div className="space-y-1.5 sm:col-span-2">
+                                                                    <label className="text-[10px] font-bold text-white/30 uppercase ml-1">Pro / Setter Name</label>
+                                                                    <input type="text" value={newComp.setByName} onChange={e => setNewComp({ ...newComp, setByName: e.target.value })}
+                                                                        placeholder="e.g. Sarah or Mark Pro"
+                                                                        className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FFD700] transition-colors" />
                                                                 </div>
                                                             </div>
                                                         </div>
