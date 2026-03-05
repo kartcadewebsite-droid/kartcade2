@@ -41,6 +41,9 @@ interface UserProfile {
     credits: UserCredits;
     bonusCredits: BonusCredits;
     memberships: UserMembershipsMap;
+    // Beat the Pro Credits
+    btpCredits?: number;
+    lastBtpUsedAt?: Date | null;
     // Fastest Lap
     isPro?: boolean;
     competitionWins?: { daily: number; weekly: number; monthly: number; total: number };
@@ -74,6 +77,11 @@ interface AuthContextType {
     addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number, target?: 'membership' | 'bonus') => Promise<void>;
     getCredits: (equipmentType: 'kart' | 'rig' | 'motion') => number;
     hasEnoughCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => boolean;
+    // BTP Credits
+    getBtpCredits: () => number;
+    hasBtpCooldown: () => { active: boolean; availableAt?: Date };
+    useBtpCredit: () => Promise<boolean>;
+    addBtpCredit: (amount?: number) => Promise<void>;
     refreshUserProfile: () => Promise<void>;
 }
 
@@ -250,6 +258,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await refreshUserProfile();
     };
 
+    // ── BTP Credit Helpers ─────────────────────────────────────────────────
+    const BTP_COOLDOWN_HOURS = 15;
+
+    const getBtpCredits = (): number => {
+        return userProfile?.btpCredits || 0;
+    };
+
+    const hasBtpCooldown = (): { active: boolean; availableAt?: Date } => {
+        const raw = userProfile?.lastBtpUsedAt;
+        if (!raw) return { active: false };
+        const lastUsed = raw instanceof Date ? raw : (raw as any)?.toDate?.() || new Date(raw as any);
+        const availableAt = new Date(lastUsed.getTime() + BTP_COOLDOWN_HOURS * 60 * 60 * 1000);
+        if (new Date() < availableAt) return { active: true, availableAt };
+        return { active: false };
+    };
+
+    const useBtpCredit = async (): Promise<boolean> => {
+        if (!currentUser || !userProfile) return false;
+        if (getBtpCredits() <= 0) return false;
+        const cooldown = hasBtpCooldown();
+        if (cooldown.active) return false;
+
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, {
+            btpCredits: increment(-1),
+            lastBtpUsedAt: new Date()
+        });
+        await refreshUserProfile();
+        return true;
+    };
+
+    const addBtpCredit = async (amount: number = 1): Promise<void> => {
+        if (!currentUser) throw new Error('Not authenticated');
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, {
+            btpCredits: increment(amount)
+        });
+        await refreshUserProfile();
+    };
+
     // Sign up with email/password
     const signUp = async (
         email: string,
@@ -353,6 +401,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         addCredits,
         getCredits,
         hasEnoughCredits,
+        // BTP Credits
+        getBtpCredits,
+        hasBtpCooldown,
+        useBtpCredit,
+        addBtpCredit,
         refreshUserProfile,
     };
 

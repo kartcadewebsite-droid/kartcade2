@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { db } from '../config/firebase';
 import {
     collection,
@@ -100,15 +101,19 @@ function getPeriodBounds(type: CompetitionFilter): { start: Date; end: Date } | 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const LeaderboardPage: React.FC = () => {
-    const { isAdmin } = useAuth();
+    const { isAdmin, currentUser, getBtpCredits, hasBtpCooldown } = useAuth();
     const [allTimes, setAllTimes] = useState<LapTime[]>([]);
     const [competitions, setCompetitions] = useState<Competition[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [competitionFilter, setCompetitionFilter] = useState<CompetitionFilter>('all');
-    const [equipmentFilter, setEquipmentFilter] = useState<EquipmentFilter>('all');
     const [sortKey, setSortKey] = useState<SortKey>('lapTimeMs');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+    // Cascade filter state
+    const [filterGame, setFilterGame] = useState<string>('');
+    const [filterTrack, setFilterTrack] = useState<string>('');
+    const [filterCar, setFilterCar] = useState<string>('');
 
     // ── Live data fetch ────────────────────────────────────────────────────
     useEffect(() => {
@@ -151,10 +156,18 @@ const LeaderboardPage: React.FC = () => {
         return () => unsub();
     }, []);
 
+    // ── Cascade filter options (derived from live data) ───────────────────
+    const allGames = [...new Set(allTimes.map(t => t.game).filter(Boolean))].sort();
+    const tracksForGame = [...new Set(allTimes.filter(t => t.game === filterGame).map(t => t.track).filter(Boolean))].sort();
+    const carsForTrack = [...new Set(allTimes.filter(t => t.game === filterGame && t.track === filterTrack).map(t => t.car).filter(Boolean))].sort();
+
     // ── Filtering ─────────────────────────────────────────────────────────
     const filteredTimes = allTimes.filter(t => {
-        // Equipment filter
-        if (equipmentFilter !== 'all' && t.equipment !== equipmentFilter) return false;
+        // Cascade filter — only show table if game + track are both selected
+        if (!filterGame || !filterTrack) return false;
+        if (t.game !== filterGame) return false;
+        if (t.track !== filterTrack) return false;
+        if (filterCar && t.car !== filterCar) return false;
 
         // Period filter
         if (competitionFilter !== 'all') {
@@ -344,173 +357,266 @@ const LeaderboardPage: React.FC = () => {
                                     ) : (
                                         <p className="text-xs text-white/30">No active competition</p>
                                     )}
+
+                                    {/* ── Smart BTP CTA — daily card only ── */}
+                                    {type === 'daily' && (
+                                        <div className="mt-4" onClick={e => e.stopPropagation()}>
+                                            {(() => {
+                                                // Not logged in
+                                                if (!currentUser) return (
+                                                    <a href="/login?redirect=/beat-the-pro"
+                                                        className="flex items-center justify-center gap-2 w-full py-2 bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-white/20 transition-colors">
+                                                        Login to Participate
+                                                    </a>
+                                                );
+
+                                                const balance = getBtpCredits();
+                                                const cooldown = hasBtpCooldown();
+
+                                                // PRIORITIZE COOLDOWN check (User has a booking secured)
+                                                if (cooldown.active) return (
+                                                    <div className="space-y-1.5">
+                                                        <a href="/dashboard"
+                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
+                                                            Submit Your Lap Time
+                                                        </a>
+                                                        <p className="text-[9px] text-white/25 text-center">Session booked! Record your time and submit from Dashboard</p>
+                                                    </div>
+                                                );
+
+                                                // THEN check balance (No credit, no booking)
+                                                if (balance <= 0) return (
+                                                    <div className="space-y-1.5">
+                                                        <a href="/dashboard"
+                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
+                                                            Buy BTP Credit · $15
+                                                        </a>
+                                                        <p className="text-[9px] text-white/25 text-center">Buy a credit to book your challenge slot</p>
+                                                    </div>
+                                                );
+
+                                                // Has credit, no cooldown — ready to book
+                                                return (
+                                                    <div className="space-y-1.5">
+                                                        <a href="/beat-the-pro"
+                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
+                                                            Book Today's Session →
+                                                        </a>
+                                                        <p className="text-[9px] text-white/25 text-center">{balance} BTP credit{balance > 1 ? 's' : ''} ready · 30-min slot</p>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
                             </button>
                         );
                     })}
                 </div>
 
-                {/* ── Layer 2: Utility Controls ── */}
-                <div className="flex flex-wrap items-center gap-3 mb-6">
-                    {/* Equipment Tabs */}
-                    <div className="flex gap-1 bg-[#141414] border border-white/10 rounded-xl p-1">
-                        {(['all', 'karts', 'rigs', 'motion', 'flight'] as EquipmentFilter[]).map(eq => (
-                            <button
-                                key={eq}
-                                onClick={() => setEquipmentFilter(eq)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${equipmentFilter === eq
-                                    ? 'bg-[#2D9E49] text-white'
-                                    : 'text-white/40 hover:text-white/70'
-                                    }`}
+                {/* ── Layer 2: Cascade Filter Dropdowns ── */}
+                <div className="bg-[#141414] border border-white/10 rounded-2xl p-5 mb-6">
+                    <p className="text-xs uppercase tracking-widest text-white/30 mb-4 font-bold">Filter Lap Times</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Game */}
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Game *</label>
+                            <select
+                                value={filterGame}
+                                onChange={e => { setFilterGame(e.target.value); setFilterTrack(''); setFilterCar(''); }}
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer"
                             >
-                                {eq === 'all' ? 'All' : EQUIPMENT_LABELS[eq].split(' ')[0]}
-                            </button>
-                        ))}
+                                <option value="">Select a game...</option>
+                                {allGames.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Track */}
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Track *</label>
+                            <select
+                                value={filterTrack}
+                                onChange={e => { setFilterTrack(e.target.value); setFilterCar(''); }}
+                                disabled={!filterGame}
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <option value="">{filterGame ? 'Select a track...' : 'Select a game first'}</option>
+                                {tracksForGame.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Car (optional) */}
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Car <span className="text-white/20">(optional)</span></label>
+                            <select
+                                value={filterCar}
+                                onChange={e => setFilterCar(e.target.value)}
+                                disabled={!filterTrack}
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <option value="">All cars</option>
+                                {carsForTrack.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
                     </div>
 
-                    {/* All Time reset */}
-                    {competitionFilter !== 'all' && (
-                        <button
-                            onClick={() => setCompetitionFilter('all')}
-                            className="text-xs text-white/40 hover:text-white/70 underline transition-colors"
-                        >
-                            Show All Time
-                        </button>
+                    {/* Row 2: period filter + count */}
+                    {filterGame && filterTrack && (
+                        <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-white/5">
+                            <span className="text-[10px] uppercase tracking-widest text-white/20 mr-1">Period:</span>
+                            {(['all', 'daily', 'weekly', 'monthly'] as CompetitionFilter[]).map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setCompetitionFilter(p)}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all ${competitionFilter === p ? 'bg-[#2D9E49] text-white' : 'bg-white/5 text-white/40 hover:text-white/70'
+                                        }`}
+                                >
+                                    {p === 'all' ? 'All Time' : p}
+                                </button>
+                            ))}
+                            <div className="ml-auto text-xs text-white/30">
+                                {sorted.length} {sorted.length === 1 ? 'result' : 'results'}
+                            </div>
+                        </div>
                     )}
-
-                    <div className="ml-auto text-xs text-white/30">
-                        {sorted.length} {sorted.length === 1 ? 'time' : 'times'}
-                    </div>
                 </div>
 
                 {/* ── Leaderboard Table ── */}
                 {loading ? (
                     <div className="text-center py-20 text-white/30">Loading leaderboard...</div>
+                ) : !filterGame || !filterTrack ? (
+                    <div className="text-center py-20">
+                        <Trophy size={48} className="mx-auto mb-4 text-white/10" />
+                        <p className="text-white/30">Select a game and track to view lap times.</p>
+                        <p className="text-white/20 text-sm mt-1">Optionally filter by car to compare on a level playing field.</p>
+                    </div>
                 ) : sorted.length === 0 ? (
                     <div className="text-center py-20">
                         <Trophy size={48} className="mx-auto mb-4 text-white/10" />
-                        <p className="text-white/30">No approved lap times yet.</p>
-                        <p className="text-white/20 text-sm mt-1">Submit your fastest lap from your dashboard!</p>
+                        <p className="text-white/30">No approved lap times for this selection.</p>
+                        <p className="text-white/20 text-sm mt-1">Be the first to set a time on this track!</p>
                     </div>
                 ) : (
-                    <div className="rounded-2xl border border-white/10 overflow-hidden">
-                        {/* Table Header */}
-                        <div className={`grid ${isAdmin ? 'grid-cols-[40px_1fr_140px_120px_120px_120px_100px_40px]' : 'grid-cols-[40px_1fr_140px_120px_120px_120px_100px]'} gap-4 px-5 py-3 bg-[#141414] border-b border-white/10 text-xs uppercase tracking-widest text-white/30`}>
-                            <div className="text-center">#</div>
-                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('driverName')}>
-                                Driver <SortIcon k="driverName" />
-                            </button>
-                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('equipment')}>
-                                Equipment <SortIcon k="equipment" />
-                            </button>
-                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('game')}>
-                                Game <SortIcon k="game" />
-                            </button>
-                            <div>Track</div>
-                            <div>Car</div>
-                            <button className="text-right hover:text-white/60 transition-colors" onClick={() => toggleSort('lapTimeMs')}>
-                                Lap Time <SortIcon k="lapTimeMs" />
-                            </button>
-                            {isAdmin && <div className="text-center">Action</div>}
-                        </div>
+                    <div className="rounded-2xl border border-white/10 overflow-hidden overflow-x-auto">
+                        <div className="min-w-[960px]">
+                            {/* Table Header */}
+                            <div className={`grid ${isAdmin ? 'grid-cols-[40px_220px_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_220px_150px_130px_120px_120px_100px]'} gap-3 px-5 py-3 bg-[#141414] border-b border-white/10 text-xs uppercase tracking-widest text-white/30`}>
+                                <div className="text-center">#</div>
+                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('driverName')}>
+                                    Driver <SortIcon k="driverName" />
+                                </button>
+                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('equipment')}>
+                                    Equipment <SortIcon k="equipment" />
+                                </button>
+                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('game')}>
+                                    Game <SortIcon k="game" />
+                                </button>
+                                <div>Track</div>
+                                <div>Car</div>
+                                <button className="text-right hover:text-white/60 transition-colors" onClick={() => toggleSort('lapTimeMs')}>
+                                    Lap Time <SortIcon k="lapTimeMs" />
+                                </button>
+                                {isAdmin && <div className="text-center">Action</div>}
+                            </div>
 
-                        {/* Table Rows */}
-                        {sorted.map((entry, i) => {
-                            const eqColor = EQUIPMENT_COLORS[entry.equipment] || '#2D9E49';
-                            const wins = entry.competitionWins;
-                            const isTop3 = i < 3;
-                            const rankColors = ['text-[#FFD700]', 'text-[#C0C0C0]', 'text-[#CD7F32]'];
+                            {/* Table Rows */}
+                            {sorted.map((entry, i) => {
+                                const eqColor = EQUIPMENT_COLORS[entry.equipment] || '#2D9E49';
+                                const wins = entry.competitionWins;
+                                const isTop3 = i < 3;
+                                const rankColors = ['text-[#FFD700]', 'text-[#C0C0C0]', 'text-[#CD7F32]'];
 
-                            return (
-                                <div
-                                    key={entry.id}
-                                    className={`grid ${isAdmin ? 'grid-cols-[40px_1fr_140px_120px_120px_120px_100px_40px]' : 'grid-cols-[40px_1fr_140px_120px_120px_120px_100px]'} gap-4 px-5 py-4 items-center border-b border-white/5 transition-colors hover:bg-white/[0.02] ${isTop3 ? 'bg-white/[0.01]' : ''}`}
-                                >
-                                    {/* Rank */}
-                                    <div className={`font-display font-bold text-center text-lg ${isTop3 ? rankColors[i] : 'text-white/20'}`}>
-                                        {i + 1}
-                                    </div>
+                                return (
+                                    <div
+                                        key={entry.id}
+                                        className={`grid ${isAdmin ? 'grid-cols-[40px_220px_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_220px_150px_130px_120px_120px_100px]'} gap-3 px-5 py-4 items-center border-b border-white/5 transition-colors hover:bg-white/[0.02] ${isTop3 ? 'bg-white/[0.01]' : ''}`}
+                                    >
+                                        {/* Rank */}
+                                        <div className={`font-display font-bold text-center text-lg ${isTop3 ? rankColors[i] : 'text-white/20'}`}>
+                                            {i + 1}
+                                        </div>
 
-                                    {/* Driver */}
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        {entry.photoURL ? (
-                                            <img src={entry.photoURL} alt={entry.driverName} className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-white/10" />
-                                        ) : (
-                                            <div className="w-9 h-9 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center flex-shrink-0 text-white/30 text-xs font-bold">
-                                                {entry.driverName?.charAt(0)?.toUpperCase() || '?'}
-                                            </div>
-                                        )}
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-semibold text-sm truncate">{entry.driverName}</span>
-                                                {entry.isPro && (
-                                                    <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#FFD700] text-black">
-                                                        PRO
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {/* Win badges */}
-                                            {wins && wins.total > 0 && (
-                                                <div className="flex gap-1 mt-0.5 flex-wrap">
-                                                    {wins.daily > 0 && (
-                                                        <span className="text-[10px] text-[#FFD700] bg-[#FFD700]/10 rounded px-1 py-0.5">
-                                                            🏆 {wins.daily}
-                                                        </span>
-                                                    )}
-                                                    {wins.weekly > 0 && (
-                                                        <span className="text-[10px] text-[#C0C0C0] bg-[#C0C0C0]/10 rounded px-1 py-0.5">
-                                                            🥇 {wins.weekly}
-                                                        </span>
-                                                    )}
-                                                    {wins.monthly > 0 && (
-                                                        <span className="text-[10px] text-[#CD7F32] bg-[#CD7F32]/10 rounded px-1 py-0.5">
-                                                            🎖️ {wins.monthly}
+                                        {/* Driver */}
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {entry.photoURL ? (
+                                                <img src={entry.photoURL} alt={entry.driverName} className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-white/10" />
+                                            ) : (
+                                                <div className="w-9 h-9 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center flex-shrink-0 text-white/30 text-xs font-bold">
+                                                    {entry.driverName?.charAt(0)?.toUpperCase() || '?'}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-semibold text-sm truncate">{entry.driverName}</span>
+                                                    {entry.isPro && (
+                                                        <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#FFD700] text-black">
+                                                            PRO
                                                         </span>
                                                     )}
                                                 </div>
-                                            )}
+                                                {/* Win badges */}
+                                                {wins && wins.total > 0 && (
+                                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                        {wins.daily > 0 && (
+                                                            <span className="text-[10px] text-[#FFD700] bg-[#FFD700]/10 rounded px-1 py-0.5">
+                                                                🏆 {wins.daily}
+                                                            </span>
+                                                        )}
+                                                        {wins.weekly > 0 && (
+                                                            <span className="text-[10px] text-[#C0C0C0] bg-[#C0C0C0]/10 rounded px-1 py-0.5">
+                                                                🥇 {wins.weekly}
+                                                            </span>
+                                                        )}
+                                                        {wins.monthly > 0 && (
+                                                            <span className="text-[10px] text-[#CD7F32] bg-[#CD7F32]/10 rounded px-1 py-0.5">
+                                                                🎖️ {wins.monthly}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* Equipment */}
-                                    <div className="flex items-center gap-1.5 text-sm">
-                                        <EquipmentIcon type={entry.equipment} />
-                                        <span className="text-xs" style={{ color: eqColor }}>
-                                            {EQUIPMENT_LABELS[entry.equipment] || entry.equipment}
-                                        </span>
-                                    </div>
-
-                                    {/* Game */}
-                                    <div className="text-sm text-white/60 truncate">{entry.game}</div>
-
-                                    {/* Track */}
-                                    <div className="text-sm text-white/60 truncate">{entry.track}</div>
-
-                                    {/* Car */}
-                                    <div className="text-sm text-white/60 truncate">{entry.car}</div>
-
-                                    {/* Lap Time */}
-                                    <div className="text-right">
-                                        <span className={`font-display font-bold text-lg ${isTop3 ? rankColors[i] : 'text-white'}`}>
-                                            {entry.lapTime}
-                                        </span>
-                                    </div>
-
-                                    {/* Admin Action */}
-                                    {isAdmin && (
-                                        <div className="flex justify-center">
-                                            <button
-                                                onClick={() => handleDeleteLapTime(entry.id)}
-                                                className="p-1.5 text-white/20 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                                title="Delete entry"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                        {/* Equipment */}
+                                        <div className="flex items-center gap-1.5 text-sm">
+                                            <EquipmentIcon type={entry.equipment} />
+                                            <span className="text-xs" style={{ color: eqColor }}>
+                                                {EQUIPMENT_LABELS[entry.equipment] || entry.equipment}
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+
+                                        {/* Game */}
+                                        <div className="text-sm text-white/60 truncate">{entry.game}</div>
+
+                                        {/* Track */}
+                                        <div className="text-sm text-white/60 truncate">{entry.track}</div>
+
+                                        {/* Car */}
+                                        <div className="text-sm text-white/60 truncate">{entry.car}</div>
+
+                                        {/* Lap Time */}
+                                        <div className="text-right">
+                                            <span className={`font-display font-bold text-lg ${isTop3 ? rankColors[i] : 'text-white'}`}>
+                                                {entry.lapTime}
+                                            </span>
+                                        </div>
+
+                                        {/* Admin Action */}
+                                        {isAdmin && (
+                                            <div className="flex justify-center">
+                                                <button
+                                                    onClick={() => handleDeleteLapTime(entry.id)}
+                                                    className="p-1.5 text-white/20 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                    title="Delete entry"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 

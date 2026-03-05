@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import PayPalCheckout from '../components/PayPalCheckout';
 import { User, CreditCard, Calendar, Clock, LogOut, ArrowRight, Zap, X, AlertCircle, Gauge, Monitor, Rocket, Edit2, Save, DollarSign, Camera, Trash2, Users, RefreshCw, Database, Download, CheckCircle, XCircle, ChevronDown, ChevronUp, Trophy, Medal, Award } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { bookingApi } from '../config/booking';
@@ -22,6 +23,7 @@ import {
     doc,
     getDoc,
     updateDoc,
+    deleteField,
     documentId
 } from 'firebase/firestore';
 
@@ -40,7 +42,7 @@ interface Booking {
 
 const DashboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, logout, isAdmin, getCredits, updateProfile, refreshUserProfile } = useAuth();
+    const { currentUser, userProfile, logout, isAdmin, getCredits, updateProfile, refreshUserProfile, getBtpCredits, hasBtpCooldown, addBtpCredit } = useAuth();
 
     const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
     const [loadingBookings, setLoadingBookings] = useState(true);
@@ -48,6 +50,10 @@ const DashboardPage: React.FC = () => {
     const location = useLocation();
     const [successMessage, setSuccessMessage] = useState<string | null>(location.state?.message || null);
     const [error, setError] = useState<string | null>(location.state?.error || '');
+    // BTP purchase modal
+    const [showBtpModal, setShowBtpModal] = useState(false);
+    const [btpPurchasing, setBtpPurchasing] = useState(false);
+    const [btpSuccess, setBtpSuccess] = useState(false);
 
     // Clear navigation state to prevent repeated alerts
     useEffect(() => {
@@ -125,22 +131,60 @@ const DashboardPage: React.FC = () => {
     const [myLapTimes, setMyLapTimes] = useState<any[]>([]);
     const [adminLapTimes, setAdminLapTimes] = useState<any[]>([]);
     const [adminLapSubTab, setAdminLapSubTab] = useState<'pending' | 'competitions' | 'credits'>('pending');
+
+    const [lapCompetitions, setLapCompetitions] = useState<any[]>([]);
     const [lapTimeForm, setLapTimeForm] = useState({
         equipment: 'karts',
         game: '',
         track: '',
         car: '',
         lapTime: '',
-        challengeId: '' as string | null,
-        referenceTimeMs: 0 as number | null
+        challengeId: null as string | null,
+        referenceTimeMs: null as number | null
     });
     const lapFormRef = React.useRef<HTMLDivElement>(null);
+
+    // Handle ?submit=daily query param for automatic pre-fill from Leaderboard
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('submit') === 'daily' && lapCompetitions.length > 0) {
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+            const daily = lapCompetitions.find((c: any) =>
+                c.type === 'daily' &&
+                c.status === 'active' &&
+                c.startDate <= todayStr &&
+                c.endDate >= todayStr
+            );
+
+            if (daily) {
+                setLapTimeForm({
+                    equipment: daily.equipment,
+                    game: daily.game,
+                    track: daily.track,
+                    car: daily.car,
+                    lapTime: '',
+                    challengeId: daily.id,
+                    referenceTimeMs: daily.referenceTimeMs
+                });
+
+                // Clear the query param so it doesn't happen again on refresh
+                navigate('/dashboard', { replace: true });
+
+                // Scroll to form after a short delay for state to settle
+                setTimeout(() => {
+                    lapFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            }
+        }
+    }, [location.search, lapCompetitions, navigate]);
+
     const [lapTimeSubmitting, setLapTimeSubmitting] = useState(false);
     const [lapTimeError, setLapTimeError] = useState('');
     const [lapTimeSuccess, setLapTimeSuccess] = useState(false);
     const [editingCarId, setEditingCarId] = useState<string | null>(null);
     const [editingCarValue, setEditingCarValue] = useState('');
-    const [lapCompetitions, setLapCompetitions] = useState<any[]>([]);
     const [newComp, setNewComp] = useState({ type: 'daily', equipment: 'karts', game: '', track: '', car: '', referenceTime: '', startDate: '', endDate: '' });
     const [compSubmitting, setCompSubmitting] = useState(false);
     // Give Credits (super-admin only)
@@ -195,7 +239,7 @@ const DashboardPage: React.FC = () => {
                 const existing = existingMap.get(key);
 
                 if (existing) {
-                    // Update if status changed (e.g. now cancelled in sheet)
+                    // Update if status changed (e.e. now cancelled in sheet)
                     if (existing.status !== sheetStatus) {
                         await updateDoc(doc(db, 'transactions_log', existing.id), {
                             status: sheetStatus,
@@ -2151,7 +2195,142 @@ const DashboardPage: React.FC = () => {
                                 </Link>
                             </div>
                         )}
+                        {/* BTP Credits Row - always visible */}
+                        {(() => {
+                            const balance = getBtpCredits();
+                            const cooldown = hasBtpCooldown();
+                            return balance > 0 ? (
+                                /* Has credits — compact balance row */
+                                <div className="mt-3 p-3 bg-[#FFD700]/10 border border-[#FFD700]/20 rounded-xl">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Trophy className="w-4 h-4 text-[#FFD700]" />
+                                            <div>
+                                                <div className="text-white text-sm font-bold">BTP Credits</div>
+                                                {cooldown.active && cooldown.availableAt ? (
+                                                    <div className="text-[10px] text-yellow-400/60">Cooldown until {cooldown.availableAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                ) : (
+                                                    <div className="text-[10px] text-[#FFD700]/50">Ready to use</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-display font-bold text-[#FFD700] text-xl">{balance}</span>
+                                            <button onClick={() => setShowBtpModal(true)} className="text-[10px] text-[#FFD700]/50 hover:text-[#FFD700] underline underline-offset-2 transition-colors">
+                                                Buy more
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {!cooldown.active && (
+                                        <Link
+                                            to="/beat-the-pro"
+                                            className="mt-3 flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black rounded-lg text-xs font-black uppercase tracking-widest hover:bg-yellow-300 transition-colors"
+                                        >
+                                            Book My Slot <ArrowRight className="w-3.5 h-3.5" />
+                                        </Link>
+                                    )}
+                                </div>
+                            ) : (
+                                /* No credits — prominent CTA */
+                                <button
+                                    onClick={() => setShowBtpModal(true)}
+                                    className="mt-3 w-full flex items-center justify-between p-3 bg-[#FFD700]/10 border border-[#FFD700]/30 hover:border-[#FFD700]/60 hover:bg-[#FFD700]/15 rounded-xl transition-all group"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Trophy className="w-4 h-4 text-[#FFD700] group-hover:scale-110 transition-transform" />
+                                        <div className="text-left">
+                                            <div className="text-white text-sm font-bold">Buy +1 BTP Credit</div>
+                                            <div className="text-[10px] text-[#FFD700]/50">$15 per credit · 30-min session</div>
+                                        </div>
+                                    </div>
+                                    <ArrowRight className="w-4 h-4 text-[#FFD700]/50 group-hover:text-[#FFD700] group-hover:translate-x-0.5 transition-all" />
+                                </button>
+                            );
+                        })()}
                     </div>
+
+                    {/* BTP Purchase Modal */}
+                    {showBtpModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { if (!btpPurchasing) setShowBtpModal(false); }}>
+                            <div className="bg-[#141414] border border-[#FFD700]/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Trophy className="w-5 h-5 text-[#FFD700]" />
+                                        <h3 className="font-display font-bold text-white uppercase">Beat the Pro Credit</h3>
+                                    </div>
+                                    <button onClick={() => setShowBtpModal(false)} className="text-white/40 hover:text-white"><X className="w-4 h-4" /></button>
+                                </div>
+
+                                {btpSuccess ? (
+                                    <div className="text-center py-6">
+                                        <div className="w-16 h-16 bg-[#FFD700]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Trophy className="w-8 h-8 text-[#FFD700]" />
+                                        </div>
+                                        <p className="text-white font-bold text-lg mb-1">Credit Added!</p>
+                                        <p className="text-white/50 text-sm">Your BTP credit is ready to use.</p>
+                                        <button onClick={() => { setShowBtpModal(false); setBtpSuccess(false); }} className="mt-4 px-6 py-2 bg-[#FFD700] text-black font-bold rounded-full text-sm">Close</button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="bg-[#FFD700]/5 rounded-xl p-4 mb-4">
+                                            <div className="text-3xl font-display font-bold text-[#FFD700] mb-1">$15</div>
+                                            <p className="text-white/60 text-sm">1 × Beat the Pro Session Credit</p>
+                                            <ul className="mt-3 space-y-1 text-xs text-white/40">
+                                                <li>• Redeemable for one 30-min BTP booking</li>
+                                                <li>• 24-hour cooldown between uses</li>
+                                                <li>• Credits never expire</li>
+                                            </ul>
+                                        </div>
+                                        {/* PayPal Payment — handles $15 BTP credit purchase */}
+                                        <div className="mt-2">
+                                            <PayPalCheckout
+                                                amount={15}
+                                                metadata={{ type: 'btp_credit', userId: currentUser?.uid, userEmail: currentUser?.email }}
+                                                onSuccess={async (details) => {
+                                                    setBtpPurchasing(true);
+                                                    try {
+                                                        // 1. Add the credit to the user's account
+                                                        await addBtpCredit(1);
+
+                                                        // 2. Log to transactions_log for Adam's revenue tracking
+                                                        //    Using type: 'btp_credit' (never 'deposit') to avoid confusion
+                                                        try {
+                                                            await addDoc(collection(db, 'transactions_log'), {
+                                                                userId: currentUser?.uid || '',
+                                                                email: currentUser?.email || '',
+                                                                name: userProfile?.name || currentUser?.displayName || 'Unknown',
+                                                                type: 'btp_credit',
+                                                                calculatedPrice: 15,
+                                                                paymentMethod: 'paypal',
+                                                                paypalOrderId: details.id,
+                                                                status: 'confirmed',
+                                                                creditsAdded: 1,
+                                                                createdAt: serverTimestamp(),
+                                                            });
+                                                        } catch (logErr) {
+                                                            // Non-critical — credit is already added, just log the error
+                                                            console.error('[CRM] BTP credit log failed (non-critical):', logErr);
+                                                        }
+
+                                                        setBtpSuccess(true);
+                                                    } catch (err) {
+                                                        console.error('[BTP] Credit add failed after payment:', err);
+                                                        alert('Payment succeeded but credit add failed. Please contact support with PayPal Order ID: ' + details.id);
+                                                    } finally {
+                                                        setBtpPurchasing(false);
+                                                    }
+                                                }}
+                                                onError={(err) => {
+                                                    console.error('[BTP PayPal] Error:', err);
+                                                }}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-white/20 text-center mt-3">Secure payment via PayPal · $15 per credit</p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/*  Fastest Lap Submit (Repositioned) */}
                     <div className="bg-[#141414] rounded-2xl p-4 sm:p-6 border border-white/10 md:col-span-3">
@@ -2162,7 +2341,7 @@ const DashboardPage: React.FC = () => {
                             <a href="/leaderboard" className="text-xs text-[#2D9E49] hover:underline flex items-center gap-1">View Full Leaderboard <ArrowRight size={12} /></a>
                         </div>
                         <div className="grid md:grid-cols-2 gap-6">
-                            {/* Submit Form */}
+                            {/* Left Column: Challenges + Submit Form */}
                             <div className="space-y-4">
                                 {(() => {
                                     const d = new Date();
@@ -2222,23 +2401,109 @@ const DashboardPage: React.FC = () => {
                                                                 <div className="text-[9px] text-white/40 uppercase font-bold truncate">
                                                                     {comp.equipment} · {comp.track} · {comp.car}
                                                                 </div>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setLapTimeForm({
-                                                                            equipment: comp.equipment,
-                                                                            game: comp.game,
-                                                                            track: comp.track,
-                                                                            car: comp.car,
-                                                                            lapTime: '',
-                                                                            challengeId: comp.id,
-                                                                            referenceTimeMs: comp.referenceTimeMs
-                                                                        });
-                                                                        lapFormRef.current?.scrollIntoView({ behavior: 'smooth' });
-                                                                    }}
-                                                                    className="w-full py-1.5 bg-[#FFD700] text-black text-[10px] font-black uppercase rounded hover:bg-yellow-300 transition-colors"
-                                                                >
-                                                                    Join Challenge
-                                                                </button>
+
+                                                                {/* Smart CTA — daily = booking flow, weekly/monthly = lap form */}
+                                                                {type === 'daily' ? (() => {
+                                                                    const balance = getBtpCredits();
+                                                                    const cooldown = hasBtpCooldown();
+
+                                                                    // Check if user already submitted a lap for THIS booking session
+                                                                    const getMs = (date: any) => {
+                                                                        if (!date) return 0;
+                                                                        if (typeof date.toMillis === 'function') return date.toMillis();
+                                                                        if (date instanceof Date) return date.getTime();
+                                                                        return new Date(date).getTime() || 0;
+                                                                    };
+
+                                                                    const bookingStartMs = getMs(userProfile?.lastBtpUsedAt);
+                                                                    const alreadySubmitted = myLapTimes.some(lt =>
+                                                                        lt.challengeId === comp.id &&
+                                                                        getMs(lt.submittedAt) > bookingStartMs
+                                                                    );
+
+                                                                    // PRIORITIZE COOLDOWN check (User has a booking secured)
+                                                                    if (cooldown.active) {
+                                                                        if (alreadySubmitted) return (
+                                                                            <div className="space-y-1">
+                                                                                <button
+                                                                                    disabled
+                                                                                    className="w-full py-1.5 bg-white/5 text-white/20 text-[10px] font-black uppercase rounded cursor-not-allowed border border-white/5"
+                                                                                >
+                                                                                    Lap Already Submitted
+                                                                                </button>
+                                                                                <p className="text-[9px] text-[#2D9E49] text-center font-bold">Successfully entered for today!</p>
+                                                                            </div>
+                                                                        );
+
+                                                                        return (
+                                                                            <div className="space-y-1">
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setLapTimeForm({
+                                                                                            equipment: comp.equipment,
+                                                                                            game: comp.game,
+                                                                                            track: comp.track,
+                                                                                            car: comp.car,
+                                                                                            lapTime: '',
+                                                                                            challengeId: comp.id,
+                                                                                            referenceTimeMs: comp.referenceTimeMs
+                                                                                        });
+                                                                                        lapFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                                                                    }}
+                                                                                    className="w-full py-1.5 bg-[#FFD700] text-black text-[10px] font-black uppercase rounded hover:bg-yellow-300 transition-colors"
+                                                                                >
+                                                                                    Submit Your Lap Time
+                                                                                </button>
+                                                                                <p className="text-[9px] text-white/25 text-center">Session booked — enter time below</p>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    // THEN check balance (No credit, no booking)
+                                                                    if (balance <= 0) return (
+                                                                        <div className="space-y-1">
+                                                                            <Link
+                                                                                to="/dashboard"
+                                                                                onClick={e => e.stopPropagation()}
+                                                                                className="block w-full py-1.5 bg-[#FFD700] text-black text-[10px] font-black uppercase rounded hover:bg-yellow-300 transition-colors text-center"
+                                                                            >
+                                                                                Buy BTP Credit · $15
+                                                                            </Link>
+                                                                            <p className="text-[9px] text-white/25 text-center">Needed to book your slot</p>
+                                                                        </div>
+                                                                    );
+
+                                                                    // OTHERWISE ready to book
+                                                                    return (
+                                                                        <div className="space-y-1">
+                                                                            <Link
+                                                                                to="/beat-the-pro"
+                                                                                className="block w-full py-1.5 bg-[#FFD700] text-black text-[10px] font-black uppercase rounded hover:bg-yellow-300 transition-colors text-center"
+                                                                            >
+                                                                                Book Today's Session →
+                                                                            </Link>
+                                                                            <p className="text-[9px] text-white/25 text-center">{balance} credit ready · 30-min slot</p>
+                                                                        </div>
+                                                                    );
+                                                                })() : (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setLapTimeForm({
+                                                                                equipment: comp.equipment,
+                                                                                game: comp.game,
+                                                                                track: comp.track,
+                                                                                car: comp.car,
+                                                                                lapTime: '',
+                                                                                challengeId: comp.id,
+                                                                                referenceTimeMs: comp.referenceTimeMs
+                                                                            });
+                                                                            lapFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                                                        }}
+                                                                        className="w-full py-1.5 bg-[#FFD700] text-black text-[10px] font-black uppercase rounded hover:bg-yellow-300 transition-colors"
+                                                                    >
+                                                                        Join Challenge
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2269,8 +2534,10 @@ const DashboardPage: React.FC = () => {
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-xs text-white/40 mb-1">Equipment</label>
-                                                <select required value={lapTimeForm.equipment} onChange={e => setLapTimeForm({ ...lapTimeForm, equipment: e.target.value })}
-                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49]">
+                                                <select required value={lapTimeForm.equipment}
+                                                    disabled={!!lapTimeForm.challengeId}
+                                                    onChange={e => setLapTimeForm({ ...lapTimeForm, equipment: e.target.value })}
+                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <option value="karts">Racing Karts</option>
                                                     <option value="rigs">Full-Size Rigs</option>
                                                     <option value="motion">Motion Simulator</option>
@@ -2278,14 +2545,18 @@ const DashboardPage: React.FC = () => {
                                                 </select>
                                             </div>
                                             <div className="relative">
-                                                <label className="block text-xs text-white/40 mb-1">Game / Sim</label>
+                                                <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
+                                                    Game / Sim
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked to Challenge</span>}
+                                                </label>
                                                 <input
                                                     required
+                                                    disabled={!!lapTimeForm.challengeId}
                                                     value={lapTimeForm.game}
                                                     onChange={e => setLapTimeForm({ ...lapTimeForm, game: e.target.value })}
                                                     placeholder="Search or type game name..."
                                                     list="game-list"
-                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49]"
+                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                                 <datalist id="game-list">
                                                     {['Assetto Corsa', 'Assetto Corsa Competizione', 'iRacing', 'Gran Turismo 7', 'Gran Turismo Sport', 'Forza Motorsport', 'Forza Horizon 5', 'F1 24', 'F1 23', 'rFactor 2', 'Automobilista 2', 'Project CARS 3', 'BeamNG.drive', 'DIRT Rally 2.0', 'WRC Generations', 'RaceRoom Racing Experience', 'KartKraft', 'Kartsim', 'Richard Burns Rally'].map(g => (
@@ -2293,13 +2564,33 @@ const DashboardPage: React.FC = () => {
                                                     ))}
                                                 </datalist>
                                             </div>
-                                            <div>
-                                                <label className="block text-xs text-white/40 mb-1">Track</label>
-                                                <input required value={lapTimeForm.track} onChange={e => setLapTimeForm({ ...lapTimeForm, track: e.target.value })} placeholder="e.g. Spa-Francorchamps" className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49]" />
+                                            <div className="relative">
+                                                <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
+                                                    Track
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked</span>}
+                                                </label>
+                                                <input
+                                                    required
+                                                    disabled={!!lapTimeForm.challengeId}
+                                                    value={lapTimeForm.track}
+                                                    onChange={e => setLapTimeForm({ ...lapTimeForm, track: e.target.value })}
+                                                    placeholder="e.g. Spa Francorchamps"
+                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                />
                                             </div>
-                                            <div>
-                                                <label className="block text-xs text-white/40 mb-1">Car</label>
-                                                <input required value={lapTimeForm.car} onChange={e => setLapTimeForm({ ...lapTimeForm, car: e.target.value })} placeholder="e.g. Ferrari 488" className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49]" />
+                                            <div className="relative">
+                                                <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
+                                                    Car / Setup
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked</span>}
+                                                </label>
+                                                <input
+                                                    required
+                                                    disabled={!!lapTimeForm.challengeId}
+                                                    value={lapTimeForm.car}
+                                                    onChange={e => setLapTimeForm({ ...lapTimeForm, car: e.target.value })}
+                                                    placeholder="e.g. Ferrari 488 GT3"
+                                                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                />
                                             </div>
                                         </div>
                                         <div>
@@ -2329,77 +2620,78 @@ const DashboardPage: React.FC = () => {
                                         </button>
                                     </form>
                                 </div>
-                                {/* Submission History */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between pb-1 border-b border-white/5">
-                                        <p className="text-[10px] text-white/40 uppercase tracking-widest font-black">Latest Submissions</p>
-                                        <p className="text-[10px] text-white/20">{myLapTimes.length} Total</p>
-                                    </div>
+                            </div>
 
-                                    {myLapTimes.length === 0 && (
-                                        <div className="text-center py-8 bg-[#0A0A0A] rounded-xl border border-dashed border-white/5">
-                                            <p className="text-sm text-white/20">No submissions found</p>
-                                        </div>
-                                    )}
-
-                                    {/* Top 3 Featured */}
-                                    <div className="space-y-2">
-                                        {myLapTimes.slice(0, 3).map((lt: any) => (
-                                            <div key={lt.id} className="bg-gradient-to-r from-[#141414] to-[#0A0A0A] rounded-xl p-4 border border-white/10 hover:border-[#2D9E49]/30 transition-all shadow-lg group">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-[#2D9E49] shadow-[0_0_8px_rgba(45,158,73,0.5)]" />
-                                                        <span className="font-mono font-black text-xl text-white tracking-tighter group-hover:text-[#2D9E49] transition-colors">{lt.lapTime}</span>
-                                                    </div>
-                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md tracking-tighter shadow-sm blur-[0.3px] group-hover:blur-0 transition-all ${lt.status === 'approved' ? 'bg-[#2D9E49] text-white' :
-                                                        lt.status === 'rejected' ? 'bg-[#D42428] text-white' :
-                                                            'bg-[#FFD700] text-black'
-                                                        }`}>
-                                                        {lt.status}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center justify-between text-[10px]">
-                                                    <div className="text-white/60 truncate mr-2 font-medium">
-                                                        {lt.track}  {lt.car}
-                                                    </div>
-                                                    <div className="text-white/30 whitespace-nowrap tabular-nums">
-                                                        {lt.submittedAt?.toDate ? new Date(lt.submittedAt.toDate()).toLocaleDateString() : 'Just now'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Older History Scrollable */}
-                                    {myLapTimes.length > 3 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-[10px] text-white/20 uppercase tracking-widest font-bold">Past Activity</p>
-                                                <div className="h-[1px] flex-1 bg-white/5" />
-                                            </div>
-                                            <div className="max-h-[180px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
-                                                {myLapTimes.slice(3, 20).map((lt: any) => (
-                                                    <div key={lt.id} className="bg-[#0A0A0A] rounded-xl p-3 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between opacity-60 hover:opacity-100">
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-2 mb-0.5">
-                                                                <span className="font-mono font-bold text-sm text-white/80">{lt.lapTime}</span>
-                                                                <span className={`text-[8px] font-bold uppercase px-1.5 rounded-sm opacity-50 ${lt.status === 'approved' ? 'text-[#2D9E49]' : lt.status === 'rejected' ? 'text-[#D42428]' : 'text-[#FFD700]'}`}>
-                                                                    {lt.status}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-[9px] text-white/30 truncate uppercase tracking-tighter">
-                                                                {lt.track}  {lt.car}
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-[9px] text-white/20 whitespace-nowrap ml-4">
-                                                            {lt.submittedAt?.toDate ? new Date(lt.submittedAt.toDate()).toLocaleDateString() : 'Old'}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                            {/* Right Column: Submission History */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between pb-1 border-b border-white/5">
+                                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-black">Latest Submissions</p>
+                                    <p className="text-[10px] text-white/20">{myLapTimes.length} Total</p>
                                 </div>
+
+                                {myLapTimes.length === 0 && (
+                                    <div className="text-center py-8 bg-[#0A0A0A] rounded-xl border border-dashed border-white/5">
+                                        <p className="text-sm text-white/20">No submissions found</p>
+                                    </div>
+                                )}
+
+                                {/* Top 3 Featured */}
+                                <div className="space-y-2">
+                                    {myLapTimes.slice(0, 3).map((lt: any) => (
+                                        <div key={lt.id} className="bg-gradient-to-r from-[#141414] to-[#0A0A0A] rounded-xl p-4 border border-white/10 hover:border-[#2D9E49]/30 transition-all shadow-lg group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#2D9E49] shadow-[0_0_8px_rgba(45,158,73,0.5)]" />
+                                                    <span className="font-mono font-black text-xl text-white tracking-tighter group-hover:text-[#2D9E49] transition-colors">{lt.lapTime}</span>
+                                                </div>
+                                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md tracking-tighter shadow-sm blur-[0.3px] group-hover:blur-0 transition-all ${lt.status === 'approved' ? 'bg-[#2D9E49] text-white' :
+                                                    lt.status === 'rejected' ? 'bg-[#D42428] text-white' :
+                                                        'bg-[#FFD700] text-black'
+                                                    }`}>
+                                                    {lt.status}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <div className="text-white/60 truncate mr-2 font-medium">
+                                                    {lt.track}  {lt.car}
+                                                </div>
+                                                <div className="text-white/30 whitespace-nowrap tabular-nums">
+                                                    {lt.submittedAt?.toDate ? new Date(lt.submittedAt.toDate()).toLocaleDateString() : 'Just now'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Older History Scrollable */}
+                                {myLapTimes.length > 3 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-[10px] text-white/20 uppercase tracking-widest font-bold">Past Activity</p>
+                                            <div className="h-[1px] flex-1 bg-white/5" />
+                                        </div>
+                                        <div className="max-h-[180px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                                            {myLapTimes.slice(3, 20).map((lt: any) => (
+                                                <div key={lt.id} className="bg-[#0A0A0A] rounded-xl p-3 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between opacity-60 hover:opacity-100">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <span className="font-mono font-bold text-sm text-white/80">{lt.lapTime}</span>
+                                                            <span className={`text-[8px] font-bold uppercase px-1.5 rounded-sm opacity-50 ${lt.status === 'approved' ? 'text-[#2D9E49]' : lt.status === 'rejected' ? 'text-[#D42428]' : 'text-[#FFD700]'}`}>
+                                                                {lt.status}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-[9px] text-white/30 truncate uppercase tracking-tighter">
+                                                            {lt.track}  {lt.car}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-[9px] text-white/20 whitespace-nowrap ml-4">
+                                                        {lt.submittedAt?.toDate ? new Date(lt.submittedAt.toDate()).toLocaleDateString() : 'Old'}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -3105,7 +3397,7 @@ const DashboardPage: React.FC = () => {
                     )
                 }
             </div>
-        </div>
+        </div >
     );
 };
 

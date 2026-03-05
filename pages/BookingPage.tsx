@@ -5,7 +5,7 @@ import { useGSAP } from '@gsap/react';
 import {
     Calendar, Clock, Users, Phone, ArrowRight, ArrowLeft,
     CheckCircle, CreditCard, Wallet, Info, AlertTriangle,
-    Gauge, Monitor, Plane, Zap, Loader2, Shield, Gift, ArrowUpRight
+    Gauge, Monitor, Plane, Zap, Loader2, Shield, Gift, ArrowUpRight, Trophy
 } from 'lucide-react';
 import siteConfig from '../config/site';
 import { bookingConfig, bookingApi, isApiConfigured } from '../config/booking';
@@ -121,7 +121,7 @@ type EquipmentCart = {
 const BookingPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [isLiveMode, setIsLiveMode] = useState(isApiConfigured());
-    const { currentUser, userProfile, isAdmin, getCredits, useCredits, hasEnoughCredits } = useAuth();
+    const { currentUser, userProfile, isAdmin, getCredits, useCredits, hasEnoughCredits, getBtpCredits, hasBtpCooldown, useBtpCredit } = useAuth();
 
     // Booking state
     const [searchParams] = useSearchParams();
@@ -151,7 +151,7 @@ const BookingPage: React.FC = () => {
 
     // SECURITY FIX: Default to 'deposit' instead of 'venue' to prevent accidental unpaid bookings.
     // 'venue' is restricted to Admins only, so it should never be the default state.
-    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits' | 'paypal'>('deposit');
+    const [paymentMethod, setPaymentMethod] = useState<'now' | 'venue' | 'deposit' | 'credits' | 'paypal' | 'btp_credit'>('deposit');
 
     const [availability, setAvailability] = useState<{ [key: string]: { booked: number; available: number; total: number } }>({});
     const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
@@ -196,6 +196,11 @@ const BookingPage: React.FC = () => {
     const totalCartDrivers = getTotalDrivers();
     const availableCredits = equipmentType ? getCredits(equipmentType) : 0;
     const canUseCredits = equipmentType && isSingleTypeCart && hasEnoughCredits(equipmentType, totalCartDrivers * duration);
+
+    // BTP credit availability (needs 30min duration, credit in wallet, no active cooldown)
+    const btpBalance = getBtpCredits();
+    const btpCooldown = hasBtpCooldown();
+    const canUseBtpCredit = !isAdmin && btpBalance > 0 && duration === 0.5;
 
     // Auto-fill user details if logged in (but NOT for admins, so they can enter customer data)
     useEffect(() => {
@@ -1069,10 +1074,10 @@ const BookingPage: React.FC = () => {
                                                         }
                                                     }}
                                                     className={`w-full bg-[#141414] border rounded-xl px-4 py-4 text-white focus:outline-none transition-colors ${formErrors.phone
-                                                            ? 'border-red-500 focus:border-red-500'
-                                                            : (currentUser && !isAdmin && !userProfile?.phone)
-                                                                ? 'border-yellow-500/50 focus:border-yellow-400'
-                                                                : 'border-white/10 focus:border-[#2D9E49]'
+                                                        ? 'border-red-500 focus:border-red-500'
+                                                        : (currentUser && !isAdmin && !userProfile?.phone)
+                                                            ? 'border-yellow-500/50 focus:border-yellow-400'
+                                                            : 'border-white/10 focus:border-[#2D9E49]'
                                                         }`}
                                                     placeholder="Enter your phone number"
                                                 />
@@ -1230,6 +1235,43 @@ const BookingPage: React.FC = () => {
                                                                 }
                                                             </div>
                                                         </div>
+                                                    </div>
+                                                )}
+
+                                                {/* BTP Credit Option — only shown for 30-min slots */}
+                                                {!isAdmin && btpBalance > 0 && duration === 0.5 && (
+                                                    <button
+                                                        onClick={() => !btpCooldown.active && setPaymentMethod('btp_credit')}
+                                                        disabled={btpCooldown.active}
+                                                        className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${paymentMethod === 'btp_credit'
+                                                            ? 'border-[#FFD700] bg-[#FFD700]/10'
+                                                            : btpCooldown.active
+                                                                ? 'border-[#FFD700]/20 opacity-50 cursor-not-allowed'
+                                                                : 'border-[#FFD700]/30 hover:border-[#FFD700]/60 bg-[#FFD700]/5'
+                                                            }`}
+                                                    >
+                                                        <Trophy className="w-6 h-6 text-[#FFD700]" />
+                                                        <div className="flex-1">
+                                                            <div className="font-bold text-[#FFD700] flex items-center gap-2">
+                                                                Beat the Pro Credit
+                                                                <span className="text-[10px] bg-[#FFD700] text-black px-2 py-0.5 rounded-full uppercase font-bold">BTP</span>
+                                                            </div>
+                                                            <div className="text-sm text-white/50">
+                                                                {btpCooldown.active && btpCooldown.availableAt
+                                                                    ? `Cooldown active — available at ${btpCooldown.availableAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                                    : `${btpBalance} credit${btpBalance !== 1 ? 's' : ''} in wallet · 30-min BTP session`
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[#FFD700] font-bold">FREE</div>
+                                                    </button>
+                                                )}
+
+                                                {/* Show BTP hint if user has credits but selected wrong duration */}
+                                                {!isAdmin && btpBalance > 0 && duration !== 0.5 && (
+                                                    <div className="p-3 rounded-xl border border-[#FFD700]/20 bg-[#FFD700]/5 flex items-center gap-3">
+                                                        <Trophy className="w-5 h-5 text-[#FFD700]/50 flex-shrink-0" />
+                                                        <p className="text-xs text-white/40">You have {btpBalance} BTP credit{btpBalance !== 1 ? 's' : ''}. Select a 30-min duration to use it.</p>
                                                     </div>
                                                 )}
 

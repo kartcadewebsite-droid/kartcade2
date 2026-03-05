@@ -38,6 +38,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
 import OnboardingPage from './pages/OnboardingPage';
+import BeatTheProPage from './pages/BeatTheProPage';
 
 // Context
 import { AuthProvider } from './contexts/AuthContext';
@@ -112,6 +113,7 @@ const App: React.FC = () => {
                   <Route path="/contact" element={<Contact />} />
                   <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
                   <Route path="/book-party" element={<ProtectedRoute><PartyBookingPage /></ProtectedRoute>} />
+                  <Route path="/beat-the-pro" element={<ProtectedRoute><BeatTheProPage /></ProtectedRoute>} />
                   <Route path="/gallery" element={<GalleryPage />} />
                   <Route path="/cancel" element={<CancelPage />} />
                   <Route path="/rules" element={<RulesPage />} />
