@@ -83,17 +83,18 @@ const BeatTheProPage: React.FC = () => {
 
                 const q = query(
                     collection(db, 'competitions'),
-                    where('type', '==', 'daily')
+                    where('type', '==', 'daily'),
+                    where('status', '==', 'active')
                 );
                 const snap = await getDocs(q);
                 if (!snap.empty) {
                     // Find the first competition whose date range covers today
-                    const match = snap.docs.find(doc => {
-                        const comp = doc.data();
+                    // Using .reverse() to pick the LATEST active competition if multiple exist
+                    const match = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse().find((comp: any) => {
                         return comp.startDate <= todayStr && comp.endDate >= todayStr;
                     });
                     if (match) {
-                        setChallenge({ id: match.id, ...match.data() });
+                        setChallenge(match);
                     }
                 }
             } catch (e) {
