@@ -192,10 +192,7 @@ const GalleryPage: React.FC = () => {
             {/* Videos Section */}
             <section className="py-20 px-6 md:px-12 bg-black/40">
                 <div className="max-w-6xl mx-auto">
-                    <div className="flex items-center gap-4 mb-10">
-                        <h2 className="text-3xl font-bold tracking-tight uppercase font-display">Cinema</h2>
-                        <div className="h-px flex-1 bg-white/5" />
-                    </div>
+                    <div className="h-px w-full bg-white/5 mb-10" />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {videos.map((video, index) => (
                             <div key={index} className="relative overflow-hidden rounded-[2.5rem] aspect-video group border border-white/10 shadow-2xl">
@@ -219,15 +216,12 @@ const GalleryPage: React.FC = () => {
             {/* Dynamic Photos Section (Masonry) */}
             <section className="py-24 px-6 md:px-12">
                 <div className="max-w-6xl mx-auto">
-                    <div className="flex items-center gap-4 mb-12">
-                        <h2 className="text-3xl font-bold tracking-tight uppercase font-display">Atmosphere</h2>
-                        <div className="h-px flex-1 bg-white/5" />
-                    </div>
+                    <div className="h-px w-full bg-white/5 mb-12" />
 
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-white/20">
                             <Loader2 className="w-10 h-10 animate-spin mb-4" />
-                            <p className="text-sm font-bold uppercase tracking-widest text-white/40">Loading Atmosphere...</p>
+                            <p className="text-sm font-bold uppercase tracking-widest text-white/40">Loading Gallery...</p>
                         </div>
                     ) : photos.length > 0 ? (
                         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
@@ -282,7 +276,7 @@ const GalleryPage: React.FC = () => {
                         WANT TO BE IN THE <span className="text-[#D42428]">FRAME?</span>
                     </h2>
                     <p className="text-white/60 text-lg md:text-xl mb-12 font-medium max-w-2xl mx-auto leading-relaxed">
-                        Book your session, hit the track, and maybe you'll spot yourself on our next atmosphere update.
+                        Book your session, hit the track, and maybe you'll spot yourself on our next gallery update.
                     </p>
                     <Link
                         to="/book"

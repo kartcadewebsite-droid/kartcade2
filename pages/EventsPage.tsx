@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { Calendar, Users, Trophy, Gift, Phone, ArrowRight, Cake, Building2, Gamepad2 } from 'lucide-react';
+import { Calendar, Users, Trophy, Gift, Phone, ArrowRight, Cake, Building2, Gamepad2, ArrowUpRight } from 'lucide-react';
 import siteConfig from '../config/site';
 
 const eventPackages = [
@@ -164,6 +164,37 @@ const EventsPage: React.FC = () => {
                                 <p className="text-white/60 text-sm">{item.desc}</p>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Private Party Upsell Banner */}
+            <section className="py-20 px-6 md:px-12">
+                <div className="max-w-4xl mx-auto">
+                    <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-[#D42428]/50 to-amber-500/50 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                        <div className="relative bg-[#0A0A0A] border border-[#D42428]/30 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden">
+                            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-[#D42428]/5 rounded-full blur-3xl"></div>
+
+                            <div className="flex-1 text-center md:text-left z-10">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D42428]/10 border border-[#D42428]/20 text-[#D42428] text-[10px] font-bold uppercase tracking-widest mb-3">
+                                    <Gift className="w-3 h-3" /> Exclusive Event
+                                </div>
+                                <h3 className="font-display text-xl sm:text-2xl font-bold uppercase mb-2">
+                                    Hosting a Large Group?
+                                </h3>
+                                <p className="text-white/60 text-sm sm:text-base">
+                                    Rent the <span className="text-white font-bold">entire venue</span> for a private party! Premium racing, priority queue, and elite amenities.
+                                </p>
+                            </div>
+
+                            <Link
+                                to="/book-party"
+                                className="group/btn relative inline-flex items-center gap-3 px-8 py-4 bg-white text-black rounded-full font-bold uppercase tracking-widest text-xs hover:bg-[#D42428] hover:text-white transition-all duration-300 z-10"
+                            >
+                                Book Private Party <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </section>

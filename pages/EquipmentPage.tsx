@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -11,7 +11,7 @@ const equipment = [
         subtitle: "5 Units",
         icon: <Gauge className="w-12 h-12" />,
         image: "/images/kartcade/karts.webp",
-        description: "Our racing karts are designed for younger drivers and anyone under about 5'6\". These setups provide comfortable seating positions and adjusted controls, making them perfect for kids and teens who want the full racing experience.",
+        description: "Our racing karts are designed for younger drivers and anyone under about 6'3\". These setups provide comfortable seating positions and adjusted controls, making them perfect for kids and teens who want the full racing experience.",
         specs: [
             { label: "Ages", value: "5+ (Adjustable cockpits)" },
             { label: "Experience", value: "Beginner-friendly" },
@@ -26,7 +26,7 @@ const equipment = [
         subtitle: "4 Units",
         icon: <Monitor className="w-12 h-12" />,
         image: "/images/equipment/Rigs/IMG_0505.webp",
-        description: "These are our workhorsesΓÇöprofessional-quality racing simulators with direct-drive force feedback wheels, load cell pedals, and comfortable racing seats. These rigs can handle everything from gentle cruising in American Truck Simulator to white-knuckle racing in Le Mans Ultimate.",
+        description: "These are our workhorses—professional-quality racing simulators with direct-drive force feedback wheels, load cell pedals, and comfortable racing seats. These rigs can handle everything from gentle cruising in American Truck Simulator to white-knuckle racing in Le Mans Ultimate.",
         specs: [
             { label: "Wheelbase", value: "Fanatec direct-drive (12-20nm)" },
             { label: "Weight Limit", value: "~300 lbs for comfort" },
@@ -111,7 +111,7 @@ const EquipmentPage: React.FC = () => {
                         <span className="text-[#D42428]">Equipment</span>
                     </h1>
                     <p className="equip-hero-text text-lg md:text-xl text-white/70 max-w-md leading-relaxed mb-8">
-                        10 simulators total. Something for everyoneΓÇöfrom kids to pros.
+                        10 simulators total. Something for everyone—from kids to pros.
                     </p>
 
                     {/* Stats */}
