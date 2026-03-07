@@ -6,18 +6,18 @@ import { bookingConfig } from '../config/booking';
  * Parses station string to extract equipment details
  * Format: "Racing Karts:3 (2h)" or "Karts:2, Rigs:1 (2h)"
  */
-export function parseStationString(station: string): {
+export const parseStationString = (stationStr: string): {
     equipment: { type: string; quantity: number }[],
     duration: number
-} {
-    const equipment: { type: string; quantity: number }[] = [];
+} => {
+    const equipment: Array<{ type: string; quantity: number }> = [];
 
-    // Extract duration (e.g., "(2h)")
-    const durationMatch = station.match(/\((\d+)h\)/);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 1;
+    // Extract duration - Updated to support decimals like 0.5h
+    const durationMatch = String(stationStr).match(/\(([\d.]+)h\)/);
+    const duration = durationMatch ? parseFloat(durationMatch[1]) : 1;
 
-    // Remove duration from string
-    const equipmentString = station.replace(/\(\d+h\)/, '').trim();
+    // Remove duration from string - Updated to support decimals
+    const equipmentString = String(stationStr).replace(/\([\d.]+h\)/, '').trim();
 
     // Split by comma for multi-equipment bookings
     const items = equipmentString.split(',');
@@ -78,26 +78,25 @@ export function calculateTotalCost(station: string): number {
 /**
  * Calculate amount paid based on payment method
  */
-export function calculatePaidAmount(paymentMethod: string, totalCost: number): number {
+export const calculatePaidAmount = (paymentMethod: string, totalCost: number) => {
     const method = String(paymentMethod || 'venue').toLowerCase().trim();
 
-    // Check for various forms of online payment
+    // Check for deposits first (including paypal_deposit)
+    if (method === 'paypal_deposit' || method === 'deposit' || method.indexOf('deposit') !== -1) {
+        return Math.round(totalCost * 0.5);
+    }
+
     if (method === 'paypal' ||
-        method.includes('paypal') ||
+        method.indexOf('paypal') !== -1 ||
         method === 'credits' ||
-        method.includes('credit') ||
+        method.indexOf('credit') !== -1 ||
         method === 'stripe' ||
         method === 'online') {
         return totalCost; // Paid in full
     }
 
-    if (method === 'deposit' || method.includes('deposit')) {
-        return totalCost * 0.5; // 50% deposit
-    }
-
-    // Default to unpaid/venue payment
-    return 0;
-}
+    return 0; // Pay at venue
+};
 
 /**
  * Get payment status display information
