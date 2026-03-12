@@ -9,9 +9,11 @@ import {
     onSnapshot,
     Timestamp
 } from 'firebase/firestore';
-import { Trophy, Medal, Award, ChevronUp, ChevronDown, Clock, Gauge, Monitor, Rocket, Zap, Trash2, Calendar } from 'lucide-react';
+import { Trophy, Medal, Award, ChevronUp, ChevronDown, Clock, Gauge, Monitor, Rocket, Zap, Trash2, Calendar, Filter, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { deleteDoc, doc } from 'firebase/firestore';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,12 @@ function getPeriodBounds(type: CompetitionFilter, offset: number = 0): { start: 
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
+
+const CalendarInput = React.forwardRef<HTMLButtonElement, any>(({ value, onClick }, ref) => (
+    <button onClick={onClick} ref={ref} className="px-2 py-1.5 rounded-lg text-white/20 hover:text-white/40">
+        <Calendar size={14} />
+    </button>
+));
 
 const LeaderboardPage: React.FC = () => {
     const { isAdmin, currentUser, getBtpCredits, hasBtpCooldown } = useAuth();
@@ -258,13 +266,264 @@ const LeaderboardPage: React.FC = () => {
 
     // ── Default View Automation ───────────────────────────────────────────
     useEffect(() => {
-        // Adam requested: Default the view to overall leaderboard on load.
-        // We ensure all filters are cleared.
         if (!loading && !filterGame && !filterTrack) {
             setCompetitionFilter('all');
             setPeriodOffset(0);
         }
     }, [loading]);
+
+    // ── Helper Renders ───────────────────────────────────────────────────
+
+    const renderBtpCta = (type: CompetitionFilter) => {
+        if (!currentUser) return (
+            <Link to="/login?redirect=/beat-the-pro"
+                className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                Login to Participate
+            </Link>
+        );
+
+        const balance = getBtpCredits();
+        const cooldown = hasBtpCooldown();
+        if (cooldown.active) return (
+            <Link to="/dashboard"
+                className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                Submit Your Lap Time
+            </Link>
+        );
+
+        if (balance <= 0) return (
+            <Link to="/dashboard"
+                className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                Buy BTP Credit · $15
+            </Link>
+        );
+
+        return (
+            <Link to="/beat-the-pro"
+                className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                Book Today's Session →
+            </Link>
+        );
+    };
+
+    const renderLeaderboardContent = (isAccordion = false) => (
+        <>
+            {/* Cascade Filter Dropdowns */}
+            <div className={`bg-[#141414] border border-white/10 rounded-2xl p-4 sm:p-5 mb-6 ${isAccordion ? 'mx-0 sm:mx-1' : ''}`}>
+                <p className="text-[10px] uppercase tracking-widest text-white/30 mb-4 font-bold">Filter Lap Times</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Game */}
+                    <div>
+                        <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5 font-bold">Game *</label>
+                        <select
+                            value={filterGame}
+                            onChange={e => { setFilterGame(e.target.value); setFilterTrack(''); setFilterCar(''); }}
+                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer"
+                        >
+                            <option value="">Select a game...</option>
+                            {allGames.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Track */}
+                    <div>
+                        <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5 font-bold">Track *</label>
+                        <select
+                            value={filterTrack}
+                            onChange={e => { setFilterTrack(e.target.value); setFilterCar(''); }}
+                            disabled={!filterGame}
+                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <option value="">{filterGame ? 'Select a track...' : 'Select a game first'}</option>
+                            {tracksForGame.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Car (optional) */}
+                    <div>
+                        <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5 font-bold">Car <span className="text-white/20">(optional)</span></label>
+                        <select
+                            value={filterCar}
+                            onChange={e => setFilterCar(e.target.value)}
+                            disabled={!filterTrack}
+                            className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <option value="">All cars</option>
+                            {carsForTrack.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Row 2: period filter + count */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 mt-6 pt-5 border-t border-white/5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <span className="text-[10px] uppercase tracking-widest text-white/20 font-bold">Range:</span>
+                        <div className="flex bg-black/30 p-1 rounded-xl border border-white/5 overflow-x-auto scrollbar-hide">
+                            {(['all', 'daily', 'weekly', 'monthly'] as CompetitionFilter[]).map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => { setCompetitionFilter(p); setPeriodOffset(0); }}
+                                    className={`px-3 sm:px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex-shrink-0 ${competitionFilter === p ? 'bg-[#2D9E49] text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                >
+                                    {p === 'all' ? 'All Time' : p}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {competitionFilter !== 'all' && (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+                            <span className="text-[10px] uppercase tracking-widest text-white/20 font-bold flex-shrink-0">Period:</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex bg-black/30 p-1 rounded-xl border border-white/5 text-[10px] font-bold uppercase tracking-widest overflow-x-auto scrollbar-hide">
+                                    <button
+                                        onClick={() => setPeriodOffset(0)}
+                                        className={`px-3 sm:px-4 py-1.5 rounded-lg transition-all ${periodOffset === 0 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'} flex-shrink-0`}
+                                    >
+                                        {competitionFilter === 'daily' ? 'Today' : competitionFilter === 'weekly' ? 'This Week' : 'This Month'}
+                                    </button>
+                                    <button
+                                        onClick={() => setPeriodOffset(-1)}
+                                        className={`px-3 sm:px-4 py-1.5 rounded-lg transition-all ${periodOffset === -1 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'} flex-shrink-0`}
+                                    >
+                                        {competitionFilter === 'daily' ? 'Yesterday' : competitionFilter === 'weekly' ? 'Last Week' : 'Last Month'}
+                                    </button>
+                                </div>
+                                
+                                <div className="relative flex items-center flex-shrink-0 bg-black/30 p-1 rounded-xl border border-white/5 z-50">
+                                    <DatePicker
+                                        selected={(() => {
+                                            const bounds = getPeriodBounds(competitionFilter, periodOffset);
+                                            return bounds ? bounds.start : new Date();
+                                        })()}
+                                        onChange={(date: Date) => {
+                                            if (!date) return;
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0);
+                                            const selected = new Date(date);
+                                            selected.setHours(0, 0, 0, 0);
+                                            
+                                            const diffMs = selected.getTime() - today.getTime();
+                                            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                                            
+                                            if (competitionFilter === 'daily') setPeriodOffset(diffDays);
+                                            else if (competitionFilter === 'weekly') setPeriodOffset(Math.floor(diffDays / 7));
+                                            else if (competitionFilter === 'monthly') {
+                                                const months = (selected.getFullYear() - today.getFullYear()) * 12 + (selected.getMonth() - today.getMonth());
+                                                setPeriodOffset(months);
+                                            }
+                                        } }
+                                        customInput={<CalendarInput />}
+                                        popperPlacement="bottom-end"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="sm:ml-auto flex items-center">
+                        <div className="text-[10px] uppercase tracking-widest text-white/20 font-bold">
+                            {sorted.length} {sorted.length === 1 ? 'Record' : 'Records'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Leaderboard Table Container */}
+            {loading ? (
+                <div className="text-center py-20 text-white/30">Loading leaderboard...</div>
+            ) : sorted.length === 0 ? (
+                <div className="text-center py-20">
+                    <Trophy size={48} className="mx-auto mb-4 text-white/10" />
+                    <p className="text-white/30 text-sm">No approved lap times match your filters.</p>
+                </div>
+            ) : (
+                <div className="rounded-2xl border border-white/10 overflow-hidden">
+                    <div className="overflow-x-auto overflow-y-auto max-h-[60vh] custom-scrollbar">
+                        <div className={`min-w-[920px] ${isAdmin ? 'min-w-[960px]' : ''}`}>
+                        {/* Table Header */}
+                        <div className={`sticky top-0 z-10 grid ${isAdmin ? 'grid-cols-[40px_minmax(220px,1fr)_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_minmax(220px,1fr)_150px_130px_120px_120px_100px]'} gap-3 px-5 py-3 bg-[#141414] border-b border-white/10 text-[10px] uppercase tracking-widest text-white/30`}>
+                            <div className="text-center">#</div>
+                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('driverName')}>
+                                Driver <SortIcon k="driverName" />
+                            </button>
+                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('equipment')}>
+                                Equipment <SortIcon k="equipment" />
+                            </button>
+                            <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('game')}>
+                                Game <SortIcon k="game" />
+                            </button>
+                            <div>Track</div>
+                            <div>Car</div>
+                            <button className="text-right hover:text-white/60 transition-colors" onClick={() => toggleSort('lapTimeMs')}>
+                                Lap Time <SortIcon k="lapTimeMs" />
+                            </button>
+                            {isAdmin && <div className="text-center">Action</div>}
+                        </div>
+
+                        {/* Table Rows */}
+                        <div className="flex flex-col">
+                            {sorted.map((entry, i) => {
+                                const eqColor = EQUIPMENT_COLORS[entry.equipment] || '#2D9E49';
+                                const wins = entry.competitionWins;
+                                const isTop3 = i < 3;
+                                const rankColors = ['text-[#FFD700]', 'text-[#C0C0C0]', 'text-[#CD7F32]'];
+
+                                return (
+                                    <div
+                                        key={entry.id}
+                                        className={`grid ${isAdmin ? 'grid-cols-[40px_minmax(220px,1fr)_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_minmax(220px,1fr)_150px_130px_120px_120px_100px]'} gap-3 px-5 py-4 items-center border-b border-white/5 transition-colors hover:bg-white/[0.02] ${isTop3 ? 'bg-white/[0.01]' : ''}`}
+                                    >
+                                        <div className={`font-display font-bold text-center text-lg ${isTop3 ? rankColors[i] : 'text-white/20'}`}>
+                                            {i + 1}
+                                        </div>
+
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {entry.photoURL ? (
+                                                <img src={entry.photoURL} alt={entry.driverName} className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-white/10" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center flex-shrink-0 text-white/30 text-xs font-bold">
+                                                    {entry.driverName?.charAt(0)?.toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-semibold text-sm truncate">{entry.driverName}</span>
+                                                    {entry.isPro && <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-[#FFD700] text-black">PRO</span>}
+                                                </div>
+                                                {(wins?.total > 0 || entry.challengeId) && (
+                                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                        {entry.challengeId && <span className="text-[8px] font-bold uppercase tracking-tight bg-[#2D9E49]/20 text-[#2D9E49] px-1 py-0.5 rounded">Challenge</span>}
+                                                        {wins?.daily > 0 && <span className="text-[9px] text-[#FFD700]">🏆 {wins.daily}</span>}
+                                                        {wins?.weekly > 0 && <span className="text-[9px] text-[#C0C0C0]">🥇 {wins.weekly}</span>}
+                                                        {wins?.monthly > 0 && <span className="text-[9px] text-[#CD7F32]">🎖️ {wins.monthly}</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-xs truncate">
+                                            <span style={{ color: eqColor }}><EquipmentIcon type={entry.equipment} size={12} /></span>
+                                            <span className="text-white/60">{EQUIPMENT_LABELS[entry.equipment]}</span>
+                                        </div>
+                                        <div className="text-xs text-white/60 truncate">{entry.game}</div>
+                                        <div className="text-xs text-white/60 truncate">{entry.track}</div>
+                                        <div className="text-xs text-white/60 truncate">{entry.car}</div>
+                                        <div className="text-right font-mono font-bold text-[#2D9E49]">{entry.lapTime}</div>
+                                        
+                                        {isAdmin && (
+                                            <button onClick={() => handleDeleteLapTime(entry.id)} className="text-white/10 hover:text-red-500 transition-colors flex justify-center"><Trash2 size={16} /></button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            )}
+        </>
+    );
 
     const heroCards = [
         {
@@ -334,361 +593,130 @@ const LeaderboardPage: React.FC = () => {
                 </div>
 
                 {/* ── Layer 1: Hero Competition Cards ── */}
-                <div className="grid md:grid-cols-3 gap-5 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 mb-6">
                     {heroCards.map(({ type, label, subLabel, icon: Icon, image, comp, borderColor, bgGlow, iconColor, reward, glowColor }) => {
                         const isActive = competitionFilter === type;
                         return (
-                            <button
-                                key={type}
-                                onClick={() => {
-                                    if (isActive) {
-                                        setCompetitionFilter('all');
-                                        setPeriodOffset(0);
-                                    } else {
-                                        setCompetitionFilter(type);
-                                        setPeriodOffset(0);
-                                        if (comp) {
-                                            setFilterGame(comp.game);
-                                            setFilterTrack(comp.track);
-                                            setFilterCar(comp.car || '');
+                            <React.Fragment key={type}>
+                                <button
+                                    onClick={() => {
+                                        if (isActive) {
+                                            setCompetitionFilter('all');
+                                            setPeriodOffset(0);
+                                        } else {
+                                            setCompetitionFilter(type);
+                                            setPeriodOffset(0);
+                                            if (comp) {
+                                                setFilterGame(comp.game);
+                                                setFilterTrack(comp.track);
+                                                setFilterCar(comp.car || '');
+                                            }
                                         }
-                                    }
-                                }}
-                                className={`relative group rounded-2xl border-2 p-6 text-left transition-all duration-300 overflow-hidden
-                                    ${isActive
-                                        ? `${borderColor} bg-gradient-to-br ${bgGlow} to-transparent`
-                                        : 'border-white/10 bg-[#141414] hover:border-white/25'
-                                    }`}
-                                style={isActive ? { boxShadow: `0 0 40px ${glowColor}25` } : {}}
-                            >
-                                {/* Glow pulse when active */}
-                                {isActive && (
-                                    <div
-                                        className="absolute inset-0 rounded-2xl opacity-20 animate-pulse"
-                                        style={{ background: `radial-gradient(circle at 30% 30%, ${glowColor}40, transparent 70%)` }}
-                                    />
-                                )}
+                                    }}
+                                    className={`relative group rounded-2xl border-2 p-5 sm:p-6 text-left transition-all duration-300 overflow-hidden
+                                        ${isActive
+                                            ? `${borderColor} bg-gradient-to-br ${bgGlow} to-transparent`
+                                            : 'border-white/10 bg-[#141414] hover:border-white/25'
+                                        }`}
+                                    style={isActive ? { boxShadow: `0 0 40px ${glowColor}25` } : {}}
+                                >
+                                    {/* Glow pulse when active */}
+                                    {isActive && (
+                                        <div
+                                            className="absolute inset-0 rounded-2xl opacity-20 animate-pulse"
+                                            style={{ background: `radial-gradient(circle at 30% 30%, ${glowColor}40, transparent 70%)` }}
+                                        />
+                                    )}
 
-                                <div className="relative z-10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        {image ? (
-                                            <img src={image} alt={label} className="h-8 object-contain" />
-                                        ) : (
-                                            <Icon size={32} className={`${iconColor} ${isActive ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`} />
-                                        )}
-                                        <span className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border ${isActive ? `${iconColor} ${borderColor}` : 'text-white/30 border-white/10'}`}>
-                                            Prize: {reward}
-                                        </span>
+                                    <div className="relative z-10">
+                                        <div className="flex items-center justify-between mb-4">
+                                            {image ? (
+                                                <img src={image} alt={label} className="h-8 object-contain" />
+                                            ) : (
+                                                <Icon size={32} className={`${iconColor} ${isActive ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`} />
+                                            )}
+                                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border ${isActive ? `${iconColor} ${borderColor}` : 'text-white/30 border-white/10'}`}>
+                                                Prize: {reward}
+                                            </span>
+                                        </div>
+
+                                        <h3 className={`font-display text-xl font-bold uppercase ${isActive ? iconColor : 'text-white'}`}>
+                                            {label}
+                                        </h3>
                                     </div>
 
-                                    <h3 className={`font-display text-xl font-bold uppercase ${isActive ? iconColor : 'text-white'}`}>
-                                        {label}
-                                    </h3>
-                                </div>
-                            </button>
+                                    {/* Mobile Accordion Indicator */}
+                                    <div className="md:hidden absolute bottom-4 right-4 text-white/20">
+                                        {isActive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                    </div>
+                                </button>
+
+                                {/* ── Mobile Accordion Content ── */}
+                                {isActive && (
+                                    <div className="md:hidden mt-1 mb-8 animate-in fade-in slide-in-from-top-4 duration-300 min-w-0 w-full">
+                                        {/* Description with BTP CTA (reused from below) */}
+                                        <div className={`p-5 rounded-2xl border ${borderColor} bg-white/[0.02] mb-4 text-sm`}>
+                                            <p className="text-white font-medium mb-1.5 leading-relaxed">{subLabel}</p>
+                                            {comp ? (
+                                                <p className="text-xs text-white/40 mb-5">
+                                                    {EQUIPMENT_LABELS[comp.equipment] || comp.equipment} · {comp.track} · {comp.car}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-white/30 mb-4">No active competition for this period.</p>
+                                            )}
+                                            
+                                            {type === 'daily' && (
+                                                <div className="pt-2">
+                                                    {renderBtpCta(type)}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* The Leaderboard Content */}
+                                        {renderLeaderboardContent(true)}
+                                    </div>
+                                )}
+                            </React.Fragment>
                         );
                     })}
                 </div>
 
-                {/* ── Active Card Description ── */}
-                {competitionFilter !== 'all' && (
-                    <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
-                        {(() => {
-                            const card = heroCards.find(c => c.type === competitionFilter);
-                            if (!card) return null;
-                            const comp = card.comp;
-                            return (
-                                <div className={`p-6 rounded-2xl border ${card.borderColor} bg-white/[0.02]`}>
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div>
-                                            <p className="text-white font-medium mb-1">{card.subLabel}</p>
-                                            {comp ? (
-                                                <p className="text-xs text-white/40">
-                                                    {EQUIPMENT_LABELS[comp.equipment] || comp.equipment} · {comp.track} · {comp.car}
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs text-white/30">No active competition for this period.</p>
-                                            )}
-                                        </div>
-
-                                        {/* BTP CTA */}
-                                        {competitionFilter === 'daily' && (
-                                            <div className="flex-shrink-0">
-                                                {(() => {
-                                                    if (!currentUser) return (
-                                                        <Link to="/login?redirect=/beat-the-pro"
-                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
-                                                            Login to Participate
-                                                        </Link>
-                                                    );
-
-                                                    const balance = getBtpCredits();
-                                                    const cooldown = hasBtpCooldown();
-
-                                                    if (cooldown.active) return (
-                                                        <Link to="/dashboard"
-                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
-                                                            Submit Your Lap Time
-                                                        </Link>
-                                                    );
-
-                                                    if (balance <= 0) return (
-                                                        <Link to="/dashboard"
-                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
-                                                            Buy BTP Credit · $15
-                                                        </Link>
-                                                    );
-
-                                                    return (
-                                                        <Link to="/beat-the-pro"
-                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
-                                                            Book Today's Session →
-                                                        </Link>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
-
-                {/* ── Layer 2: Cascade Filter Dropdowns ── */}
-                <div className="bg-[#141414] border border-white/10 rounded-2xl p-5 mb-6">
-                    <p className="text-xs uppercase tracking-widest text-white/30 mb-4 font-bold">Filter Lap Times</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {/* Game */}
-                        <div>
-                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Game *</label>
-                            <select
-                                value={filterGame}
-                                onChange={e => { setFilterGame(e.target.value); setFilterTrack(''); setFilterCar(''); }}
-                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer"
-                            >
-                                <option value="">Select a game...</option>
-                                {allGames.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Track */}
-                        <div>
-                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Track *</label>
-                            <select
-                                value={filterTrack}
-                                onChange={e => { setFilterTrack(e.target.value); setFilterCar(''); }}
-                                disabled={!filterGame}
-                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <option value="">{filterGame ? 'Select a track...' : 'Select a game first'}</option>
-                                {tracksForGame.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        </div>
-
-                        {/* Car (optional) */}
-                        <div>
-                            <label className="block text-[10px] uppercase tracking-widest text-white/30 mb-1.5">Car <span className="text-white/20">(optional)</span></label>
-                            <select
-                                value={filterCar}
-                                onChange={e => setFilterCar(e.target.value)}
-                                disabled={!filterTrack}
-                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#2D9E49] focus:outline-none transition-colors appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <option value="">All cars</option>
-                                {carsForTrack.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Row 2: period filter + count */}
-                    <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-white/5">
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] uppercase tracking-widest text-white/20">Range:</span>
-                            <div className="flex bg-black/30 p-1 rounded-xl border border-white/5">
-                                {(['all', 'daily', 'weekly', 'monthly'] as CompetitionFilter[]).map(p => (
-                                    <button
-                                        key={p}
-                                        onClick={() => { setCompetitionFilter(p); setPeriodOffset(0); }}
-                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${competitionFilter === p ? 'bg-[#2D9E49] text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
-                                    >
-                                        {p === 'all' ? 'All Time' : p}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {competitionFilter !== 'all' && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] uppercase tracking-widest text-white/20">Period:</span>
-                                <div className="flex bg-black/30 p-1 rounded-xl border border-white/5 text-[10px] font-bold uppercase tracking-widest">
-                                    <button
-                                        onClick={() => setPeriodOffset(0)}
-                                        className={`px-4 py-1.5 rounded-lg transition-all ${periodOffset === 0 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}
-                                    >
-                                        {competitionFilter === 'daily' ? 'Today' : competitionFilter === 'weekly' ? 'This Week' : 'This Month'}
-                                    </button>
-                                    <button
-                                        onClick={() => setPeriodOffset(-1)}
-                                        className={`px-4 py-1.5 rounded-lg transition-all ${periodOffset === -1 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}
-                                    >
-                                        {competitionFilter === 'daily' ? 'Yesterday' : competitionFilter === 'weekly' ? 'Last Week' : 'Last Month'}
-                                    </button>
-                                    <button
-                                        className="px-2 py-1.5 rounded-lg text-white/20 hover:text-white/40 cursor-help"
-                                        title="Calendar selector coming soon"
-                                    >
-                                        <Calendar size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="ml-auto flex items-center gap-4">
-                            <div className="text-[10px] uppercase tracking-widest text-white/20 mt-1">
-                                {sorted.length} {sorted.length === 1 ? 'Record' : 'Records'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Leaderboard Table ── */}
-                {loading ? (
-                    <div className="text-center py-20 text-white/30">Loading leaderboard...</div>
-                ) : sorted.length === 0 ? (
-                    <div className="text-center py-20">
-                        <Trophy size={48} className="mx-auto mb-4 text-white/10" />
-                        <p className="text-white/30">No approved lap times match your filters.</p>
-                        <p className="text-white/20 text-sm mt-1">Be the first to set a time or try clearing some filters.</p>
-                    </div>
-                ) : (
-                    <div className="rounded-2xl border border-white/10 overflow-hidden overflow-x-auto">
-                        <div className="min-w-[960px]">
-                            {/* Table Header */}
-                            <div className={`grid ${isAdmin ? 'grid-cols-[40px_220px_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_220px_150px_130px_120px_120px_100px]'} gap-3 px-5 py-3 bg-[#141414] border-b border-white/10 text-xs uppercase tracking-widest text-white/30`}>
-                                <div className="text-center">#</div>
-                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('driverName')}>
-                                    Driver <SortIcon k="driverName" />
-                                </button>
-                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('equipment')}>
-                                    Equipment <SortIcon k="equipment" />
-                                </button>
-                                <button className="text-left hover:text-white/60 transition-colors" onClick={() => toggleSort('game')}>
-                                    Game <SortIcon k="game" />
-                                </button>
-                                <div>Track</div>
-                                <div>Car</div>
-                                <button className="text-right hover:text-white/60 transition-colors" onClick={() => toggleSort('lapTimeMs')}>
-                                    Lap Time <SortIcon k="lapTimeMs" />
-                                </button>
-                                {isAdmin && <div className="text-center">Action</div>}
-                            </div>
-
-                            {/* Table Rows */}
-                            {sorted.map((entry, i) => {
-                                const eqColor = EQUIPMENT_COLORS[entry.equipment] || '#2D9E49';
-                                const wins = entry.competitionWins;
-                                const isTop3 = i < 3;
-                                const rankColors = ['text-[#FFD700]', 'text-[#C0C0C0]', 'text-[#CD7F32]'];
-
+                {/* ── Layer 2: Desktop/Tablet Stable Section ── */}
+                <div className={competitionFilter === 'all' ? 'block' : 'hidden md:block'}>
+                    {/* Active Card Description (Desktop Only) */}
+                    {competitionFilter !== 'all' && (
+                        <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+                            {(() => {
+                                const card = heroCards.find(c => c.type === competitionFilter);
+                                if (!card) return null;
                                 return (
-                                    <div
-                                        key={entry.id}
-                                        className={`grid ${isAdmin ? 'grid-cols-[40px_220px_150px_130px_120px_120px_100px_40px]' : 'grid-cols-[40px_220px_150px_130px_120px_120px_100px]'} gap-3 px-5 py-4 items-center border-b border-white/5 transition-colors hover:bg-white/[0.02] ${isTop3 ? 'bg-white/[0.01]' : ''}`}
-                                    >
-                                        {/* Rank */}
-                                        <div className={`font-display font-bold text-center text-lg ${isTop3 ? rankColors[i] : 'text-white/20'}`}>
-                                            {i + 1}
-                                        </div>
-
-                                        {/* Driver */}
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {entry.photoURL ? (
-                                                <img src={entry.photoURL} alt={entry.driverName} className="w-9 h-9 rounded-full object-cover flex-shrink-0 border border-white/10" />
-                                            ) : (
-                                                <div className="w-9 h-9 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center flex-shrink-0 text-white/30 text-xs font-bold">
-                                                    {entry.driverName?.charAt(0)?.toUpperCase() || '?'}
-                                                </div>
-                                            )}
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="font-semibold text-sm truncate">{entry.driverName}</span>
-                                                    {entry.isPro && (
-                                                        <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#FFD700] text-black">
-                                                            PRO
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {/* Win badges */}
-                                                {(wins && wins.total > 0 || entry.challengeId) && (
-                                                    <div className="flex gap-1 mt-0.5 flex-wrap">
-                                                        {entry.challengeId && (
-                                                            <span className="text-[9px] font-bold uppercase tracking-tight bg-[#2D9E49]/20 text-[#2D9E49] px-1.5 py-0.5 rounded border border-[#2D9E49]/20">
-                                                                Challenge Entry
-                                                            </span>
-                                                        )}
-                                                        {wins && wins.daily > 0 && (
-                                                            <span className="text-[10px] text-[#FFD700] bg-[#FFD700]/10 rounded px-1 py-0.5">
-                                                                🏆 {wins.daily}
-                                                            </span>
-                                                        )}
-                                                        {wins && wins.weekly > 0 && (
-                                                            <span className="text-[10px] text-[#C0C0C0] bg-[#C0C0C0]/10 rounded px-1 py-0.5">
-                                                                🥇 {wins.weekly}
-                                                            </span>
-                                                        )}
-                                                        {wins && wins.monthly > 0 && (
-                                                            <span className="text-[10px] text-[#CD7F32] bg-[#CD7F32]/10 rounded px-1 py-0.5">
-                                                                🎖️ {wins.monthly}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                    <div className={`p-6 rounded-2xl border ${card.borderColor} bg-white/[0.02]`}>
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                            <div>
+                                                <p className="text-white font-medium mb-1">{card.subLabel}</p>
+                                                {card.comp ? (
+                                                    <p className="text-xs text-white/40">
+                                                        {EQUIPMENT_LABELS[card.comp.equipment] || card.comp.equipment} · {card.comp.track} · {card.comp.car}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-xs text-white/30">No active competition for this period.</p>
                                                 )}
                                             </div>
+
+                                            {competitionFilter === 'daily' && (
+                                                <div className="flex-shrink-0">
+                                                    {renderBtpCta('daily')}
+                                                </div>
+                                            )}
                                         </div>
-
-                                        {/* Equipment */}
-                                        <div className="flex items-center gap-1.5 text-sm">
-                                            <EquipmentIcon type={entry.equipment} />
-                                            <span className="text-xs" style={{ color: eqColor }}>
-                                                {EQUIPMENT_LABELS[entry.equipment] || entry.equipment}
-                                            </span>
-                                        </div>
-
-                                        {/* Game */}
-                                        <div className="text-sm text-white/60 truncate">{entry.game}</div>
-
-                                        {/* Track */}
-                                        <div className="text-sm text-white/60 truncate">{entry.track}</div>
-
-                                        {/* Car */}
-                                        <div className="text-sm text-white/60 truncate">{entry.car}</div>
-
-                                        {/* Lap Time */}
-                                        <div className="text-right">
-                                            <span className={`font-display font-bold text-lg ${isTop3 ? rankColors[i] : 'text-white'}`}>
-                                                {entry.lapTime}
-                                            </span>
-                                        </div>
-
-                                        {/* Admin Action */}
-                                        {isAdmin && (
-                                            <div className="flex justify-center">
-                                                <button
-                                                    onClick={() => handleDeleteLapTime(entry.id)}
-                                                    className="p-1.5 text-white/20 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                                    title="Delete entry"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
                                 );
-                            })}
+                            })()}
                         </div>
-                    </div>
-                )}
+                    )}
+
+                    {renderLeaderboardContent()}
+                </div>
 
                 {/* ── Footer CTA ── */}
                 <div className="mt-12 text-center">
