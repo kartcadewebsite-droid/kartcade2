@@ -99,11 +99,12 @@ const Navbar: React.FC = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileExperienceOpen, setMobileExperienceOpen] = useState(false);
 
-  // Main nav links (ultra-clean: only 3)
+  // Main nav links
   const mainLinks = [
     { name: 'Pricing', path: '/pricing' },
     { name: 'Events', path: '/events' },
     { name: 'Gallery', path: '/gallery' },
+    { name: 'Leaderboard', path: '/leaderboard' },
   ];
 
   // Dropdown links under "Experiences"
