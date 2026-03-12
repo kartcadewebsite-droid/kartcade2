@@ -8,7 +8,7 @@ const simulators = [
     id: "01",
     title: "Racing Karts",
     subtitle: "5 Units Available",
-    description: "Designed for younger drivers and anyone under about 5'6\". Comfortable seating positions and adjusted controls make them perfect for kids, teens, and beginners who want the full racing experience.",
+    description: "Designed for younger drivers and anyone under about 6'3\". Comfortable seating positions and adjusted controls make them perfect for kids, teens, and beginners who want the full racing experience.",
     bestFor: "Ages 5+, teens, smaller adults, beginners",
     image: "/images/kartcade/karts.webp"
   },

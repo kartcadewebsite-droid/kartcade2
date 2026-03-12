@@ -9,7 +9,7 @@ import {
     onSnapshot,
     Timestamp
 } from 'firebase/firestore';
-import { Trophy, Medal, Award, ChevronUp, ChevronDown, Clock, Gauge, Monitor, Rocket, Zap, Trash2 } from 'lucide-react';
+import { Trophy, Medal, Award, ChevronUp, ChevronDown, Clock, Gauge, Monitor, Rocket, Zap, Trash2, Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { deleteDoc, doc } from 'firebase/firestore';
 
@@ -79,22 +79,28 @@ const EquipmentIcon = ({ type, size = 14 }: { type: string; size?: number }) => 
     return <Gauge {...props} />;
 };
 
-function getPeriodBounds(type: CompetitionFilter): { start: Date; end: Date } | null {
+function getPeriodBounds(type: CompetitionFilter, offset: number = 0): { start: Date; end: Date } | null {
     if (type === 'all') return null;
     const now = new Date();
     let start: Date, end: Date;
 
     if (type === 'daily') {
-        start = new Date(now); start.setHours(0, 0, 0, 0);
-        end = new Date(now); end.setHours(23, 59, 59, 999);
+        start = new Date(now);
+        start.setDate(now.getDate() + offset);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(start);
+        end.setHours(23, 59, 59, 999);
     } else if (type === 'weekly') {
         const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        start = new Date(now.setDate(diff)); start.setHours(0, 0, 0, 0);
-        end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1) + (offset * 7);
+        start = new Date(now.setDate(diff));
+        start.setHours(0, 0, 0, 0);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
     } else {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+        end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999);
     }
     return { start, end };
 }
@@ -108,6 +114,7 @@ const LeaderboardPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const [competitionFilter, setCompetitionFilter] = useState<CompetitionFilter>('all');
+    const [periodOffset, setPeriodOffset] = useState<number>(0);
     const [sortKey, setSortKey] = useState<SortKey>('lapTimeMs');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -184,27 +191,20 @@ const LeaderboardPage: React.FC = () => {
 
     // ── Filtering ─────────────────────────────────────────────────────────
     const filteredTimes = allTimes.filter(t => {
-        // Cascade filter — only show table if game + track are both selected
-        if (!filterGame || !filterTrack) return false;
-        if (t.game !== filterGame) return false;
-        if (t.track !== filterTrack) return false;
+        if (filterGame && t.game !== filterGame) return false;
+        if (filterTrack && t.track !== filterTrack) return false;
         if (filterCar && t.car !== filterCar) return false;
 
         // Period filter / Challenge ID filter
         if (competitionFilter !== 'all') {
             const activeComp = competitionFilter === 'daily' ? activeDaily : competitionFilter === 'weekly' ? activeWeekly : activeMonthly;
 
-            if (activeComp) {
-                // STRICT CHECK: If there is an active challenge for this type, 
-                // only show entries that were specifically submitted for it
+            // Use strict challenge filter ONLY for current period (offset 0) if a challenge exists
+            if (periodOffset === 0 && activeComp) {
                 if (t.challengeId !== activeComp.id) return false;
             } else {
-                // NO ACTIVE CHALLENGE for this type.
-                // We should EXCLUDE any entry that has a challengeId (because it belongs to some other challenge)
-                if (t.challengeId) return false;
-
-                // Fallback for general entries (no challengeId) that fall within the date range
-                const bounds = getPeriodBounds(competitionFilter);
+                // For historical periods or if no active challenge, use date range bounds
+                const bounds = getPeriodBounds(competitionFilter, periodOffset);
                 if (bounds && t.submittedAt) {
                     const ts = t.submittedAt instanceof Timestamp
                         ? t.submittedAt.toDate()
@@ -258,16 +258,13 @@ const LeaderboardPage: React.FC = () => {
 
     // ── Default View Automation ───────────────────────────────────────────
     useEffect(() => {
-        if (!loading && competitions.length > 0 && !filterGame && !filterTrack) {
-            const daily = findActive('daily');
-            if (daily) {
-                setFilterGame(daily.game);
-                setFilterTrack(daily.track);
-                setFilterCar(daily.car || '');
-                setCompetitionFilter('daily');
-            }
+        // Adam requested: Default the view to overall leaderboard on load.
+        // We ensure all filters are cleared.
+        if (!loading && !filterGame && !filterTrack) {
+            setCompetitionFilter('all');
+            setPeriodOffset(0);
         }
-    }, [loading, competitions]);
+    }, [loading]);
 
     const heroCards = [
         {
@@ -277,6 +274,7 @@ const LeaderboardPage: React.FC = () => {
                 ? `Can you beat ${activeDaily.setByName}'s ${activeDaily.referenceTime}?`
                 : 'No active challenge today',
             icon: Trophy,
+            image: '/images/kartcade/btp-logo.png',
             comp: activeDaily,
             glowColor: '#FFD700',
             borderColor: 'border-[#FFD700]/40',
@@ -336,8 +334,8 @@ const LeaderboardPage: React.FC = () => {
                 </div>
 
                 {/* ── Layer 1: Hero Competition Cards ── */}
-                <div className="grid md:grid-cols-3 gap-5 mb-10">
-                    {heroCards.map(({ type, label, subLabel, icon: Icon, comp, borderColor, bgGlow, iconColor, reward, glowColor }) => {
+                <div className="grid md:grid-cols-3 gap-5 mb-6">
+                    {heroCards.map(({ type, label, subLabel, icon: Icon, image, comp, borderColor, bgGlow, iconColor, reward, glowColor }) => {
                         const isActive = competitionFilter === type;
                         return (
                             <button
@@ -345,8 +343,10 @@ const LeaderboardPage: React.FC = () => {
                                 onClick={() => {
                                     if (isActive) {
                                         setCompetitionFilter('all');
+                                        setPeriodOffset(0);
                                     } else {
                                         setCompetitionFilter(type);
+                                        setPeriodOffset(0);
                                         if (comp) {
                                             setFilterGame(comp.game);
                                             setFilterTrack(comp.track);
@@ -371,88 +371,89 @@ const LeaderboardPage: React.FC = () => {
 
                                 <div className="relative z-10">
                                     <div className="flex items-center justify-between mb-4">
-                                        <Icon size={32} className={`${iconColor} ${isActive ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`} />
+                                        {image ? (
+                                            <img src={image} alt={label} className="h-8 object-contain" />
+                                        ) : (
+                                            <Icon size={32} className={`${iconColor} ${isActive ? '' : 'opacity-40 group-hover:opacity-70'} transition-opacity`} />
+                                        )}
                                         <span className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full border ${isActive ? `${iconColor} ${borderColor}` : 'text-white/30 border-white/10'}`}>
                                             Prize: {reward}
                                         </span>
                                     </div>
 
-                                    <h3 className={`font-display text-xl font-bold uppercase mb-1 ${isActive ? iconColor : 'text-white'}`}>
+                                    <h3 className={`font-display text-xl font-bold uppercase ${isActive ? iconColor : 'text-white'}`}>
                                         {label}
                                     </h3>
-                                    {subLabel && (
-                                        <p className={`text-xs mb-2 ${isActive ? 'text-white/70' : 'text-white/30'}`}>{subLabel}</p>
-                                    )}
-
-                                    {comp ? (
-                                        <div className="space-y-1">
-                                            <div className="text-xs text-white/50">
-                                                <span className="text-white/70">Beat:</span> {comp.referenceTime}
-                                                <span className="ml-2 text-white/30">by {comp.setByName}</span>
-                                            </div>
-                                            <div className="text-xs text-white/40">
-                                                {EQUIPMENT_LABELS[comp.equipment] || comp.equipment} · {comp.track} · {comp.car}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <p className="text-xs text-white/30">No active competition</p>
-                                    )}
-
-                                    {/* ── Smart BTP CTA — daily card only ── */}
-                                    {type === 'daily' && (
-                                        <div className="mt-4" onClick={e => e.stopPropagation()}>
-                                            {(() => {
-                                                // Not logged in
-                                                if (!currentUser) return (
-                                                    <a href="/login?redirect=/beat-the-pro"
-                                                        className="flex items-center justify-center gap-2 w-full py-2 bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-white/20 transition-colors">
-                                                        Login to Participate
-                                                    </a>
-                                                );
-
-                                                const balance = getBtpCredits();
-                                                const cooldown = hasBtpCooldown();
-
-                                                // PRIORITIZE COOLDOWN check (User has a booking secured)
-                                                if (cooldown.active) return (
-                                                    <div className="space-y-1.5">
-                                                        <a href="/dashboard"
-                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
-                                                            Submit Your Lap Time
-                                                        </a>
-                                                        <p className="text-[9px] text-white/25 text-center">Session booked! Record your time and submit from Dashboard</p>
-                                                    </div>
-                                                );
-
-                                                // THEN check balance (No credit, no booking)
-                                                if (balance <= 0) return (
-                                                    <div className="space-y-1.5">
-                                                        <a href="/dashboard"
-                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
-                                                            Buy BTP Credit · $15
-                                                        </a>
-                                                        <p className="text-[9px] text-white/25 text-center">Buy a credit to book your challenge slot</p>
-                                                    </div>
-                                                );
-
-                                                // Has credit, no cooldown — ready to book
-                                                return (
-                                                    <div className="space-y-1.5">
-                                                        <a href="/beat-the-pro"
-                                                            className="flex items-center justify-center gap-2 w-full py-2 bg-[#FFD700] text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-yellow-300 transition-colors">
-                                                            Book Today's Session →
-                                                        </a>
-                                                        <p className="text-[9px] text-white/25 text-center">{balance} BTP credit{balance > 1 ? 's' : ''} ready · 30-min slot</p>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-                                    )}
                                 </div>
                             </button>
                         );
                     })}
                 </div>
+
+                {/* ── Active Card Description ── */}
+                {competitionFilter !== 'all' && (
+                    <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+                        {(() => {
+                            const card = heroCards.find(c => c.type === competitionFilter);
+                            if (!card) return null;
+                            const comp = card.comp;
+                            return (
+                                <div className={`p-6 rounded-2xl border ${card.borderColor} bg-white/[0.02]`}>
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-white font-medium mb-1">{card.subLabel}</p>
+                                            {comp ? (
+                                                <p className="text-xs text-white/40">
+                                                    {EQUIPMENT_LABELS[comp.equipment] || comp.equipment} · {comp.track} · {comp.car}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-white/30">No active competition for this period.</p>
+                                            )}
+                                        </div>
+
+                                        {/* BTP CTA */}
+                                        {competitionFilter === 'daily' && (
+                                            <div className="flex-shrink-0">
+                                                {(() => {
+                                                    if (!currentUser) return (
+                                                        <Link to="/login?redirect=/beat-the-pro"
+                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                                                            Login to Participate
+                                                        </Link>
+                                                    );
+
+                                                    const balance = getBtpCredits();
+                                                    const cooldown = hasBtpCooldown();
+
+                                                    if (cooldown.active) return (
+                                                        <Link to="/dashboard"
+                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                                                            Submit Your Lap Time
+                                                        </Link>
+                                                    );
+
+                                                    if (balance <= 0) return (
+                                                        <Link to="/dashboard"
+                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                                                            Buy BTP Credit · $15
+                                                        </Link>
+                                                    );
+
+                                                    return (
+                                                        <Link to="/beat-the-pro"
+                                                            className="inline-flex items-center justify-center px-6 py-2.5 bg-[#FFD700] text-black text-xs font-black uppercase tracking-widest rounded-full hover:bg-yellow-300 transition-colors">
+                                                            Book Today's Session →
+                                                        </Link>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
 
                 {/* ── Layer 2: Cascade Filter Dropdowns ── */}
                 <div className="bg-[#141414] border border-white/10 rounded-2xl p-5 mb-6">
@@ -501,40 +502,64 @@ const LeaderboardPage: React.FC = () => {
                     </div>
 
                     {/* Row 2: period filter + count */}
-                    {filterGame && filterTrack && (
-                        <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-white/5">
-                            <span className="text-[10px] uppercase tracking-widest text-white/20 mr-1">Period:</span>
-                            {(['all', 'daily', 'weekly', 'monthly'] as CompetitionFilter[]).map(p => (
-                                <button
-                                    key={p}
-                                    onClick={() => setCompetitionFilter(p)}
-                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all ${competitionFilter === p ? 'bg-[#2D9E49] text-white' : 'bg-white/5 text-white/40 hover:text-white/70'
-                                        }`}
-                                >
-                                    {p === 'all' ? 'All Time' : p}
-                                </button>
-                            ))}
-                            <div className="ml-auto text-xs text-white/30">
-                                {sorted.length} {sorted.length === 1 ? 'result' : 'results'}
+                    <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] uppercase tracking-widest text-white/20">Range:</span>
+                            <div className="flex bg-black/30 p-1 rounded-xl border border-white/5">
+                                {(['all', 'daily', 'weekly', 'monthly'] as CompetitionFilter[]).map(p => (
+                                    <button
+                                        key={p}
+                                        onClick={() => { setCompetitionFilter(p); setPeriodOffset(0); }}
+                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${competitionFilter === p ? 'bg-[#2D9E49] text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                    >
+                                        {p === 'all' ? 'All Time' : p}
+                                    </button>
+                                ))}
                             </div>
                         </div>
-                    )}
+
+                        {competitionFilter !== 'all' && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-widest text-white/20">Period:</span>
+                                <div className="flex bg-black/30 p-1 rounded-xl border border-white/5 text-[10px] font-bold uppercase tracking-widest">
+                                    <button
+                                        onClick={() => setPeriodOffset(0)}
+                                        className={`px-4 py-1.5 rounded-lg transition-all ${periodOffset === 0 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}
+                                    >
+                                        {competitionFilter === 'daily' ? 'Today' : competitionFilter === 'weekly' ? 'This Week' : 'This Month'}
+                                    </button>
+                                    <button
+                                        onClick={() => setPeriodOffset(-1)}
+                                        className={`px-4 py-1.5 rounded-lg transition-all ${periodOffset === -1 ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}
+                                    >
+                                        {competitionFilter === 'daily' ? 'Yesterday' : competitionFilter === 'weekly' ? 'Last Week' : 'Last Month'}
+                                    </button>
+                                    <button
+                                        className="px-2 py-1.5 rounded-lg text-white/20 hover:text-white/40 cursor-help"
+                                        title="Calendar selector coming soon"
+                                    >
+                                        <Calendar size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="ml-auto flex items-center gap-4">
+                            <div className="text-[10px] uppercase tracking-widest text-white/20 mt-1">
+                                {sorted.length} {sorted.length === 1 ? 'Record' : 'Records'}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* ── Leaderboard Table ── */}
                 {loading ? (
                     <div className="text-center py-20 text-white/30">Loading leaderboard...</div>
-                ) : !filterGame || !filterTrack ? (
-                    <div className="text-center py-20">
-                        <Trophy size={48} className="mx-auto mb-4 text-white/10" />
-                        <p className="text-white/30">Select a game and track to view lap times.</p>
-                        <p className="text-white/20 text-sm mt-1">Optionally filter by car to compare on a level playing field.</p>
-                    </div>
                 ) : sorted.length === 0 ? (
                     <div className="text-center py-20">
                         <Trophy size={48} className="mx-auto mb-4 text-white/10" />
-                        <p className="text-white/30">No approved lap times for this selection.</p>
-                        <p className="text-white/20 text-sm mt-1">Be the first to set a time on this track!</p>
+                        <p className="text-white/30">No approved lap times match your filters.</p>
+                        <p className="text-white/20 text-sm mt-1">Be the first to set a time or try clearing some filters.</p>
                     </div>
                 ) : (
                     <div className="rounded-2xl border border-white/10 overflow-hidden overflow-x-auto">

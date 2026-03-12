@@ -11,6 +11,7 @@ import CustomersTable from '../components/admin/CustomersTable';
 import { crmService, CustomerAnalytics } from '../services/crm';
 import { exportCustomersToCSV } from '../utils/csvExport';
 import { db } from '../config/firebase';
+import { NORMALIZED_GAMES, NORMALIZED_TRACKS, NORMALIZED_CARS } from '../config/leaderboard';
 import {
     collection,
     addDoc,
@@ -2565,7 +2566,7 @@ const DashboardPage: React.FC = () => {
                                             <div className="relative">
                                                 <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
                                                     Game / Sim
-                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked to Challenge</span>}
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1 font-black bg-[#FFD700]/10 px-1.5 py-0.5 rounded-md"><Zap size={10} /> COMPETITION LOCKED</span>}
                                                 </label>
                                                 <input
                                                     required
@@ -2577,7 +2578,7 @@ const DashboardPage: React.FC = () => {
                                                     className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                                 <datalist id="game-list">
-                                                    {['Assetto Corsa', 'Assetto Corsa Competizione', 'iRacing', 'Gran Turismo 7', 'Gran Turismo Sport', 'Forza Motorsport', 'Forza Horizon 5', 'F1 24', 'F1 23', 'rFactor 2', 'Automobilista 2', 'Project CARS 3', 'BeamNG.drive', 'DIRT Rally 2.0', 'WRC Generations', 'RaceRoom Racing Experience', 'KartKraft', 'Kartsim', 'Richard Burns Rally'].map(g => (
+                                                    {NORMALIZED_GAMES.map(g => (
                                                         <option key={g} value={g} />
                                                     ))}
                                                 </datalist>
@@ -2585,7 +2586,7 @@ const DashboardPage: React.FC = () => {
                                             <div className="relative">
                                                 <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
                                                     Track
-                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked</span>}
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1 font-black bg-[#FFD700]/10 px-1.5 py-0.5 rounded-md"><Zap size={10} /> LOCKED</span>}
                                                 </label>
                                                 <input
                                                     required
@@ -2594,12 +2595,18 @@ const DashboardPage: React.FC = () => {
                                                     onChange={e => setLapTimeForm({ ...lapTimeForm, track: e.target.value })}
                                                     placeholder="e.g. Spa Francorchamps"
                                                     className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    list="track-list"
                                                 />
+                                                <datalist id="track-list">
+                                                    {(NORMALIZED_TRACKS[lapTimeForm.game] || []).map(t => (
+                                                        <option key={t} value={t} />
+                                                    ))}
+                                                </datalist>
                                             </div>
                                             <div className="relative">
                                                 <label className="block text-xs text-white/40 mb-1 flex items-center justify-between">
                                                     Car / Setup
-                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1"><Zap size={10} /> Locked</span>}
+                                                    {lapTimeForm.challengeId && <span className="text-[10px] text-[#FFD700] flex items-center gap-1 font-black bg-[#FFD700]/10 px-1.5 py-0.5 rounded-md"><Zap size={10} /> LOCKED</span>}
                                                 </label>
                                                 <input
                                                     required
@@ -2608,7 +2615,13 @@ const DashboardPage: React.FC = () => {
                                                     onChange={e => setLapTimeForm({ ...lapTimeForm, car: e.target.value })}
                                                     placeholder="e.g. Ferrari 488 GT3"
                                                     className="w-full bg-[#0A0A0A] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2D9E49] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    list="car-list"
                                                 />
+                                                <datalist id="car-list">
+                                                    {(NORMALIZED_CARS['GT3'] || []).map(c => (
+                                                        <option key={c} value={c} />
+                                                    ))}
+                                                </datalist>
                                             </div>
                                         </div>
                                         <div>
