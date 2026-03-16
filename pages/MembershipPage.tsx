@@ -313,29 +313,64 @@ const MembershipPage: React.FC = () => {
                                             <span className="text-white/60 text-sm">Monthly Credits</span>
                                             <span className={`text-2xl font-bold ${colors.text}`}>{tier.credits}</span>
                                         </div>
-                                        <div className="text-white/40 text-xs">
-                                            = {tier.credits} hours at 50% off
-                                        </div>
-                                        <div className="mt-2 text-[#2D9E49] text-sm font-medium">
-                                            Save ${tier.savings * tier.credits}/month
-                                        </div>
+                                        {tier.equipmentType === 'btp' ? (
+                                            <>
+                                                <div className="text-white/40 text-xs">
+                                                    = Up to 30 challenge entries/month
+                                                </div>
+                                                <div className="mt-2 text-[#2D9E49] text-sm font-medium">
+                                                    Just $3.33 per entry (Save $350+)
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="text-white/40 text-xs">
+                                                    = {tier.credits} hours at 50% off
+                                                </div>
+                                                <div className="mt-2 text-[#2D9E49] text-sm font-medium">
+                                                    Save ${tier.savings * tier.credits}/month
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Features */}
                                     <ul className="space-y-3 mb-6">
-                                        <li className="flex items-center gap-2 text-white/70 text-sm">
-                                            <Check className="w-4 h-4 text-[#2D9E49]" /> Access to {tier.equipmentName.toLowerCase()}
-                                        </li>
-                                        <li className="flex items-center gap-2 text-white/70 text-sm">
-                                            <Check className="w-4 h-4 text-[#2D9E49]" /> Priority booking
-                                        </li>
-                                        <li className="flex items-center gap-2 text-white/70 text-sm">
-                                            <Check className="w-4 h-4 text-[#2D9E49]" /> Member-only events
-                                        </li>
-                                        {tier.level === 'gold' && (
-                                            <li className="flex items-center gap-2 text-white/70 text-sm">
-                                                <Check className="w-4 h-4 text-[#2D9E49]" /> Free guest pass (1/month)
-                                            </li>
+                                        {tier.equipmentType === 'btp' ? (
+                                            <>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> 1 Credit = 1 Daily Challenge entry
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Credits reset on the 1st of the month
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Access to all Daily BTP competitions
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> 15-hour cooldown between entries
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Member-only event invitations
+                                                </li>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Access to {tier.equipmentName.toLowerCase()}
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Priority booking
+                                                </li>
+                                                <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                    <Check className="w-4 h-4 text-[#2D9E49]" /> Member-only events
+                                                </li>
+                                                {tier.level === 'gold' && (
+                                                    <li className="flex items-center gap-2 text-white/70 text-sm">
+                                                        <Check className="w-4 h-4 text-[#2D9E49]" /> Free guest pass (1/month)
+                                                    </li>
+                                                )}
+                                            </>
                                         )}
                                     </ul>
 
