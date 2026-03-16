@@ -258,35 +258,26 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const userDoc = await transaction.get(userRef);
                 const userData = userDoc.data();
 
-                // Activate Membership
-                transaction.set(userRef, {
-                    memberships: {
-                        ...userData?.memberships,
-                        [equipmentType]: {
-                            active: true,
-                            tier: tierId,
-                            type: equipmentType,
-                            stripeSubscriptionId: subscriptionId || '',
-                            nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            activatedBy: source
-                        }
+                // Activate Membership using dot-notation for safety
+                const updates: Record<string, any> = {
+                    [`memberships.${equipmentType}`]: {
+                        active: true,
+                        tier: tierId,
+                        type: equipmentType,
+                        stripeSubscriptionId: subscriptionId || '',
+                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        activatedBy: source
                     }
-                }, { merge: true });
+                };
 
-                // Set credits to tier amount (RESET, not accumulate)
                 if (equipmentType === 'btp') {
-                    transaction.update(userRef, {
-                        btpCredits: tier.credits
-                    });
+                    updates.btpCredits = tier.credits;
                 } else {
-                    transaction.set(userRef, {
-                        credits: {
-                            ...userData?.credits,
-                            [equipmentType]: tier.credits
-                        }
-                    }, { merge: true });
+                    updates[`credits.${equipmentType}`] = tier.credits;
                 }
+
+                await userRef.update(updates);
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;

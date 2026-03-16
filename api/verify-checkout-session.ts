@@ -37,7 +37,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
     { id: 'gold_rig', name: 'Gold Rig', level: 'gold', equipmentType: 'rig', equipmentName: 'Full-Size Rigs', price: 400, credits: 20, pricePerCredit: 20, regularPrice: 40, savings: 20, color: '#FFD700', stripePriceId: 'price_placeholder_gold_rig' },
     { id: 'bronze_motion', name: 'Bronze Motion', level: 'bronze', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 125, credits: 5, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#CD7F32', stripePriceId: 'price_placeholder_bronze_motion' },
     { id: 'silver_motion', name: 'Silver Motion', level: 'silver', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 250, credits: 10, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#C0C0C0', popular: true, stripePriceId: 'price_placeholder_silver_motion' },
-    { id: 'gold_motion', name: 'Gold Motion', level: 'gold', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 500, credits: 20, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#FFD700', stripePriceId: 'price_placeholder_gold_motion' }
+    { id: 'gold_motion', name: 'Gold Motion', level: 'gold', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 500, credits: 20, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#FFD700', stripePriceId: 'price_placeholder_gold_motion' },
+    { id: 'btp_monthly', name: 'Beat The Pro Monthly', level: 'gold', equipmentType: 'btp' as any, equipmentName: 'BTP Challenge', price: 100, credits: 30, pricePerCredit: 3.33, regularPrice: 450, savings: 350, color: '#FFD700', stripePriceId: 'price_placeholder_btp_monthly' }
 ];
 
 /**
@@ -273,29 +274,26 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const userDoc = await transaction.get(userRef);
                 const userData = userDoc.data();
 
-                // Activate Membership
-                transaction.set(userRef, {
-                    memberships: {
-                        ...userData?.memberships,
-                        [equipmentType]: {
-                            active: true,
-                            tier: tierId,
-                            type: equipmentType,
-                            stripeSubscriptionId: subscriptionId || '',
-                            nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            activatedBy: source
-                        }
+                // Activate Membership using dot-notation for safety
+                const updates: Record<string, any> = {
+                    [`memberships.${equipmentType}`]: {
+                        active: true,
+                        tier: tierId,
+                        type: equipmentType,
+                        stripeSubscriptionId: subscriptionId || '',
+                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        activatedBy: source
                     }
-                }, { merge: true });
+                };
 
-                // Set credits to tier amount (RESET, not accumulate)
-                transaction.set(userRef, {
-                    credits: {
-                        ...userData?.credits,
-                        [equipmentType]: tier.credits
-                    }
-                }, { merge: true });
+                if (equipmentType === 'btp') {
+                    updates.btpCredits = tier.credits;
+                } else {
+                    updates[`credits.${equipmentType}`] = tier.credits;
+                }
+
+                await userRef.update(updates);
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;

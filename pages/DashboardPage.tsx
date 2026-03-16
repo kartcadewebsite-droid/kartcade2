@@ -330,6 +330,7 @@ const DashboardPage: React.FC = () => {
         userProfile?.memberships?.kart?.active ? { ...userProfile.memberships.kart, equipmentType: 'kart' as const } : null,
         userProfile?.memberships?.rig?.active ? { ...userProfile.memberships.rig, equipmentType: 'rig' as const } : null,
         userProfile?.memberships?.motion?.active ? { ...userProfile.memberships.motion, equipmentType: 'motion' as const } : null,
+        userProfile?.memberships?.btp?.active ? { ...userProfile.memberships.btp, equipmentType: 'btp' as const } : null,
     ].filter(Boolean);
 
     // Primary membership for display (first active one found)
