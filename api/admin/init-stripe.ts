@@ -17,6 +17,8 @@ const MEMBERSHIP_TIERS = [
     { id: 'bronze_motion', name: 'Bronze Motion', price: 125, credits: 5, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'bronze' },
     { id: 'silver_motion', name: 'Silver Motion', price: 250, credits: 10, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'silver' },
     { id: 'gold_motion', name: 'Gold Motion', price: 500, credits: 20, equipmentType: 'motion', equipmentName: 'Motion Simulator', level: 'gold' },
+    // BEAT THE PRO SUBSCRIPTION
+    { id: 'btp_monthly', name: 'Beat The Pro', price: 100, credits: 30, equipmentType: 'btp', equipmentName: 'Beat The Pro Subscription', level: 'gold' },
 ];
 
 // Initialize Firebase Admin (inline)

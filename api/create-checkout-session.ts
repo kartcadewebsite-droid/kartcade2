@@ -90,6 +90,16 @@ export default async function handler(req: any, res: any) {
                     equipmentType: equipmentType || ''
                 }
             };
+
+            // BTP SPECIFIC: Reset on the 1st of the month
+            if (tierId === 'btp_monthly') {
+                const now = new Date();
+                const firstOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                const anchorTimestamp = Math.floor(firstOfNextMonth.getTime() / 1000);
+
+                sessionConfig.subscription_data.billing_cycle_anchor = anchorTimestamp;
+                sessionConfig.subscription_data.proration_behavior = 'create_prorations';
+            }
         }
 
         // Create Checkout Session

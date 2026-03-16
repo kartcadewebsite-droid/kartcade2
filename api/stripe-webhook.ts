@@ -18,7 +18,7 @@ export interface MembershipTier {
     id: string;
     name: string;
     level: 'bronze' | 'silver' | 'gold';
-    equipmentType: 'kart' | 'rig' | 'motion';
+    equipmentType: 'kart' | 'rig' | 'motion' | 'btp';
     equipmentName: string;
     price: number;
     credits: number;
@@ -39,7 +39,8 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
     { id: 'gold_rig', name: 'Gold Rig', level: 'gold', equipmentType: 'rig', equipmentName: 'Full-Size Rigs', price: 400, credits: 20, pricePerCredit: 20, regularPrice: 40, savings: 20, color: '#FFD700', stripePriceId: 'price_placeholder_gold_rig' },
     { id: 'bronze_motion', name: 'Bronze Motion', level: 'bronze', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 125, credits: 5, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#CD7F32', stripePriceId: 'price_placeholder_bronze_motion' },
     { id: 'silver_motion', name: 'Silver Motion', level: 'silver', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 250, credits: 10, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#C0C0C0', popular: true, stripePriceId: 'price_placeholder_silver_motion' },
-    { id: 'gold_motion', name: 'Gold Motion', level: 'gold', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 500, credits: 20, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#FFD700', stripePriceId: 'price_placeholder_gold_motion' }
+    { id: 'gold_motion', name: 'Gold Motion', level: 'gold', equipmentType: 'motion', equipmentName: 'Motion Simulator', price: 500, credits: 20, pricePerCredit: 25, regularPrice: 50, savings: 25, color: '#FFD700', stripePriceId: 'price_placeholder_gold_motion' },
+    { id: 'btp_monthly', name: 'Beat The Pro', level: 'gold', equipmentType: 'btp', equipmentName: 'Monthly Credits', price: 100, credits: 30, pricePerCredit: 3.33, regularPrice: 0, savings: 0, color: '#D42428', popular: true, stripePriceId: 'price_placeholder_btp_monthly' }
 ];
 
 // Disable body parser for Vercel
@@ -274,12 +275,18 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 }, { merge: true });
 
                 // Set credits to tier amount (RESET, not accumulate)
-                transaction.set(userRef, {
-                    credits: {
-                        ...userData?.credits,
-                        [equipmentType]: tier.credits
-                    }
-                }, { merge: true });
+                if (equipmentType === 'btp') {
+                    transaction.update(userRef, {
+                        btpCredits: tier.credits
+                    });
+                } else {
+                    transaction.set(userRef, {
+                        credits: {
+                            ...userData?.credits,
+                            [equipmentType]: tier.credits
+                        }
+                    }, { merge: true });
+                }
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;
@@ -368,9 +375,15 @@ async function handleInvoicePaid(invoice: any) {
         if (tierId) {
             const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
             if (tier) {
-                await userRef.update({
-                    [`credits.${equipmentType}`]: tier.credits
-                });
+                if (equipmentType === 'btp') {
+                    await userRef.update({
+                        btpCredits: tier.credits
+                    });
+                } else {
+                    await userRef.update({
+                        [`credits.${equipmentType}`]: tier.credits
+                    });
+                }
                 console.log(`[WEBHOOK] Reset credits to ${tier.credits} for ${userId} (${equipmentType}) on renewal.`);
             }
         }
@@ -397,19 +410,19 @@ async function handleSubscriptionDeleted(subscription: any) {
         console.log(`[WEBHOOK] Processing customer.subscription.deleted for user ${userId}`);
         const userRef = db.collection('users').doc(userId);
 
-        await userRef.set({
-            memberships: {
-                [equipmentType]: {
-                    active: false,
-                    canceledAt: admin.firestore.FieldValue.serverTimestamp(),
-                    status: 'canceled'
-                }
-            },
-            // Zero out membership credits (bonusCredits remain until their own expiry)
-            credits: {
-                [equipmentType]: 0
-            }
-        }, { merge: true });
+        const updates: Record<string, any> = {
+            [`memberships.${equipmentType}.active`]: false,
+            [`memberships.${equipmentType}.canceledAt`]: admin.firestore.FieldValue.serverTimestamp(),
+            [`memberships.${equipmentType}.status`]: 'canceled'
+        };
+
+        if (equipmentType === 'btp') {
+            updates.btpCredits = 0;
+        } else {
+            updates[`credits.${equipmentType}`] = 0;
+        }
+
+        await userRef.update(updates);
 
         console.log(`[WEBHOOK] Deactivated membership for ${userId} (${equipmentType})`);
 

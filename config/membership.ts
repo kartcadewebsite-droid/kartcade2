@@ -9,7 +9,7 @@ export interface MembershipTier {
     id: string;
     name: string;
     level: 'bronze' | 'silver' | 'gold';
-    equipmentType: 'kart' | 'rig' | 'motion';
+    equipmentType: 'kart' | 'rig' | 'motion' | 'btp';
     equipmentName: string;
     price: number;           // Monthly price in dollars
     credits: number;         // Credits per month
@@ -163,6 +163,22 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         savings: 25,
         color: '#FFD700',
         stripePriceId: 'price_placeholder_gold_motion'
+    },
+    // BTP MEMBERSHIP
+    {
+        id: 'btp_monthly',
+        name: 'Beat The Pro',
+        level: 'gold',
+        equipmentType: 'btp',
+        equipmentName: 'Monthly Credits',
+        price: 100,
+        credits: 30,
+        pricePerCredit: 3.33,
+        regularPrice: 0, // Not applicable
+        savings: 0,     // Not applicable
+        color: '#D42428',
+        popular: true,
+        stripePriceId: 'price_placeholder_btp_monthly'
     }
 ];
 
@@ -171,7 +187,7 @@ export const getMembershipById = (id: string): MembershipTier | undefined => {
     return MEMBERSHIP_TIERS.find(tier => tier.id === id);
 };
 
-export const getMembershipsByEquipment = (equipmentType: 'kart' | 'rig' | 'motion'): MembershipTier[] => {
+export const getMembershipsByEquipment = (equipmentType: 'kart' | 'rig' | 'motion' | 'btp'): MembershipTier[] => {
     return MEMBERSHIP_TIERS.filter(tier => tier.equipmentType === equipmentType);
 };
 
@@ -189,13 +205,14 @@ export interface UserCredits {
     kart: number;
     rig: number;
     motion: number;
+    btp?: number;
 }
 
 // Membership status for user profile
 export interface UserMembership {
     active: boolean;
     tier: string;                    // e.g., 'silver_kart'
-    type: 'kart' | 'rig' | 'motion';
+    type: 'kart' | 'rig' | 'motion' | 'btp';
     creditsPerCycle: number;
     pricePerMonth: number;
     startDate: Date | null;
@@ -210,6 +227,7 @@ export interface UserMembershipsMap {
     kart?: UserMembership;
     rig?: UserMembership;
     motion?: UserMembership;
+    btp?: UserMembership;
 }
 
 // Bonus credits with per-equipment expiry (30-day expiry from refunds/promos)

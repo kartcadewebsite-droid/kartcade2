@@ -22,6 +22,11 @@ const membershipTiers = {
         description: 'The ultimate experience with our motion simulator',
         tiers: MEMBERSHIP_TIERS.filter(t => t.equipmentType === 'motion'),
     },
+    btp: {
+        name: 'Beat The Pro',
+        description: 'Monthly credits for our Beat The Pro daily challenges',
+        tiers: MEMBERSHIP_TIERS.filter(t => t.equipmentType === 'btp'),
+    },
 };
 
 const levelColors = {
@@ -36,7 +41,7 @@ const levelIcons = {
     gold: Crown,
 };
 
-type EquipmentType = 'kart' | 'rig' | 'motion';
+type EquipmentType = 'kart' | 'rig' | 'motion' | 'btp';
 
 const MembershipPage: React.FC = () => {
     const navigate = useNavigate();

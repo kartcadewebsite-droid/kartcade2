@@ -30,6 +30,9 @@ export const stripeConfig = {
         bronze_motion: 'price_PLACEHOLDER_bronze_motion',
         silver_motion: 'price_PLACEHOLDER_silver_motion',
         gold_motion: 'price_PLACEHOLDER_gold_motion',
+
+        // BTP Membership
+        btp_monthly: 'price_PLACEHOLDER_btp_monthly',
     },
 
     // Webhook signing secret (for verifying webhook events)

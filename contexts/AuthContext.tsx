@@ -73,10 +73,10 @@ interface AuthContextType {
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
     // Credits functions
-    useCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => Promise<boolean>;
-    addCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number, target?: 'membership' | 'bonus') => Promise<void>;
-    getCredits: (equipmentType: 'kart' | 'rig' | 'motion') => number;
-    hasEnoughCredits: (equipmentType: 'kart' | 'rig' | 'motion', amount: number) => boolean;
+    useCredits: (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number) => Promise<boolean>;
+    addCredits: (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number, target?: 'membership' | 'bonus') => Promise<void>;
+    getCredits: (equipmentType: 'kart' | 'rig' | 'motion' | 'btp') => number;
+    hasEnoughCredits: (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number) => boolean;
     // BTP Credits
     getBtpCredits: () => number;
     hasBtpCooldown: () => { active: boolean; availableAt?: Date };
@@ -167,7 +167,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Get credits for a specific equipment type (combines membership + non-expired bonus)
-    const getCredits = (equipmentType: 'kart' | 'rig' | 'motion'): number => {
+    const getCredits = (equipmentType: 'kart' | 'rig' | 'motion' | 'btp'): number => {
+        if (equipmentType === 'btp') return getBtpCredits();
         const membershipCredits = userProfile?.credits?.[equipmentType] || 0;
         const bonusAmount = userProfile?.bonusCredits?.[equipmentType] || 0;
         const expiryKey = `${equipmentType}ExpiresAt` as keyof BonusCredits;
@@ -186,12 +187,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Check if user has enough credits
-    const hasEnoughCredits = (equipmentType: 'kart' | 'rig' | 'motion', amount: number): boolean => {
+    const hasEnoughCredits = (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number): boolean => {
         return getCredits(equipmentType) >= amount;
     };
 
     // Helper: get valid (non-expired) bonus credits for a type
-    const getValidBonusCredits = (equipmentType: 'kart' | 'rig' | 'motion'): number => {
+    const getValidBonusCredits = (equipmentType: 'kart' | 'rig' | 'motion' | 'btp'): number => {
         const bonusAmount = userProfile?.bonusCredits?.[equipmentType] || 0;
         if (bonusAmount <= 0) return 0;
         const expiryKey = `${equipmentType}ExpiresAt` as keyof BonusCredits;
@@ -202,11 +203,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     // Use credits for a booking (deducts from bonus first, then membership)
-    const useCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number): Promise<boolean> => {
+    const useCredits = async (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number): Promise<boolean> => {
         if (!currentUser || !userProfile) return false;
 
         const totalAvailable = getCredits(equipmentType);
         if (totalAvailable < amount) return false;
+
+        if (equipmentType === 'btp') {
+            // For BTP, use the dedicated function or simple increment
+            const userRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userRef, {
+                btpCredits: increment(-amount),
+                lastBtpUsedAt: new Date()
+            });
+            await refreshUserProfile();
+            return true;
+        }
 
         const validBonus = getValidBonusCredits(equipmentType);
         const membershipCredits = userProfile?.credits?.[equipmentType] || 0;
@@ -234,10 +246,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Add credits (called by cancel refunds or webhook)
     // target: 'membership' = monthly credits (set by webhook), 'bonus' = refund credits (with 30-day expiry)
-    const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion', amount: number, target: 'membership' | 'bonus' = 'bonus'): Promise<void> => {
+    const addCredits = async (equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number, target: 'membership' | 'bonus' = 'bonus'): Promise<void> => {
         if (!currentUser) throw new Error('Not authenticated');
 
         const userRef = doc(db, 'users', currentUser.uid);
+
+        if (equipmentType === 'btp') {
+            await updateDoc(userRef, {
+                btpCredits: increment(amount)
+            });
+            await refreshUserProfile();
+            return;
+        }
 
         if (target === 'bonus') {
             // Refund / promo credits → add to bonusCredits with 30-day expiry
