@@ -259,25 +259,25 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const userData = userDoc.data();
 
                 // Activate Membership using dot-notation for safety
-                const updates: Record<string, any> = {
-                    [`memberships.${equipmentType}`]: {
-                        active: true,
-                        tier: tierId,
-                        type: equipmentType,
-                        stripeSubscriptionId: subscriptionId || '',
-                        nextBillingDate: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        activatedBy: source
-                    }
+                // CRITICAL: Must be inside the transaction so credits are written
+                //           atomically with the fulfillment lock.
+                const membershipUpdate: Record<string, any> = {
+                    [`memberships.${equipmentType}.active`]: true,
+                    [`memberships.${equipmentType}.tier`]: tierId,
+                    [`memberships.${equipmentType}.type`]: equipmentType,
+                    [`memberships.${equipmentType}.stripeSubscriptionId`]: subscriptionId || '',
+                    [`memberships.${equipmentType}.nextBillingDate`]: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
+                    [`memberships.${equipmentType}.updatedAt`]: admin.firestore.FieldValue.serverTimestamp(),
+                    [`memberships.${equipmentType}.activatedBy`]: source,
                 };
 
                 if (equipmentType === 'btp') {
-                    updates.btpCredits = tier.credits;
+                    membershipUpdate.btpCredits = tier.credits;
                 } else {
-                    updates[`credits.${equipmentType}`] = tier.credits;
+                    membershipUpdate[`credits.${equipmentType}`] = tier.credits;
                 }
 
-                await userRef.update(updates);
+                transaction.update(userRef, membershipUpdate);
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;
