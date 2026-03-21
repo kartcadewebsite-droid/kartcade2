@@ -139,7 +139,7 @@ const DashboardPage: React.FC = () => {
     const [adminPartyTab, setAdminPartyTab] = useState<'active' | 'archive'>('active');
 
     //  Lap Times State 
-    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com'];
+    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com', 'devansh7704patel@gmail.com'];
     const isSuperAdmin = !!(currentUser?.email && SUPER_ADMIN_EMAILS.includes(currentUser.email));
     const [myLapTimes, setMyLapTimes] = useState<any[]>([]);
     const [adminLapTimes, setAdminLapTimes] = useState<any[]>([]);
@@ -205,7 +205,7 @@ const DashboardPage: React.FC = () => {
     const [creditSearchResults, setCreditSearchResults] = useState<any[]>([]);
     const [creditSearching, setCreditSearching] = useState(false);
     const [selectedCreditUser, setSelectedCreditUser] = useState<any>(null);
-    const [creditEquipment, setCreditEquipment] = useState<'karts' | 'rigs' | 'motion' | 'flight'>('karts');
+    const [creditEquipment, setCreditEquipment] = useState<'karts' | 'rigs' | 'motion' | 'flight' | 'btp'>('karts');
     const [creditAmount, setCreditAmount] = useState('');
     const [creditApplying, setCreditApplying] = useState(false);
     const [creditApplyMsg, setCreditApplyMsg] = useState('');
@@ -1056,12 +1056,20 @@ const DashboardPage: React.FC = () => {
         try {
             const userSnap = await getDoc(doc(db, 'users', selectedCreditUser.id));
             const ud = userSnap.data() || {};
-            const current = ud.bonusCredits?.[creditEquipment] || 0;
-            const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 30);
-            await updateDoc(doc(db, 'users', selectedCreditUser.id), {
-                [`bonusCredits.${creditEquipment}`]: current + amount,
-                [`bonusCredits.${creditEquipment}ExpiresAt`]: expiresAt.toISOString()
-            });
+            
+            if (creditEquipment === 'btp') {
+                const current = ud.btpCredits || 0;
+                await updateDoc(doc(db, 'users', selectedCreditUser.id), {
+                    btpCredits: current + amount
+                });
+            } else {
+                const current = ud.bonusCredits?.[creditEquipment] || 0;
+                const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 30);
+                await updateDoc(doc(db, 'users', selectedCreditUser.id), {
+                    [`bonusCredits.${creditEquipment}`]: current + amount,
+                    [`bonusCredits.${creditEquipment}ExpiresAt`]: expiresAt.toISOString()
+                });
+            }
 
             // Log the transaction for admin oversight (Adam's Option 1)
             await addDoc(collection(db, 'transactions_log'), {
@@ -1929,7 +1937,8 @@ const DashboardPage: React.FC = () => {
                                                                 Total Credits:
                                                                 Karts: {(u.credits?.kart || 0) + (u.bonusCredits?.karts || 0)} |
                                                                 Rigs: {(u.credits?.rig || 0) + (u.bonusCredits?.rigs || 0)} |
-                                                                Motion: {(u.credits?.motion || 0) + (u.bonusCredits?.motion || 0)}
+                                                                Motion: {(u.credits?.motion || 0) + (u.bonusCredits?.motion || 0)} |
+                                                                BTP: {u.btpCredits || 0}
                                                             </div>
                                                         </button>
                                                     ))}
@@ -1946,6 +1955,7 @@ const DashboardPage: React.FC = () => {
                                                                 <option value="rigs">Full-Size Rigs</option>
                                                                 <option value="motion">Motion Simulators</option>
                                                                 <option value="flight">Flight Simulators</option>
+                                                                <option value="btp">BTP Credits</option>
                                                             </select>
                                                         </div>
                                                         <div>

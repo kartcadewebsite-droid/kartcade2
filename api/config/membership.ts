@@ -10,7 +10,7 @@ export interface MembershipTier {
     id: string;
     name: string;
     level: 'bronze' | 'silver' | 'gold';
-    equipmentType: 'kart' | 'rig' | 'motion';
+    equipmentType: 'kart' | 'rig' | 'motion' | 'btp';
     equipmentName: string;
     price: number;           // Monthly price in dollars
     credits: number;         // Credits per month
@@ -164,6 +164,22 @@ export const MEMBERSHIP_TIERS: MembershipTier[] = [
         savings: 25,
         color: '#FFD700',
         stripePriceId: 'price_placeholder_gold_motion'
+    },
+
+    // BTP MEMBERSHIP
+    {
+        id: 'btp_monthly',
+        name: 'Beat The Pro Monthly',
+        level: 'gold',
+        equipmentType: 'btp',
+        equipmentName: 'BTP Challenge',
+        price: 100,
+        credits: 30,
+        pricePerCredit: 3.33,
+        regularPrice: 450,
+        savings: 350,
+        color: '#FFD700',
+        stripePriceId: 'price_placeholder_btp_monthly'
     }
 ];
 
@@ -172,15 +188,16 @@ export const getMembershipById = (id: string): MembershipTier | undefined => {
     return MEMBERSHIP_TIERS.find(tier => tier.id === id);
 };
 
-export const getMembershipsByEquipment = (equipmentType: 'kart' | 'rig' | 'motion'): MembershipTier[] => {
+export const getMembershipsByEquipment = (equipmentType: 'kart' | 'rig' | 'motion' | 'btp'): MembershipTier[] => {
     return MEMBERSHIP_TIERS.filter(tier => tier.equipmentType === equipmentType);
 };
 
-export const getEquipmentTypeFromStation = (stationId: string): 'kart' | 'rig' | 'motion' | null => {
-    const mapping: { [key: string]: 'kart' | 'rig' | 'motion' } = {
+export const getEquipmentTypeFromStation = (stationId: string): 'kart' | 'rig' | 'motion' | 'btp' | null => {
+    const mapping: { [key: string]: 'kart' | 'rig' | 'motion' | 'btp' } = {
         'karts': 'kart',
         'rigs': 'rig',
-        'motion': 'motion'
+        'motion': 'motion',
+        'btp': 'btp'
     };
     return mapping[stationId] || null;
 };

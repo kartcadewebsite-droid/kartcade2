@@ -150,7 +150,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     name: metadata.bookingName || 'Guest',
                     email: metadata.bookingEmail || (session.customer_details?.email || ''),
                     phone: metadata.bookingPhone || '',
-                    paymentMethod: 'deposit',
+                    paymentMethod: metadata.paymentMethod || 'deposit',
                     durationMinutes: (parseFloat(duration) * 60).toString(),
                     notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
                 });
@@ -193,9 +193,9 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                         bookingDate: metadata.bookingDate || '',
                         bookingTime: metadata.bookingTime || '',
                         duration: parseInt(duration),
-                        totalPrice: (session.amount_total || 0) * 2 / 100, // 50% deposit was paid
-                        depositPaid: (session.amount_total || 0) / 100,
-                        remainingBalance: (session.amount_total || 0) / 100,
+                        totalPrice: metadata.totalPrice ? parseFloat(metadata.totalPrice) : (session.amount_total || 0) * 2 / 100,
+                        depositPaid: metadata.depositPaid ? parseFloat(metadata.depositPaid) : (session.amount_total || 0) / 100,
+                        remainingBalance: metadata.remainingBalance ? parseFloat(metadata.remainingBalance) : (session.amount_total || 0) / 100,
                         maxGuests: 15,
                         registeredGuests: [],
                         status: 'confirmed',

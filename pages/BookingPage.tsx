@@ -316,11 +316,25 @@ const BookingPage: React.FC = () => {
                 }
             }
 
+            // If paying with BTP credit, deduct it
+            if (paymentMethod === 'btp_credit') {
+                const btpUsed = await useBtpCredit();
+                if (!btpUsed) {
+                    setError('Failed to use BTP credit. Cooldown might be active.');
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
             // Construct notes with credit info AND driver specs
             let finalNotes = formData.notes;
 
             // Add credit info if applicable
-            finalNotes += ` [Paid with ${getTotalDrivers() * duration} credit(s)]`;
+            if (paymentMethod === 'btp_credit') {
+                finalNotes += ` [Paid with 1 BTP Credit]`;
+            } else if (paymentMethod === 'credits') {
+                finalNotes += ` [Paid with ${getTotalDrivers() * duration} credit(s)]`;
+            }
 
             // Add Driver Tech Specs (for Adam's reference)
             if (userProfile) {

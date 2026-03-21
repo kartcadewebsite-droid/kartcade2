@@ -111,7 +111,7 @@ export const bookingService = {
                         name: metadata.bookingName || 'Guest',
                         email: metadata.bookingEmail || (session.customer_details?.email || ''),
                         phone: metadata.bookingPhone || '',
-                        paymentMethod: 'deposit',
+                        paymentMethod: metadata.paymentMethod || 'deposit',
                         notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
                     });
 

@@ -64,7 +64,19 @@ export function getEquipmentPrice(equipmentType: string): number {
  * Calculate total cost from station string
  */
 export function calculateTotalCost(station: string): number {
+    const isPartyBooking = String(station).includes('Karts:5') &&
+        String(station).includes('Rigs:3') &&
+        String(station).includes('Motion:1') &&
+        String(station).includes('Flight:1');
+
     const { equipment, duration } = parseStationString(station);
+
+    if (isPartyBooking) {
+        if (duration === 2) return 400;
+        if (duration === 3) return 600;
+        if (duration === 4) return 800;
+        return 400 + ((duration - 2) * 200);
+    }
 
     let total = 0;
     equipment.forEach(item => {

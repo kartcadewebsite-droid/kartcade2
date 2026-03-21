@@ -16,7 +16,7 @@ export interface MembershipTier {
     id: string;
     name: string;
     level: 'bronze' | 'silver' | 'gold';
-    equipmentType: 'kart' | 'rig' | 'motion';
+    equipmentType: 'kart' | 'rig' | 'motion' | 'btp';
     equipmentName: string;
     price: number;
     credits: number;
@@ -141,7 +141,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     name: metadata.bookingName || 'Guest',
                     email: metadata.bookingEmail || (session.customer_details?.email || ''),
                     phone: metadata.bookingPhone || '',
-                    paymentMethod: 'deposit',
+                    paymentMethod: metadata.paymentMethod || 'deposit',
                     notes: (metadata.bookingNotes || '') + ` [Stripe ${source.toUpperCase()}: ${session.payment_intent}]`
                 });
 
@@ -204,19 +204,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     const partyRef = db.collection('parties').doc();
                     const partyId = partyRef.id;
 
-                    // 🔥 FIX 1: Safely catch 'duration' from Stripe metadata
-                    const durationStr = metadata.bookingDuration || metadata.duration || '2';
-                    const durationInt = parseInt(durationStr);
-
-                    const amountPaid = (session.amount_total || 0) / 100;
-
-                    // 🔥 FIX 2: Guaranteed Pricing Math
-                    const PARTY_PRICES: Record<number, number> = { 2: 400, 3: 600, 4: 800 };
-                    const totalPrice = PARTY_PRICES[durationInt] || 400;
-
-                    // 🔥 FIX 3: Never allow a negative balance
-                    const remainingBalance = Math.max(0, totalPrice - amountPaid);
-
                     // 1. Create the Party Doc
                     transaction.set(partyRef, {
                         partyId: partyId,
@@ -226,10 +213,10 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                         hostPhone: metadata.bookingPhone || '',
                         bookingDate: metadata.bookingDate,
                         bookingTime: metadata.bookingTime,
-                        duration: durationInt,
-                        totalPrice: totalPrice,
-                        depositPaid: amountPaid, // Used as 'Amount Paid'
-                        remainingBalance: remainingBalance,
+                        duration: parseInt(metadata.bookingDuration || metadata.duration || '2'),
+                        totalPrice: metadata.totalPrice ? parseFloat(metadata.totalPrice) : 400,
+                        depositPaid: metadata.depositPaid ? parseFloat(metadata.depositPaid) : (session.amount_total || 0) / 100,
+                        remainingBalance: metadata.remainingBalance ? parseFloat(metadata.remainingBalance) : 0,
                         maxGuests: 15,
                         registeredGuests: [],
                         status: 'confirmed',
