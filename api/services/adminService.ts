@@ -23,7 +23,7 @@ export const adminService = {
     /**
      * Add credits to a user's account securely
      */
-    async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+    async addCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number) {
         try {
             const userRef = db.collection('users').doc(userId);
 
@@ -69,7 +69,7 @@ export const adminService = {
     /**
      * Set credits to a specific amount (Used for monthly resets/renewals)
      */
-    async setCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion', amount: number) {
+    async setCredits(userId: string, equipmentType: 'kart' | 'rig' | 'motion' | 'btp', amount: number) {
         try {
             const userRef = db.collection('users').doc(userId);
 
@@ -95,7 +95,7 @@ export const adminService = {
     /**
      * Activate or Update Membership
      */
-    async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion', subscriptionId: string, currentPeriodEnd: Date) {
+    async updateMembership(userId: string, tierId: string, equipmentType: 'kart' | 'rig' | 'motion' | 'btp', subscriptionId: string, currentPeriodEnd: Date) {
         try {
             const userRef = db.collection('users').doc(userId);
 
@@ -159,7 +159,7 @@ export const adminService = {
     /**
      * Deactivate Membership (Cancellation)
      */
-    async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion') {
+    async deactivateMembership(userId: string, equipmentType: 'kart' | 'rig' | 'motion' | 'btp') {
         try {
             const userRef = db.collection('users').doc(userId);
             const updateKey = `memberships.${equipmentType}.active`;
