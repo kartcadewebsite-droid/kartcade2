@@ -83,7 +83,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
     try {
         // 1. Transactional Lock: Determine who is responsible for this fulfillment
-        return await db.runTransaction(async (transaction) => {
+        const result = await db.runTransaction(async (transaction) => {
             const lockDoc = await transaction.get(lockRef);
 
             // If it's already finished, return the success data immediately

@@ -73,7 +73,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
     console.log(`[VERIFY ENDPOINT] Request from ${source} for session ${sessionId}`);
 
     try {
-        return await db.runTransaction(async (transaction) => {
+        const result = await db.runTransaction(async (transaction) => {
             const lockDoc = await transaction.get(lockRef);
 
             if (lockDoc.exists && lockDoc.data()?.status === 'SUCCESS') {
