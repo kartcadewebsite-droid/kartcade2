@@ -1,4 +1,3 @@
-
 import { Stripe } from 'stripe';
 import { buffer } from 'micro';
 import admin from 'firebase-admin';
@@ -96,7 +95,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
             // If it's currently IN_PROGRESS by another process, let's wait a bit (or return pending)
             if (lockDoc.exists && lockDoc.data()?.status === 'IN_PROGRESS') {
                 if (source === 'redirect' || source === 'webhook') {
-                    // Both source types should wait and retry if another process is currently fulfilling
                     console.log(`[WEBHOOK] Session ${sessionId} is IN_PROGRESS by ${lockDoc.data()?.fulfilledBy}. ${source} waiting...`);
                     throw new Error('PENDING_LOCK');
                 }
@@ -133,7 +131,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
             let resultData: any = { type };
 
             if (type === 'booking_deposit') {
-                // 4a. Booking Logic
+                // 4a. Booking Logic — UNTOUCHED
                 const drivers = metadata.bookingDrivers || '1';
                 const duration = metadata.bookingDuration || '1';
                 const stationName = metadata.bookingStation || '';
@@ -181,7 +179,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const isParty = metadata.isParty === 'true';
                 let partyDocId = '';
 
-                // If it's a party, create the party metadata first
                 if (isParty) {
                     const partyRef = db.collection('parties').doc();
                     partyDocId = partyRef.id;
@@ -206,7 +203,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
 
-                    // Update user's party hosting info
                     if (metadata.userId) {
                         const userRef = db.collection('users').doc(metadata.userId);
                         transaction.set(userRef, {
@@ -258,9 +254,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const userDoc = await transaction.get(userRef);
                 const userData = userDoc.data();
 
-                // Activate Membership using dot-notation for safety
-                // CRITICAL: Must be inside the transaction so credits are written
-                //           atomically with the fulfillment lock.
                 const membershipUpdate: Record<string, any> = {
                     [`memberships.${equipmentType}.active`]: true,
                     [`memberships.${equipmentType}.tier`]: tierId,
@@ -281,6 +274,10 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;
+                // Pass oldSubId out of transaction so we can cancel AFTER commit
+                resultData._oldSubIdToCancel = (metadata.oldSubscriptionId && metadata.oldSubscriptionId !== subscriptionId)
+                    ? metadata.oldSubscriptionId
+                    : null;
 
                 // CRM Log
                 transaction.set(db.collection('transactions_log').doc(), {
@@ -307,6 +304,22 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
             return { ...finalResult, success: true };
         });
+
+        // ✅ FIX: Cancel old subscription AFTER transaction commits.
+        // Doing this inside the transaction caused: (1) cancel firing before Firestore
+        // committed, and (2) double-cancel if Firestore retried the transaction.
+        const oldSubIdToCancel = (result as any)?._oldSubIdToCancel;
+        if (oldSubIdToCancel) {
+            try {
+                await stripe.subscriptions.cancel(oldSubIdToCancel);
+                console.log(`[WEBHOOK] Cancelled old subscription ${oldSubIdToCancel} (post-transaction commit).`);
+            } catch (cancelErr: any) {
+                // Non-fatal: old sub may already be cancelled by Stripe — log and continue
+                console.warn(`[WEBHOOK] Could not cancel old subscription ${oldSubIdToCancel}: ${cancelErr.message}`);
+            }
+        }
+
+        return result;
     } catch (err: any) {
         if (err.message === 'PENDING_LOCK') {
             if (retryCount >= 3) {
@@ -314,7 +327,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 throw new Error('FULFILLMENT_TIMEOUT: The other process did not complete in time');
             }
             console.log(`[WEBHOOK] Retry ${retryCount + 1}/3 for session ${sessionId}`);
-            // Wait and retry
             await new Promise(resolve => setTimeout(resolve, 2000));
             return fulfillStripeBooking(sessionId, source, retryCount + 1);
         }
@@ -338,7 +350,6 @@ async function handleInvoicePaid(invoice: any) {
     try {
         console.log(`[WEBHOOK] Processing invoice.payment_succeeded for subscription ${subscriptionId}`);
 
-        // Retrieve full subscription to get metadata
         const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
         const { userId, equipmentType, tierId } = (subscription.metadata || {}) as any;
 
@@ -350,9 +361,6 @@ async function handleInvoicePaid(invoice: any) {
         const userRef = db.collection('users').doc(userId);
         const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
 
-        // ✅ FIX: Use dot-notation paths so we only update specific sub-fields.
-        // Previously used nested object spread which OVERWROTE the entire membership
-        // document, causing tier, stripeSubscriptionId, etc. to be lost on renewal.
         await userRef.update({
             [`memberships.${equipmentType}.nextBillingDate`]: admin.firestore.Timestamp.fromDate(currentPeriodEnd),
             [`memberships.${equipmentType}.active`]: true,
@@ -362,18 +370,13 @@ async function handleInvoicePaid(invoice: any) {
 
         console.log(`[WEBHOOK] Successfully extended membership for user ${userId} (${equipmentType}) to ${currentPeriodEnd.toISOString()}`);
 
-        // Reset credits to tier amount on renewal ("use it or lose it")
         if (tierId) {
             const tier = MEMBERSHIP_TIERS.find(t => t.id === tierId);
             if (tier) {
                 if (equipmentType === 'btp') {
-                    await userRef.update({
-                        btpCredits: tier.credits
-                    });
+                    await userRef.update({ btpCredits: tier.credits });
                 } else {
-                    await userRef.update({
-                        [`credits.${equipmentType}`]: tier.credits
-                    });
+                    await userRef.update({ [`credits.${equipmentType}`]: tier.credits });
                 }
                 console.log(`[WEBHOOK] Reset credits to ${tier.credits} for ${userId} (${equipmentType}) on renewal.`);
             }
@@ -448,7 +451,6 @@ export default async function handler(req: any, res: any) {
         return;
     }
 
-    // Wrap EACH event handler in its own try/catch and ALWAYS return 200
     try {
         if (event.type === 'checkout.session.completed') {
             const session = event.data.object as any;
@@ -458,10 +460,22 @@ export default async function handler(req: any, res: any) {
                 await fulfillStripeBooking(session.id, 'webhook');
                 console.log(`[WEBHOOK] Fulfillment complete for session ${session.id}`);
             } catch (fulfillErr: any) {
-                // LOG the error but ALWAYS return 200
-                // verify-checkout-session.ts safety net will catch failures
-                // Returning 500 causes Stripe to retry → race conditions!
                 console.error(`[WEBHOOK] Fulfillment failed for ${session.id}:`, fulfillErr.message);
+
+                // ✅ FIX: Write failure record to Firestore so Adam can see it in admin
+                try {
+                    const db = getDb();
+                    await db.collection('fulfillment_failures').doc(session.id).set({
+                        sessionId: session.id,
+                        error: fulfillErr.message,
+                        metadata: session.metadata,
+                        failedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        resolved: false,
+                    });
+                    console.log(`[WEBHOOK] Failure record written for session ${session.id}`);
+                } catch (_) {
+                    // best-effort, do not throw
+                }
             }
         }
         else if (event.type === 'invoice.payment_succeeded') {
@@ -486,11 +500,10 @@ export default async function handler(req: any, res: any) {
             }
         }
 
-        // ALWAYS return 200 - no matter what!
+        // ALWAYS return 200
         return res.status(200).json({ received: true });
 
     } catch (err: any) {
-        // Even catastrophic errors return 200 to Stripe to prevent retry loops
         console.error(`[WEBHOOK] Critical error for ${event.type}:`, err.message);
         return res.status(200).json({ received: true });
     }

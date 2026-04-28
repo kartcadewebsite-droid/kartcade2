@@ -1,4 +1,3 @@
-
 import { Stripe } from 'stripe';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -74,38 +73,31 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
     console.log(`[VERIFY ENDPOINT] Request from ${source} for session ${sessionId}`);
 
     try {
-        // 1. Transactional Lock: Determine who is responsible for this fulfillment
         return await db.runTransaction(async (transaction) => {
             const lockDoc = await transaction.get(lockRef);
 
-            // If it's already finished, return the success data immediately
             if (lockDoc.exists && lockDoc.data()?.status === 'SUCCESS') {
                 console.log(`[VERIFY ENDPOINT] Session ${sessionId} already fulfilled by ${lockDoc.data()?.fulfilledBy}. Source ${source} skipped.`);
                 return { success: true, alreadyProcessed: true, ...lockDoc.data() };
             }
 
-            // If it's currently IN_PROGRESS by another process, let's wait a bit (or return pending)
             if (lockDoc.exists && lockDoc.data()?.status === 'IN_PROGRESS') {
                 if (source === 'redirect' || source === 'webhook') {
-                    // Both source types should wait and retry if another process is currently fulfilling
                     console.log(`[VERIFY ENDPOINT] Session ${sessionId} is IN_PROGRESS by ${lockDoc.data()?.fulfilledBy}. ${source} waiting...`);
                     throw new Error('PENDING_LOCK');
                 }
                 return { success: true, status: 'IN_PROGRESS', message: 'Fulfillment already in progress' };
             }
 
-            // 2. We are the Winner! Set lock to IN_PROGRESS
             transaction.set(lockRef, {
                 status: 'IN_PROGRESS',
                 fulfilledBy: source,
                 startTime: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            // 3. Retrieve session details from Stripe
             const session = await stripe.checkout.sessions.retrieve(sessionId);
             const metadata = (session.metadata || {}) as any;
 
-            // Fixed type detection
             const type = metadata.type || metadata.bookingType || (metadata.tierId ? 'membership_purchase' : (metadata.bookingDate ? 'booking_deposit' : 'unknown'));
 
             if (type === 'unknown') {
@@ -117,14 +109,10 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 throw new Error('SESSION_NOT_PAID');
             }
 
-            // ============================================
-            // FULFILLMENT Logic (Grouped by type)
-            // ============================================
-
             let resultData: any = { type };
 
             if (type === 'booking_deposit') {
-                // 4a. Booking Logic
+                // Booking Logic — UNTOUCHED
                 const drivers = metadata.bookingDrivers || '1';
                 const duration = metadata.bookingDuration || '1';
                 const stationName = metadata.bookingStation || '';
@@ -166,8 +154,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     amount: session.amount_total
                 };
 
-                // CRM Log
-                // Calculate the real estimated value for CRM stats
                 const equipmentBreakdown = metadata.bookingEquipment ? JSON.parse(metadata.bookingEquipment) : null;
                 const durationHours = parseInt(metadata.bookingDuration || '1');
 
@@ -179,7 +165,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     }
                 }
 
-                // Create Transaction Log
                 transaction.set(db.collection('transactions_log').doc(), {
                     userId: metadata.userId || '',
                     email: metadata.bookingEmail || session.customer_details?.email || '',
@@ -191,12 +176,12 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     drivers: parseInt(drivers),
                     duration: durationHours,
                     name: metadata.bookingName || 'Guest',
-                    amount: (session.amount_total || 0) / 100, // Actual paid amount
-                    calculatedPrice: calculatedPrice || (session.amount_total || 0) / 100, // Total estimated value
+                    amount: (session.amount_total || 0) / 100,
+                    calculatedPrice: calculatedPrice || (session.amount_total || 0) / 100,
                     stripeSessionId: sessionId,
                     bookingId: gasData.bookingId,
                     fulfillmentSource: source,
-                    status: 'confirmed', // CRITICAL: This activates CRM stats
+                    status: 'confirmed',
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
@@ -204,7 +189,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                     const partyRef = db.collection('parties').doc();
                     const partyId = partyRef.id;
 
-                    // 1. Create the Party Doc
                     transaction.set(partyRef, {
                         partyId: partyId,
                         hostUserId: metadata.hostUserId || metadata.userId || '',
@@ -227,7 +211,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                         updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });
 
-                    // 2. Link Party to User Profile
                     if (metadata.userId) {
                         const userRef = db.collection('users').doc(metadata.userId);
                         transaction.set(userRef, {
@@ -239,7 +222,7 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 }
 
             } else if (type === 'membership_purchase') {
-                // 4b. Membership Logic
+                // Membership Logic
                 const userId = metadata.userId;
                 const tierId = metadata.tierId;
                 if (!userId || !tierId) throw new Error('MISSING_METADATA');
@@ -261,9 +244,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 const userDoc = await transaction.get(userRef);
                 const userData = userDoc.data();
 
-                // Activate Membership using dot-notation for safety
-                // CRITICAL: Must be inside the transaction so credits are written
-                //           atomically with the fulfillment lock.
                 const membershipUpdate: Record<string, any> = {
                     [`memberships.${equipmentType}.active`]: true,
                     [`memberships.${equipmentType}.tier`]: tierId,
@@ -284,8 +264,11 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
 
                 resultData.tierId = tierId;
                 resultData.creditsAdded = tier.credits;
+                // Pass oldSubId out of transaction so we can cancel AFTER commit
+                resultData._oldSubIdToCancel = (metadata.oldSubscriptionId && metadata.oldSubscriptionId !== subscriptionId)
+                    ? metadata.oldSubscriptionId
+                    : null;
 
-                // CRM Log
                 transaction.set(db.collection('transactions_log').doc(), {
                     userId,
                     email: session.customer_details?.email || '',
@@ -305,11 +288,26 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 completedAt: admin.firestore.FieldValue.serverTimestamp()
             };
 
-            // Update the lock to SUCCESS
             transaction.set(lockRef, finalResult);
 
             return { ...finalResult, success: true };
         });
+
+        // ✅ FIX: Cancel old subscription AFTER transaction commits.
+        // Doing this inside the transaction caused: (1) cancel firing before Firestore
+        // committed, and (2) double-cancel if Firestore retried the transaction.
+        const oldSubIdToCancel = (result as any)?._oldSubIdToCancel;
+        if (oldSubIdToCancel) {
+            try {
+                await stripe.subscriptions.cancel(oldSubIdToCancel);
+                console.log(`[VERIFY ENDPOINT] Cancelled old subscription ${oldSubIdToCancel} (post-transaction commit).`);
+            } catch (cancelErr: any) {
+                // Non-fatal: old sub may already be cancelled by Stripe — log and continue
+                console.warn(`[VERIFY ENDPOINT] Could not cancel old subscription ${oldSubIdToCancel}: ${cancelErr.message}`);
+            }
+        }
+
+        return result;
     } catch (err: any) {
         if (err.message === 'PENDING_LOCK') {
             if (retryCount >= 3) {
@@ -317,7 +315,6 @@ async function fulfillStripeBooking(sessionId: string, source: 'webhook' | 'redi
                 throw new Error('FULFILLMENT_TIMEOUT: The other process did not complete in time');
             }
             console.log(`[VERIFY ENDPOINT] Retry ${retryCount + 1}/3 for session ${sessionId}`);
-            // Wait and retry
             await new Promise(resolve => setTimeout(resolve, 2000));
             return fulfillStripeBooking(sessionId, source, retryCount + 1);
         }
@@ -339,7 +336,6 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        // Use the inlined service
         const result = await fulfillStripeBooking(session_id, 'redirect');
         return res.status(200).json(result);
     } catch (error: any) {

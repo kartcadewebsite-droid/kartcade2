@@ -62,11 +62,20 @@ const MembershipPage: React.FC = () => {
             .catch(err => console.error('Failed to load prices:', err));
     }, []);
 
-    // Check if user has an active membership for the SELECTED equipment type
+    // Check if user has an active membership for the SELECTED equipment type (for UI display only)
     const activeMembershipForType = userProfile?.memberships?.[selectedType]?.active
         ? userProfile.memberships[selectedType]
         : null;
     const activeTier = activeMembershipForType ? getMembershipById(activeMembershipForType.tier) : null;
+
+    // ✅ FIX: Find any active subscription across ALL equipment types for upgrade detection.
+    // Previously only checked the selected tab — broken for cross-type upgrades (e.g. rig → motion).
+    // Since only one membership is allowed at a time, we cancel the old one when buying a new one.
+    const allMemberships = userProfile?.memberships || {};
+    const anyActiveSub = Object.values(allMemberships).find(
+        (m: any) => m?.active && m?.stripeSubscriptionId
+    ) as any;
+    const crossTypeOldSubId = anyActiveSub?.stripeSubscriptionId || null;
 
     const handleSelectPlan = async (tierId: string) => {
         // If not logged in, redirect to signup
@@ -87,20 +96,19 @@ const MembershipPage: React.FC = () => {
             return;
         }
 
-        // Proceed to checkout
         setLoadingTier(tierId);
         try {
-            // Check if this is an upgrade (User has a membership for this TYPE, but different tier)
-            const isUpgrade = !!activeMembershipForType;
-            const upgradeParam = isUpgrade && activeMembershipForType?.stripeSubscriptionId
-                ? `&upgradeFrom=${activeMembershipForType.stripeSubscriptionId}`
+            // ✅ FIX: Use crossTypeOldSubId so upgrading from any equipment type
+            // (e.g. rig → motion) correctly passes the old subscription ID to checkout.
+            // Previously this was always empty for cross-type upgrades.
+            const upgradeParam = crossTypeOldSubId
+                ? `&upgradeFrom=${crossTypeOldSubId}`
                 : '';
 
             // Get dynamic price ID
             const priceId = stripePrices[tierId] || '';
             const priceParam = priceId ? `&priceId=${priceId}` : '';
 
-            // Navigate to checkout with tier info AND upgrade info if applicable
             navigate(`/checkout?tier=${tierId}${upgradeParam}${priceParam}`);
         } catch (error) {
             console.error('Failed to start checkout:', error);
@@ -109,8 +117,6 @@ const MembershipPage: React.FC = () => {
             setLoadingTier(null);
         }
     };
-
-
 
     const handleManageSubscription = async () => {
         if (!currentUser) return;
@@ -143,8 +149,6 @@ const MembershipPage: React.FC = () => {
             alert('Failed to connect to billing portal.');
         }
     };
-
-
 
     const features = [
         { icon: Clock, text: '1 credit = 1 hour at 50% off' },
@@ -398,8 +402,6 @@ const MembershipPage: React.FC = () => {
                                             </>
                                         )}
                                     </button>
-
-
                                 </div>
                             );
                         })}
