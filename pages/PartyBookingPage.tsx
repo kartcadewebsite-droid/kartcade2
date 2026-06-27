@@ -440,10 +440,12 @@ const PartyBookingPage: React.FC = () => {
                                         selectedDate={selectedDate}
                                         onDateChange={setSelectedDate}
                                         minDate={(() => {
-                                            const d = new Date();
-                                            d.setDate(d.getDate() + 1);
-                                            d.setHours(0, 0, 0, 0);
-                                            return d;
+                                             const d = new Date();
+                                             if (!isAdmin) {
+                                                 d.setDate(d.getDate() + 1);
+                                             }
+                                             d.setHours(0, 0, 0, 0);
+                                             return d;
                                         })()}
                                         maxDate={(() => {
                                             const d = new Date();

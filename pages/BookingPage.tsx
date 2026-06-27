@@ -845,7 +845,9 @@ const BookingPage: React.FC = () => {
                                             }}
                                             minDate={(() => {
                                                 const min = new Date();
-                                                min.setHours(min.getHours() + bookingConfig.minAdvanceHours);
+                                                if (!isAdmin) {
+                                                    min.setHours(min.getHours() + bookingConfig.minAdvanceHours);
+                                                }
                                                 return min;
                                             })()}
                                             maxDate={(() => {
