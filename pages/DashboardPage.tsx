@@ -2781,7 +2781,7 @@ const DashboardPage: React.FC = () => {
 
                     {/* Your Hosted Parties */}
                     {hostedParties.length > 0 && (
-                        <div className="mt-8">
+                        <div className="mt-8 md:col-span-2">
                             <h2 className="font-display text-xl font-bold text-white uppercase mb-4 flex items-center gap-2">
                                 <Users className="w-5 h-5 text-[#D42428]" />
                                 Your Hosted Parties
@@ -2794,29 +2794,28 @@ const DashboardPage: React.FC = () => {
                                         return !isPast && !isCancelled;
                                     })
                                     .map((party) => (
-                                        <div key={party.id} className="bg-[#141414] rounded-2xl p-6 border border-[#D42428]/30 relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 p-4">
-                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${party.status === 'confirmed' ? 'bg-[#2D9E49]/20 text-[#2D9E49]' : 'bg-white/10 text-white/40'}`}>
-                                                    {party.status}
-                                                </span>
-                                            </div>
-
+                                        <div key={party.id} className="bg-[#141414] rounded-2xl p-6 border border-[#D42428]/30">
                                             <div className="flex flex-col lg:flex-row gap-8">
                                                 {/* Party Info */}
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-3 mb-4">
-                                                        <div className="w-12 h-12 bg-[#D42428]/20 rounded-xl flex items-center justify-center">
+                                                    <div className="flex items-start gap-3 mb-4">
+                                                        <div className="w-12 h-12 bg-[#D42428]/20 rounded-xl flex items-center justify-center shrink-0">
                                                             <Calendar className="w-6 h-6 text-[#D42428]" />
                                                         </div>
                                                         <div>
-                                                            <h3 className="text-white font-display font-bold uppercase text-lg">Facility Takeover</h3>
-                                                            <p className="text-white/60 text-sm">
-                                                                {formatDate(party.bookingDate)} at {formatTime(party.bookingTime)}  {party.duration} Hours
+                                                            <div className="flex items-center gap-3 flex-wrap">
+                                                                <h3 className="text-white font-display font-bold uppercase text-lg">Facility Takeover</h3>
+                                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shrink-0 ${party.status === 'confirmed' ? 'bg-[#2D9E49]/20 text-[#2D9E49]' : 'bg-white/10 text-white/40'}`}>
+                                                                    {party.status}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-white/60 text-sm mt-1">
+                                                                {formatDate(party.bookingDate)} at {formatTime(party.bookingTime)} | {party.duration} Hours
                                                             </p>
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 mt-6">
                                                         <div className="p-4 bg-black/30 rounded-xl border border-white/5 flex flex-col justify-between">
                                                             <div>
                                                                 <span className="block text-white/40 text-[10px] uppercase tracking-[0.2em] mb-1">Registration Status</span>
@@ -2960,7 +2959,7 @@ const DashboardPage: React.FC = () => {
                     {/* Attending Parties (Guest View) */}
                     {
                         attendingParties.length > 0 && (
-                            <div className="mt-8">
+                            <div className="mt-8 md:col-span-2">
                                 <h2 className="font-display text-xl font-bold text-white uppercase mb-4 flex items-center gap-2">
                                     <Rocket className="w-5 h-5 text-[#2D9E49]" />
                                     Parties You're Attending
@@ -3020,7 +3019,7 @@ const DashboardPage: React.FC = () => {
                     }
 
                     {/* Upcoming Bookings */}
-                    <div className="mt-8">
+                    <div className="mt-8 md:col-span-1">
                         <h2 className="font-display text-xl font-bold text-white uppercase mb-4 flex items-center gap-2">
                             <Calendar className="w-5 h-5 text-[#2D9E49]" />
                             Upcoming Bookings
@@ -3117,7 +3116,7 @@ const DashboardPage: React.FC = () => {
                     {/* Booking History */}
                     {
                         historyList.length > 0 && (
-                            <div className="mt-12 opacity-80 hover:opacity-100 transition-opacity">
+                            <div className="mt-12 md:col-span-3 opacity-80 hover:opacity-100 transition-opacity">
                                 <h2 className="font-display text-lg font-bold text-white/40 uppercase mb-4 flex items-center gap-2">
                                     <Clock className="w-5 h-5" />
                                     Booking History

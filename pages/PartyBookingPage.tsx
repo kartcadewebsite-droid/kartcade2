@@ -40,7 +40,7 @@ const PartyBookingPage: React.FC = () => {
 
     // 2. CONSTANTS
     const PARTY_PRICES: Record<number, number> = { 2: 400, 3: 600, 4: 800 };
-    const TOTAL_MACHINES = { karts: 5, rigs: 3, motion: 1, flight: 1 };
+    const TOTAL_MACHINES = { karts: 4, rigs: 4, motion: 1, flight: 1 };
 
     // 3. EFFECTS
     useEffect(() => {
@@ -95,8 +95,8 @@ const PartyBookingPage: React.FC = () => {
 
             // Iterate through slots (base on karts as the primary anchor)
             Object.keys(karts).forEach(time => {
-                const kFree = karts[time]?.available === 5;
-                const rFree = rigs[time]?.available === 3;
+                const kFree = karts[time]?.available === 4;
+                const rFree = rigs[time]?.available === 4;
                 const mFree = motion[time]?.available === 1;
                 const fFree = flight[time]?.available === 1;
 
@@ -439,7 +439,12 @@ const PartyBookingPage: React.FC = () => {
                                     <CalendarPicker
                                         selectedDate={selectedDate}
                                         onDateChange={setSelectedDate}
-                                        minDate={new Date()}
+                                        minDate={(() => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() + 1);
+                                            d.setHours(0, 0, 0, 0);
+                                            return d;
+                                        })()}
                                         maxDate={(() => {
                                             const d = new Date();
                                             d.setDate(d.getDate() + 90);

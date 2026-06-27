@@ -1,11 +1,11 @@
 // ============================================================
-// KARTCADE BOOKING SYSTEM v2.3 - CALENDAR & SYNC FIXES
+// KARTCADE BOOKING SYSTEM v2.4 - 30-MIN BOOKING SUPPORT
 // ============================================================
-// CHANGES FROM v2.2:
-// - FIXED: Multi-item bookings now ALL cancel together (v2.2 only cancelled one row)
-// - FIXED: Automatic removal of Google Calendar events on cancellation
-// - NEW: Cancellation confirmation email sent to user
-// - NEW: Cancellation notification email sent to owner
+// CHANGES FROM v2.3:
+// - FIXED: parseStationString now handles decimal durations (0.5h, 1.5h)
+// - FIXED: getAvailability uses parseFloat (parseInt("0.5") was returning 0)
+// - FIXED: getAvailabilityForStation blocks half-hour slots correctly
+// - FIXED: createBooking parses decimal duration for calendar event length
 // ============================================================
 
 const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
@@ -27,23 +27,23 @@ const STATIONS = {
 
 /**
  * Parse station string to extract equipment and duration
- * Format: "Racing Karts:3 (2h)" or "Karts:2, Rigs:1 (2h)"
+ * Format: "Racing Karts:3 (2h)" or "Karts:2, Rigs:1 (1.5h)"
+ * FIX v2.4: regex now handles decimal durations like (0.5h) and (1.5h)
  */
 function parseStationString(stationStr) {
     const equipment = [];
 
-    // Extract duration
-    const durationMatch = String(stationStr).match(/\((\d+)h\)/);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 1;
+    // FIX v2.4: was /\((\d+)h\)/ — couldn't match 0.5h or 1.5h
+    const durationMatch = String(stationStr).match(/\(([\d.]+)h\)/);
+    const duration = durationMatch ? parseFloat(durationMatch[1]) : 1;
 
     // Remove duration from string
-    const equipmentString = String(stationStr).replace(/\(\d+h\)/, '').trim();
+    const equipmentString = String(stationStr).replace(/\([\d.]+h\)/, '').trim();
 
     // Split by comma for multi-equipment
     const items = equipmentString.split(',');
 
     items.forEach(function (item) {
-        // Match "Racing Karts:3" or "Karts:2"
         const match = item.trim().match(/(.+):(\d+)/);
         if (match) {
             equipment.push({
@@ -51,14 +51,9 @@ function parseStationString(stationStr) {
                 quantity: parseInt(match[2])
             });
         } else {
-            // LEGACY FORMAT: No quantity specified (e.g., "Racing Karts")
-            // Assume single unit (quantity: 1)
             const trimmed = item.trim();
             if (trimmed) {
-                equipment.push({
-                    type: trimmed,
-                    quantity: 1
-                });
+                equipment.push({ type: trimmed, quantity: 1 });
             }
         }
     });
@@ -71,21 +66,17 @@ function parseStationString(stationStr) {
  */
 function getEquipmentPrice(equipmentType) {
     const normalizedType = String(equipmentType).toLowerCase();
-
     if (normalizedType.indexOf('kart') !== -1) return 30;
     if (normalizedType.indexOf('rig') !== -1) return 40;
     if (normalizedType.indexOf('motion') !== -1) return 50;
     if (normalizedType.indexOf('flight') !== -1) return 40;
-
-    return 30; // Default
+    return 30;
 }
 
 /**
  * Calculate total cost from station string
  */
 function calculateTotalCost(stationStr) {
-    // VIP LANE: Check if this is a Full Facility Party Booking
-    // We look for "Karts:5, Rigs:3, Motion:1, Flight:1"
     const isPartyBooking = String(stationStr).indexOf('Karts:5') !== -1 &&
         String(stationStr).indexOf('Rigs:3') !== -1 &&
         String(stationStr).indexOf('Motion:1') !== -1 &&
@@ -94,22 +85,17 @@ function calculateTotalCost(stationStr) {
     const parsed = parseStationString(stationStr);
 
     if (isPartyBooking) {
-        // Apply Adam's custom Party Pricing: $400 for 2h, $600 for 3h, $800 for 4h
         if (parsed.duration === 2) return 400;
         if (parsed.duration === 3) return 600;
         if (parsed.duration === 4) return 800;
-
-        // Fallback math: $400 for first 2 hours, $200 each additional hour
         return 400 + ((parsed.duration - 2) * 200);
     }
 
-    // NORMAL LANE: Standard equipment math
     let total = 0;
     parsed.equipment.forEach(function (item) {
         const pricePerHour = getEquipmentPrice(item.type);
         total += item.quantity * parsed.duration * pricePerHour;
     });
-
     return total;
 }
 
@@ -119,20 +105,19 @@ function calculateTotalCost(stationStr) {
 function calculatePaidAmount(paymentMethod, totalCost) {
     const method = String(paymentMethod || 'venue').toLowerCase().trim();
 
-    if (method === 'paypal' ||
-        method.indexOf('paypal') !== -1 ||
-        method === 'credits' ||
-        method.indexOf('credit') !== -1 ||
-        method === 'stripe' ||
-        method === 'online') {
+    // FIX v2.5: Check paypal_deposit FIRST — must be before the generic 'paypal' check
+    // because indexOf('paypal') matches BOTH 'paypal' and 'paypal_deposit'
+    if (method === 'paypal_deposit' || method === 'deposit' || method.indexOf('deposit') !== -1) {
+        return Math.round(totalCost * 0.5);
+    }
+
+    if (method === 'paypal' || method.indexOf('paypal') !== -1 ||
+        method === 'credits' || method.indexOf('credit') !== -1 ||
+        method === 'stripe' || method === 'online') {
         return totalCost; // Paid in full
     }
 
-    if (method === 'deposit' || method.indexOf('deposit') !== -1) {
-        return Math.round(totalCost * 0.5); // 50% deposit
-    }
-
-    return 0;
+    return 0; // Pay at venue — nothing collected yet
 }
 
 /**
@@ -142,7 +127,6 @@ function generatePaymentStatus(stationStr, paymentMethod) {
     const total = calculateTotalCost(stationStr);
     const paid = calculatePaidAmount(paymentMethod, total);
     const remaining = total - paid;
-
     return 'Paid: $' + paid + ' / Remaining: $' + remaining;
 }
 
@@ -150,9 +134,7 @@ function generatePaymentStatus(stationStr, paymentMethod) {
 // CORE HANDLERS
 // ============================================================
 
-function doGet(e) {
-    return handleRequest(e);
-}
+function doGet(e) { return handleRequest(e); }
 
 function doPost(e) {
     let params = e;
@@ -170,11 +152,7 @@ function handleRequest(e) {
         if (action === 'availability') {
             return getAvailability(e.parameter.date, e.parameter.station, e.parameter.duration);
         }
-
-        if (action === 'settings') {
-            return getSettings();
-        }
-
+        if (action === 'settings') { return getSettings(); }
         if (action === 'batchBook') {
             const items = JSON.parse(e.parameter.items || '[]');
             const userDetails = {
@@ -186,7 +164,6 @@ function handleRequest(e) {
             };
             return createBatchBooking(items, userDetails);
         }
-
         if (action === 'book') {
             const bookingData = {
                 date: e.parameter.date,
@@ -197,29 +174,17 @@ function handleRequest(e) {
                 email: e.parameter.email,
                 phone: e.parameter.phone,
                 paymentMethod: e.parameter.paymentMethod || 'venue',
-                notes: e.parameter.notes || ''
+                notes: e.parameter.notes || '',
+                durationMinutes: parseInt(e.parameter.durationMinutes) || 0
             };
             return createBooking(bookingData);
         }
-
-        if (action === 'userBookings') {
-            return getUserBookings(e.parameter.email);
-        }
-
-        if (action === 'cancel') {
-            return cancelBooking(e.parameter.id);
-        }
-
-        if (action === 'allBookings') {
-            return getAllBookings();
-        }
-
-        if (action === 'getBooking') {
-            return getBooking(e.parameter.id);
-        }
+        if (action === 'userBookings') { return getUserBookings(e.parameter.email); }
+        if (action === 'cancel') { return cancelBooking(e.parameter.id); }
+        if (action === 'allBookings') { return getAllBookings(); }
+        if (action === 'getBooking') { return getBooking(e.parameter.id); }
 
         return createResponse({ error: 'Invalid action: ' + action }, 400);
-
     } catch (error) {
         return createResponse({ error: error.message }, 500);
     }
@@ -230,7 +195,8 @@ function handleRequest(e) {
 // ============================================================
 
 function getAvailability(dateStr, stationId, durationStr) {
-    const duration = parseInt(durationStr) || 1;
+    // FIX v2.4: was parseInt — parseInt("0.5") = 0, falling back to 1 hour
+    const duration = parseFloat(durationStr) || 1;
 
     if (!stationId || stationId === 'all') {
         const result = {};
@@ -241,11 +207,7 @@ function getAvailability(dateStr, stationId, durationStr) {
     }
 
     const avail = getAvailabilityForStation(dateStr, stationId, duration);
-    return createResponse({
-        date: dateStr,
-        station: stationId,
-        availability: avail
-    });
+    return createResponse({ date: dateStr, station: stationId, availability: avail });
 }
 
 function getAvailabilityForStation(dateStr, stationId, duration) {
@@ -260,27 +222,13 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
 
     function extractQuantityFromBooking(stationStr, targetId) {
         const lower = String(stationStr).toLowerCase();
-
-        const shortNames = {
-            karts: 'karts',
-            rigs: 'rigs',
-            motion: 'motion',
-            flight: 'flight'
-        };
-
+        const shortNames = { karts: 'karts', rigs: 'rigs', motion: 'motion', flight: 'flight' };
         const shortName = shortNames[targetId];
         if (!shortName) return 0;
-
         const regex = new RegExp(shortName + ':(\\d+)', 'i');
         const match = lower.match(regex);
-        if (match) {
-            return parseInt(match[1]) || 0;
-        }
-
-        if (lower === station.name.toLowerCase()) {
-            return 1;
-        }
-
+        if (match) return parseInt(match[1]) || 0;
+        if (lower === station.name.toLowerCase()) return 1;
         return 0;
     }
 
@@ -293,15 +241,19 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
         const bTime = normalizeTime(row[2]);
         const bStation = String(row[3]).trim();
 
-        const durationMatch = bStation.match(/\((\d+)h\)/);
-        const bookingDuration = durationMatch ? parseInt(durationMatch[1]) : 1;
+        // FIX v2.4: was /\((\d+)h\)/ + parseInt — couldn't handle (0.5h) or (1.5h)
+        const durationMatch = bStation.match(/\(([\d.]+)h\)/);
+        const bookingDuration = durationMatch ? parseFloat(durationMatch[1]) : 1;
 
         if (bDate === dateStr) {
             const qty = extractQuantityFromBooking(bStation, stationId);
-
             if (qty > 0) {
                 const startHour = parseInt(bTime.split(':')[0]);
-                for (let h = 0; h < bookingDuration; h++) {
+
+                // FIX v2.4: Math.ceil handles half-hours correctly without double-counting
+                // 0.5h → ceil=1 hour blocked, 1h → 1hr, 1.5h → 2hrs, 2h → 2hrs
+                const hoursToBlock = Math.ceil(bookingDuration);
+                for (let h = 0; h < hoursToBlock; h++) {
                     const hourKey = (startHour + h) + ':00';
                     if (!bookedSlots[hourKey]) bookedSlots[hourKey] = 0;
                     bookedSlots[hourKey] += qty;
@@ -318,24 +270,22 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
         let isAvailable = true;
         let minAvailableMsg = totalUnits;
 
-        for (let d = 0; d < duration; d++) {
+        // Check all hours this booking would span (e.g. 1.5h = check hour 0 and hour 1)
+        const hoursToCheck = Math.ceil(duration);
+        for (let d = 0; d < hoursToCheck; d++) {
             const checkHour = hour + d;
-
             if (checkHour >= closeHour || blocked.indexOf(checkHour + ':00') !== -1) {
                 isAvailable = false;
                 minAvailableMsg = 0;
                 break;
             }
-
             const booked = bookedSlots[checkHour + ':00'] || 0;
             const remaining = Math.max(0, totalUnits - booked);
-
             if (remaining <= 0) {
                 isAvailable = false;
                 minAvailableMsg = 0;
                 break;
             }
-
             minAvailableMsg = Math.min(minAvailableMsg, remaining);
         }
 
@@ -350,20 +300,15 @@ function getAvailabilityForStation(dateStr, stationId, duration) {
 
 function getBlockedSlots(dateStr) {
     if (!BLOCKED_SHEET) return [];
-
     const blocked = [];
     const rows = BLOCKED_SHEET.getDataRange().getValues();
-
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row[0]) continue;
-
         const bDate = normalizeDate(row[0]);
         if (bDate !== dateStr) continue;
-
         const startHour = parseHour(row[1]);
         const endHour = parseHour(row[2]);
-
         if (startHour !== null && endHour !== null) {
             for (let h = startHour; h < endHour; h++) {
                 blocked.push(h + ':00');
@@ -389,7 +334,6 @@ function getSettings() {
 function createBatchBooking(items, user) {
     const bookingId = generateBookingId();
     const createdAt = new Date();
-
     const bookedItems = [];
     let totalPrice = 0;
 
@@ -402,49 +346,20 @@ function createBatchBooking(items, user) {
         const paymentStatus = generatePaymentStatus(stationName + ":" + item.drivers + " (1h)", user.paymentMethod);
 
         BOOKINGS_SHEET.appendRow([
-            bookingId,
-            item.date,
-            item.time,
-            station.name,
-            item.drivers,
-            user.name,
-            user.email,
-            user.phone,
-            user.paymentMethod,
-            'Confirmed',
-            createdAt,
-            paymentStatus
+            bookingId, item.date, item.time, station.name, item.drivers,
+            user.name, user.email, user.phone, user.paymentMethod, 'Confirmed', createdAt, paymentStatus
         ]);
 
         const price = getSetting(station.priceKey) || 0;
         totalPrice += (price * item.drivers);
-
-        bookedItems.push({
-            name: station.name,
-            date: item.date,
-            time: item.time,
-            drivers: item.drivers
-        });
-
-        createCalendarEvent({
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            date: item.date,
-            time: item.time,
-            drivers: item.drivers,
-            notes: user.notes
-        }, bookingId, station.name, 1);
+        bookedItems.push({ name: station.name, date: item.date, time: item.time, drivers: item.drivers });
+        createCalendarEvent({ name: user.name, email: user.email, phone: user.phone, date: item.date, time: item.time, drivers: item.drivers, notes: user.notes }, bookingId, station.name, 1);
     }
 
     sendBatchEmail(user, bookingId, bookedItems, totalPrice);
     sendOwnerBatchNotification(user, bookingId, bookedItems, totalPrice);
 
-    return createResponse({
-        success: true,
-        bookingId: bookingId,
-        message: 'Batch booking confirmed'
-    });
+    return createResponse({ success: true, bookingId: bookingId, message: 'Batch booking confirmed' });
 }
 
 function createBooking(data) {
@@ -452,35 +367,30 @@ function createBooking(data) {
     const createdAt = new Date();
 
     const stationDisplay = data.station || 'Unknown';
-    const durationMatch = stationDisplay.match(/\((\d+)h\)/);
-    const durationHours = durationMatch ? parseInt(durationMatch[1]) : 1;
+
+    // FIX v2.4: was /\((\d+)h\)/ + parseInt — now handles (0.5h), (1.5h) etc.
+    // Also: if webhook sends durationMinutes param, use that for precise calendar blocking
+    let durationHours;
+    if (data.durationMinutes && data.durationMinutes > 0) {
+        durationHours = data.durationMinutes / 60;
+    } else {
+        const durationMatch = stationDisplay.match(/\(([\d.]+)h\)/);
+        durationHours = durationMatch ? parseFloat(durationMatch[1]) : 1;
+    }
 
     const paymentStatus = generatePaymentStatus(stationDisplay, data.paymentMethod);
 
     BOOKINGS_SHEET.appendRow([
-        bookingId,
-        data.date,
-        data.time,
-        stationDisplay,
-        data.drivers,
-        data.name,
-        data.email,
-        data.phone,
-        data.paymentMethod || 'venue',
-        'Confirmed',
-        createdAt,
-        paymentStatus
+        bookingId, data.date, data.time, stationDisplay, data.drivers,
+        data.name, data.email, data.phone, data.paymentMethod || 'venue',
+        'Confirmed', createdAt, paymentStatus
     ]);
 
     try { sendConfirmationEmail(data, bookingId, stationDisplay, durationHours); } catch (e) { }
     try { sendOwnerNotification(data, bookingId, stationDisplay, durationHours); } catch (e) { }
     try { createCalendarEvent(data, bookingId, stationDisplay, durationHours); } catch (e) { }
 
-    return createResponse({
-        success: true,
-        bookingId: bookingId,
-        message: 'Booking confirmed!'
-    });
+    return createResponse({ success: true, bookingId: bookingId, message: 'Booking confirmed!' });
 }
 
 // ============================================================
@@ -492,7 +402,6 @@ function sendBatchEmail(user, bookingId, items, total) {
     let itemsHtml = items.map(function (i) {
         return '- ' + i.name + ': ' + i.date + ' @ ' + i.time + ' (' + i.drivers + ' drivers)';
     }).join('\n');
-
     const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nTotal: $' + total + '\n\nITEMS RESERVED:\n' + itemsHtml + '\n\nPayment: ' + user.paymentMethod + '\n\n📍 Location: West Linn, Oregon\n📞 Questions? Call 503-490-9194\n    ';
     MailApp.sendEmail(user.email, subject, body);
 }
@@ -509,24 +418,39 @@ function sendOwnerBatchNotification(user, bookingId, items, total) {
 
 function sendConfirmationEmail(data, bookingId, stationDisplay, durationHours) {
     const cancelUrl = 'https://kartcade.com/cancel?id=' + bookingId;
-    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + '\nDuration: ' + durationHours + ' hour' + (durationHours > 1 ? 's' : '') + '\nDrivers: ' + data.drivers + '\n\n📍 Location: West Linn, Oregon\n📞 Questions? Call 503-490-9194\n\nNeed to cancel? Visit: ' + cancelUrl + '\n\nThank you for booking with Kartcade!\n- The Kartcade Team\n    ';
+    // Show duration nicely: 0.5 → "30 min", 1.5 → "1h 30m", 2 → "2 hours"
+    const durationLabel = formatDurationLabel(durationHours);
+    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + '\nDuration: ' + durationLabel + '\nDrivers: ' + data.drivers + '\n\n📍 Location: West Linn, Oregon\n📞 Questions? Call 503-490-9194\n\nNeed to cancel? Visit: ' + cancelUrl + '\n\nThank you for booking with Kartcade!\n- The Kartcade Team\n    ';
     MailApp.sendEmail(data.email, 'Kartcade Booking - ' + bookingId, body);
 }
 
 function sendOwnerNotification(data, bookingId, stationDisplay, durationHours) {
     const ownerEmail = 'kartcade.website@gmail.com';
-    const body = '\n🏎️ NEW BOOKING\n\nID: ' + bookingId + '\nCustomer: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + data.phone + '\n\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + ' (' + durationHours + 'hr)\nDrivers: ' + data.drivers + '\nPayment: ' + data.paymentMethod + '\nNotes: ' + (data.notes || 'None') + '\n    ';
+    const durationLabel = formatDurationLabel(durationHours);
+    const body = '\n🏎️ NEW BOOKING\n\nID: ' + bookingId + '\nCustomer: ' + data.name + '\nEmail: ' + data.email + '\nPhone: ' + data.phone + '\n\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + ' (' + durationLabel + ')\nDrivers: ' + data.drivers + '\nPayment: ' + data.paymentMethod + '\nNotes: ' + (data.notes || 'None') + '\n    ';
     MailApp.sendEmail(ownerEmail, 'New Booking: ' + data.name + ' - ' + stationDisplay, body);
 }
 
-// NEW: Cancellation Email to User (Polished)
+/**
+ * NEW v2.4: Format duration as human-readable label
+ * 0.5 → "30 min", 1 → "1 hour", 1.5 → "1h 30m", 2 → "2 hours"
+ */
+function formatDurationLabel(hours) {
+    if (hours === 0.5) return '30 min';
+    const wholeHours = Math.floor(hours);
+    const halfHour = (hours % 1) >= 0.5;
+    let label = '';
+    if (wholeHours > 0) label += wholeHours + (wholeHours === 1 ? ' hour' : ' hours');
+    if (halfHour) label += (label ? ' 30m' : '30 min');
+    return label || hours + 'h';
+}
+
 function sendCancellationEmail(booking) {
     const subject = 'Kartcade Booking Cancelled - ' + booking.id;
     const body = '\n🏎️ KARTCADE BOOKING CANCELLED\n\nHi ' + booking.name + ',\n\nYour booking has been successfully cancelled.\n\nBooking ID: ' + booking.id + '\nEquipment: ' + booking.station + '\nDate: ' + booking.date + '\nTime: ' + booking.time + '\n\nIf you\'d like to rebook, visit: \nhttps://www.kartcade.com/book\n\nQuestions? Call 503-490-9194\n\nThank you,\n- The Kartcade Team';
     MailApp.sendEmail(booking.email, subject, body);
 }
 
-// NEW: Cancellation Email to Owner (Polished)
 function sendOwnerCancellationNotification(booking) {
     const ownerEmail = 'kartcade.website@gmail.com';
     const subject = '🛑 Booking CANCELLED: ' + booking.name + ' - ' + booking.id;
@@ -539,6 +463,7 @@ function createCalendarEvent(data, bookingId, stationDisplay, durationHours) {
     var dateParts = data.date.split('-');
     var timeParts = data.time.split(':');
     var start = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1] || 0);
+    // FIX v2.4: durationHours can now be 0.5, 1.5 etc — calendar event length is exact
     var end = new Date(start.getTime() + (durationHours * 3600 * 1000));
 
     var event = calendar.createEvent('🏎️ ' + data.name + ' - ' + stationDisplay, start, end, {
@@ -547,15 +472,11 @@ function createCalendarEvent(data, bookingId, stationDisplay, durationHours) {
     event.setColor('2');
 }
 
-// NEW: Helper to remove calendar event
 function removeCalendarEvent(bookingId, dateStr, timeStr) {
     var calendar = CalendarApp.getDefaultCalendar();
     var dateParts = dateStr.split('-');
-
-    // Search the full day for robustness (in case of multi-hour bookings)
     var startOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 0, 0, 0);
     var endOfDay = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59);
-
     var events = calendar.getEvents(startOfDay, endOfDay);
     for (var i = 0; i < events.length; i++) {
         var event = events[i];
@@ -612,7 +533,6 @@ function createResponse(data, status) {
     return output;
 }
 
-// UPDATED: Multi-booking aware cancellation + Calendar Sync + Emails
 function cancelBooking(id) {
     const data = BOOKINGS_SHEET.getDataRange().getValues();
     let found = false;
@@ -622,35 +542,22 @@ function cancelBooking(id) {
         if (data[i][0] === id && data[i][9] !== 'Cancelled') {
             BOOKINGS_SHEET.getRange(i + 1, 10).setValue('Cancelled');
             found = true;
-
             if (!mainBooking) {
                 mainBooking = {
-                    id: data[i][0],
-                    date: normalizeDate(data[i][1]),
-                    time: normalizeTime(data[i][2]),
-                    station: data[i][3],
-                    drivers: data[i][4],
-                    name: data[i][5],
-                    email: data[i][6],
-                    phone: data[i][7],
-                    paymentMethod: data[i][8]
+                    id: data[i][0], date: normalizeDate(data[i][1]), time: normalizeTime(data[i][2]),
+                    station: data[i][3], drivers: data[i][4], name: data[i][5],
+                    email: data[i][6], phone: data[i][7], paymentMethod: data[i][8]
                 };
             }
-
-            // Sync with Google Calendar
-            try {
-                removeCalendarEvent(id, normalizeDate(data[i][1]), normalizeTime(data[i][2]));
-            } catch (e) { Logger.log("Calendar removal failed: " + e); }
+            try { removeCalendarEvent(id, normalizeDate(data[i][1]), normalizeTime(data[i][2])); } catch (e) { Logger.log("Calendar removal failed: " + e); }
         }
     }
 
     if (found && mainBooking) {
-        // Send notification emails
         try { sendCancellationEmail(mainBooking); } catch (e) { }
         try { sendOwnerCancellationNotification(mainBooking); } catch (e) { }
         return createResponse({ success: true });
     }
-
     return createResponse({ error: 'Booking not found or already cancelled' });
 }
 
@@ -661,16 +568,9 @@ function getBooking(id) {
             return createResponse({
                 success: true,
                 booking: {
-                    id: bookings[i][0],
-                    date: normalizeDate(bookings[i][1]),
-                    time: normalizeTime(bookings[i][2]),
-                    station: bookings[i][3],
-                    drivers: bookings[i][4],
-                    name: bookings[i][5],
-                    email: bookings[i][6],
-                    phone: bookings[i][7],
-                    paymentMethod: bookings[i][8],
-                    status: bookings[i][9]
+                    id: bookings[i][0], date: normalizeDate(bookings[i][1]), time: normalizeTime(bookings[i][2]),
+                    station: bookings[i][3], drivers: bookings[i][4], name: bookings[i][5],
+                    email: bookings[i][6], phone: bookings[i][7], paymentMethod: bookings[i][8], status: bookings[i][9]
                 }
             });
         }
@@ -682,17 +582,12 @@ function getUserBookings(email) {
     const rows = BOOKINGS_SHEET.getDataRange().getValues();
     const result = [];
     const today = new Date().toISOString().split('T')[0];
-
     for (let i = 1; i < rows.length; i++) {
         if (String(rows[i][6]).toLowerCase() === email.toLowerCase() && rows[i][9] !== 'Cancelled') {
             if (normalizeDate(rows[i][1]) >= today) {
                 result.push({
-                    id: rows[i][0],
-                    date: normalizeDate(rows[i][1]),
-                    time: normalizeTime(rows[i][2]),
-                    station: rows[i][3],
-                    drivers: rows[i][4],
-                    status: rows[i][9]
+                    id: rows[i][0], date: normalizeDate(rows[i][1]), time: normalizeTime(rows[i][2]),
+                    station: rows[i][3], drivers: rows[i][4], status: rows[i][9]
                 });
             }
         }
@@ -704,46 +599,26 @@ function getAllBookings() {
     const rows = BOOKINGS_SHEET.getDataRange().getValues();
     const today = new Date();
     const todayStr = Utilities.formatDate(today, 'America/Los_Angeles', 'yyyy-MM-dd');
-
-    const todayBookings = [];
-    const upcomingBookings = [];
-    const pastBookings = [];
+    const todayBookings = [], upcomingBookings = [], pastBookings = [];
 
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const status = row[9] || 'Pending';
         const booking = {
-            id: row[0],
-            date: normalizeDate(row[1]),
-            time: normalizeTime(row[2]),
-            station: row[3],
-            drivers: row[4],
-            name: row[5],
-            email: row[6],
-            phone: row[7],
-            paymentMethod: row[8],
-            status: status
+            id: row[0], date: normalizeDate(row[1]), time: normalizeTime(row[2]),
+            station: row[3], drivers: row[4], name: row[5], email: row[6],
+            phone: row[7], paymentMethod: row[8], status: status
         };
-
-        if (status === 'Cancelled') {
-            pastBookings.push(booking);
-            continue;
-        }
-
-        if (booking.date === todayStr) {
-            todayBookings.push(booking);
-        } else if (booking.date > todayStr) {
-            upcomingBookings.push(booking);
-        } else {
-            pastBookings.push(booking);
-        }
+        if (status === 'Cancelled') { pastBookings.push(booking); continue; }
+        if (booking.date === todayStr) todayBookings.push(booking);
+        else if (booking.date > todayStr) upcomingBookings.push(booking);
+        else pastBookings.push(booking);
     }
 
     const sortByDateTime = function (a, b) {
         if (a.date !== b.date) return a.date > b.date ? 1 : -1;
         return a.time > b.time ? 1 : -1;
     };
-
     todayBookings.sort(sortByDateTime);
     upcomingBookings.sort(sortByDateTime);
     pastBookings.sort(sortByDateTime).reverse();
@@ -753,10 +628,7 @@ function getAllBookings() {
         today: todayBookings,
         upcoming: upcomingBookings,
         past: pastBookings.slice(0, 50),
-        stats: {
-            todayCount: todayBookings.length,
-            upcomingCount: upcomingBookings.length,
-            pastCount: pastBookings.length
-        }
+        stats: { todayCount: todayBookings.length, upcomingCount: upcomingBookings.length, pastCount: pastBookings.length }
     });
 }
+

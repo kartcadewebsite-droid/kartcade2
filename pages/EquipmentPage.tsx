@@ -8,7 +8,7 @@ const equipment = [
     {
         id: "01",
         title: "Racing Karts",
-        subtitle: "5 Units",
+        subtitle: "4 Units",
         icon: <Gauge className="w-12 h-12" />,
         image: "/images/kartcade/karts.webp",
         description: "Our racing karts are designed for younger drivers and anyone under about 6'3\". These setups provide comfortable seating positions and adjusted controls, making them perfect for kids and teens who want the full racing experience.",

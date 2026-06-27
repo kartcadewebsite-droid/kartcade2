@@ -18,21 +18,21 @@ export const bookingConfig = {
             id: 'karts',
             name: 'Racing Karts',
             price: 30,
-            units: 5,
+            units: 4,
             description: 'Perfect for kids 5+, teens, and adults under 6\'3"',
             ageReq: '5+',
             color: '#2D9E49',
-            maxPerBooking: 5
+            maxPerBooking: 4
         },
         rigs: {
             id: 'rigs',
             name: 'Full-Size Rigs',
             price: 40,
-            units: 3,
+            units: 4,
             description: 'Professional direct-drive simulators for adults',
             ageReq: '10+',
             color: '#FFFFFF',
-            maxPerBooking: 3
+            maxPerBooking: 4
         },
         motion: {
             id: 'motion',
@@ -61,7 +61,7 @@ export const bookingConfig = {
     closeHour: 22,
 
     // Booking rules
-    minAdvanceHours: 2, // Minimum hours in advance to book
+    minAdvanceHours: 24, // Minimum hours in advance to book (24h notice required)
     maxAdvanceDays: 56, // Maximum days in advance to book (8 weeks)
 
     // Admin emails (can see 'Pay at Venue')
