@@ -61,7 +61,7 @@ export const bookingConfig = {
     closeHour: 22,
 
     // Booking rules
-    minAdvanceHours: 24, // Minimum hours in advance to book (24h notice required)
+    minAdvanceHours: 12, // Minimum hours in advance to book (12h notice required)
     maxAdvanceDays: 56, // Maximum days in advance to book (8 weeks)
 
     // Admin emails (can see 'Pay at Venue')

@@ -39,6 +39,8 @@ import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
 import OnboardingPage from './pages/OnboardingPage';
 import BeatTheProPage from './pages/BeatTheProPage';
+import CampaignLandingPage from './pages/CampaignLandingPage';
+import NotFound from './pages/NotFound';
 
 // Context
 import { AuthProvider } from './contexts/AuthContext';
@@ -57,6 +59,64 @@ const ScrollToTop = () => {
     }
   }, [pathname]);
   return null;
+};
+
+const AppContent: React.FC = () => {
+  const location = useLocation();
+  const isCampaignPage = ['/mailer', '/august', '/email'].includes(location.pathname.toLowerCase());
+
+  return (
+    <div className="relative min-h-screen">
+      {!isCampaignPage && <Navbar />}
+      {!isCampaignPage && <FloatingCallButton />}
+      {/* <Chatbot /> */}{/* DISABLED - AI chatbot removed */}
+
+      {/* Main Content Wrapper */}
+      <main className="relative z-10 w-full">
+        <div className="min-h-screen">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/equipment" element={<EquipmentPage />} />
+            <Route path="/equipment/:id" element={<EquipmentDetailPage />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
+            <Route path="/book-party" element={<ProtectedRoute><PartyBookingPage /></ProtectedRoute>} />
+            <Route path="/beat-the-pro" element={<ProtectedRoute><BeatTheProPage /></ProtectedRoute>} />
+            <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/cancel" element={<CancelPage />} />
+            <Route path="/rules" element={<RulesPage />} />
+            <Route path="/experiences" element={<ExperiencesPage />} />
+            <Route path="/waiver" element={<WaiverPage />} />
+            <Route path="/membership" element={<MembershipPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/driver-profile" element={<DriverProfilePage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+            <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccessPage /></ProtectedRoute>} />
+            <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
+            
+            {/* Campaign Promotion Landing Pages */}
+            <Route path="/mailer" element={<CampaignLandingPage />} />
+            <Route path="/august" element={<CampaignLandingPage />} />
+            <Route path="/email" element={<CampaignLandingPage />} />
+
+            {/* Custom 404 handler instead of homepage redirect */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </main>
+
+      {!isCampaignPage && <Footer />}
+    </div>
+  );
 };
 
 const App: React.FC = () => {
@@ -94,50 +154,7 @@ const App: React.FC = () => {
       <ReactLenis root ref={lenisRef} options={{ duration: 1.2, smoothWheel: true }}>
         <Router>
           <ScrollToTop />
-          <div className="relative min-h-screen">
-            <Navbar />
-            <FloatingCallButton />
-            {/* <Chatbot /> */}{/* DISABLED - AI chatbot removed */}
-
-            {/* Main Content Wrapper */}
-            <main className="relative z-10 w-full">
-              <div className="min-h-screen">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/events" element={<EventsPage />} />
-                  <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/equipment" element={<EquipmentPage />} />
-                  <Route path="/equipment/:id" element={<EquipmentDetailPage />} />
-                  <Route path="/faq" element={<FAQPage />} />
-                  <Route path="/contact" element={<Contact />} />
-                  <Route path="/book" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
-                  <Route path="/book-party" element={<ProtectedRoute><PartyBookingPage /></ProtectedRoute>} />
-                  <Route path="/beat-the-pro" element={<ProtectedRoute><BeatTheProPage /></ProtectedRoute>} />
-                  <Route path="/gallery" element={<GalleryPage />} />
-                  <Route path="/cancel" element={<CancelPage />} />
-                  <Route path="/rules" element={<RulesPage />} />
-                  <Route path="/experiences" element={<ExperiencesPage />} />
-                  <Route path="/waiver" element={<WaiverPage />} />
-                  <Route path="/membership" element={<MembershipPage />} />
-                  <Route path="/signup" element={<SignUpPage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/driver-profile" element={<DriverProfilePage />} />
-                  <Route path="/leaderboard" element={<LeaderboardPage />} />
-                  <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-                  <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-                  <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccessPage /></ProtectedRoute>} />
-                  <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
-                  <Route path="*" element={<Home />} />
-                </Routes>
-              </div>
-            </main>
-
-            {/* Fixed Footer */}
-            <Footer />
-          </div>
+          <AppContent />
         </Router>
       </ReactLenis>
     </AuthProvider>
