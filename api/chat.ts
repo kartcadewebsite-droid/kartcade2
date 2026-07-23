@@ -23,7 +23,7 @@ EQUIPMENT & PRICING (Explain these to new users):
 BUSINESS INFO:
 - Hours: 10:00 AM - 10:00 PM (Daily).
 - Location: West Linn, Oregon.
-- Phone: 503-490-9194 (for parties/events).
+- Email: info@kartcade.com (best way to reach us).
 
 MEMBERSHIPS:
 - We have memberships (Bronze/Silver/Gold) that save 50% on hourly rates.

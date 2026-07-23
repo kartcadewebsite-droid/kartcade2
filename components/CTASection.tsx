@@ -39,13 +39,6 @@ const CTASection: React.FC = () => {
           </Link>
 
           <a
-            href={`tel:${siteConfig.phone}`}
-            className="px-8 sm:px-12 py-4 sm:py-6 rounded-full border border-white/20 font-display uppercase tracking-widest font-bold text-sm sm:text-base hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
-          >
-            <Phone className="w-4 h-4 sm:w-5 sm:h-5" /> Call Us
-          </a>
-
-          <a
             href={siteConfig.giftCardsUrl}
             target="_blank"
             rel="noopener noreferrer"

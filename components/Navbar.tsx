@@ -306,7 +306,6 @@ const Navbar: React.FC = () => {
               <div>
                 <span className="block font-mono text-[9px] uppercase tracking-widest text-white/40 mb-1">Contact</span>
                 <a href={`mailto:${siteConfig.email}`} className="block text-white font-sans text-xs mb-1 hover:text-[#2D9E49] transition-colors truncate">{siteConfig.email}</a>
-                <a href={`tel:${siteConfig.phone}`} className="block text-white font-sans text-xs hover:text-[#2D9E49] transition-colors">{siteConfig.phone}</a>
               </div>
               <div>
                 <span className="block font-mono text-[9px] uppercase tracking-widest text-white/40 mb-1">Location</span>

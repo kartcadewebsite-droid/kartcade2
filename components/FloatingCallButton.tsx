@@ -1,9 +1,8 @@
 import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Phone, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import siteConfig from '../config/site';
 
 const FloatingCallButton: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,15 +30,6 @@ const FloatingCallButton: React.FC = () => {
       >
         <Calendar className="w-6 h-6 md:w-7 md:h-7" />
       </Link>
-
-      {/* Call Button */}
-      <a
-        href={`tel:${siteConfig.phone}`}
-        className="w-14 h-14 md:w-16 md:h-16 bg-[#2D9E49] text-white rounded-full flex items-center justify-center shadow-2xl shadow-[#2D9E49]/30 hover:bg-[#248C3E] transition-all duration-300 hover:scale-110 active:scale-95"
-        aria-label="Call Us"
-      >
-        <Phone className="w-6 h-6 md:w-7 md:h-7" />
-      </a>
     </div>
   );
 };

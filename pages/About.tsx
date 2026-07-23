@@ -173,12 +173,6 @@ const About: React.FC = () => {
                         >
                             Book Now <ArrowRight className="w-5 h-5" />
                         </Link>
-                        <a
-                            href={`tel:${siteConfig.phone}`}
-                            className="flex items-center justify-center gap-3 px-12 py-5 border border-white/20 text-white rounded-full font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
-                        >
-                            <Phone className="w-5 h-5" /> {siteConfig.phone}
-                        </a>
                     </div>
                 </div>
             </section>

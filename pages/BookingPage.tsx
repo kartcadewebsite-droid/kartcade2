@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
-    Calendar, Clock, Users, Phone, ArrowRight, ArrowLeft,
+    Calendar, Clock, Users, Phone, Mail, ArrowRight, ArrowLeft,
     CheckCircle, CreditCard, Wallet, Info, AlertTriangle,
     Gauge, Monitor, Plane, Zap, Loader2, Shield, Gift, ArrowUpRight, Trophy
 } from 'lucide-react';
@@ -1435,10 +1435,10 @@ const BookingPage: React.FC = () => {
                 <div className="max-w-4xl mx-auto text-center">
                     <p className="text-white/50 mb-4">Need help or have questions?</p>
                     <a
-                        href={`tel:${siteConfig.phone}`}
+                        href={`mailto:${siteConfig.email}`}
                         className="inline-flex items-center gap-3 text-[#2D9E49] hover:underline font-bold"
                     >
-                        <Phone className="w-5 h-5" /> {siteConfig.phone}
+                        <Mail className="w-5 h-5" /> {siteConfig.email}
                     </a>
                 </div>
             </section >

@@ -49,10 +49,7 @@ const Footer: React.FC = () => {
             <div>
               <p className="text-white/40 text-[10px] sm:text-xs uppercase tracking-wider mb-3 md:mb-4">Contact</p>
               <div className="space-y-2 md:space-y-3">
-                <a href={`tel:${siteConfig.phone}`} className="flex items-center gap-2 text-white/70 hover:text-[#2D9E49] text-sm transition-colors">
-                  <Phone className="w-3 h-3 flex-shrink-0" />
-                  <span className="break-all">{siteConfig.phone}</span>
-                </a>
+
                 <a href={`mailto:${siteConfig.email}`} className="flex items-center gap-2 text-white/70 hover:text-[#2D9E49] text-sm transition-colors">
                   <Mail className="w-3 h-3 flex-shrink-0" /> Email us
                 </a>

@@ -23,7 +23,7 @@ const faqCategories = [
             },
             {
                 q: "Can I walk in, or do I need to book?",
-                a: "Both! We accept walk-ins based on availability, but we strongly recommend booking ahead, especially for weekends, evenings, and groups. Call us at 503-490-9194 to check real-time availability."
+                a: "Both! We accept walk-ins based on availability, but we strongly recommend booking ahead, especially for weekends, evenings, and groups. Book online at kartcade.com/book to check real-time availability."
             }
         ]
     },
@@ -205,10 +205,10 @@ const FAQPage: React.FC = () => {
 
                     <div className="flex flex-col md:flex-row gap-6 justify-center">
                         <a
-                            href={`tel:${siteConfig.phone}`}
+                            href={`mailto:${siteConfig.email}`}
                             className="flex items-center justify-center gap-3 px-10 py-5 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors"
                         >
-                            <Phone className="w-5 h-5" /> {siteConfig.phone}
+                            <Mail className="w-5 h-5" /> Email Us
                         </a>
                         <Link
                             to="/contact"

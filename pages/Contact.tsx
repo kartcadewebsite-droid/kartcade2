@@ -8,7 +8,7 @@ const Contact: React.FC = () => {
         document.title = "Contact Us | Kartcade Racing Simulator Lounge";
         const metaDesc = document.querySelector('meta[name="description"]');
         if (metaDesc) {
-            metaDesc.setAttribute('content', 'Contact Kartcade - Oregon\'s premier racing simulator lounge. Call us at 503-490-9194 or visit us in West Linn.');
+            metaDesc.setAttribute('content', 'Contact Kartcade - Oregon\'s premier racing simulator lounge. Email us at info@kartcade.com or visit us in West Linn.');
         }
         return () => {
             document.title = "Kartcade | Racing & Flight Simulator Lounge";
@@ -51,20 +51,12 @@ const Contact: React.FC = () => {
                         </h1>
                         <p className="font-sans text-white/60 text-lg leading-relaxed max-w-sm">
                             Have questions about our simulators, booking, or events?
-                            We're here to help. Give us a call or send us a message.
+                            We're here to help. Send us an email and we'll get back to you as soon as possible.
                         </p>
                     </div>
 
                     <div className="relative z-10 space-y-8 mt-12">
-                        <div className="flex items-start gap-4">
-                            <Phone className="w-6 h-6 text-[#2D9E49] mt-1" />
-                            <div>
-                                <span className="block font-mono text-xs uppercase text-white/40 mb-1">Phone / Text</span>
-                                <a href={`tel:${siteConfig.phone}`} className="font-display text-xl md:text-2xl hover:text-[#2D9E49] transition-colors">
-                                    {siteConfig.phone}
-                                </a>
-                            </div>
-                        </div>
+
                         <div className="flex items-start gap-4">
                             <Mail className="w-6 h-6 text-[#2D9E49] mt-1" />
                             <div>
@@ -127,12 +119,7 @@ const Contact: React.FC = () => {
                             <p className="font-sans text-white/60 text-center max-w-md mb-8">
                                 Thank you for contacting Kartcade. We'll get back to you as soon as possible.
                             </p>
-                            <a
-                                href={`tel:${siteConfig.phone}`}
-                                className="flex items-center gap-3 text-[#2D9E49] hover:underline"
-                            >
-                                <Phone className="w-5 h-5" /> Need immediate help? Call us
-                            </a>
+
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="w-full max-w-xl">

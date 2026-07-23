@@ -9,7 +9,7 @@ const steps = [
     id: "01",
     title: "Book Online or Walk In",
     icon: <Calendar className="w-12 h-12 text-[#2D9E49] mb-6" />,
-    desc: "Reserve your spot online or drop by. We recommend booking ahead, especially for weekends and groups. Call us at 503-490-9194 to check availability."
+    desc: "Reserve your spot online or drop by. We recommend booking ahead, especially for weekends and groups. Book online at kartcade.com/book."
   },
   {
     id: "02",

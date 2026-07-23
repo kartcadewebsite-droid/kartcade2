@@ -402,7 +402,7 @@ function sendBatchEmail(user, bookingId, items, total) {
     let itemsHtml = items.map(function (i) {
         return '- ' + i.name + ': ' + i.date + ' @ ' + i.time + ' (' + i.drivers + ' drivers)';
     }).join('\n');
-    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nTotal: $' + total + '\n\nITEMS RESERVED:\n' + itemsHtml + '\n\nPayment: ' + user.paymentMethod + '\n\n📍 Location: West Linn, Oregon\n📞 Questions? Call 503-490-9194\n    ';
+    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nTotal: $' + total + '\n\nITEMS RESERVED:\n' + itemsHtml + '\n\nPayment: ' + user.paymentMethod + '\n\n📍 Location: West Linn, Oregon\n📧 Questions? Email info@kartcade.com\n    ';
     MailApp.sendEmail(user.email, subject, body);
 }
 
@@ -420,7 +420,7 @@ function sendConfirmationEmail(data, bookingId, stationDisplay, durationHours) {
     const cancelUrl = 'https://kartcade.com/cancel?id=' + bookingId;
     // Show duration nicely: 0.5 → "30 min", 1.5 → "1h 30m", 2 → "2 hours"
     const durationLabel = formatDurationLabel(durationHours);
-    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + '\nDuration: ' + durationLabel + '\nDrivers: ' + data.drivers + '\n\n📍 Location: West Linn, Oregon\n📞 Questions? Call 503-490-9194\n\nNeed to cancel? Visit: ' + cancelUrl + '\n\nThank you for booking with Kartcade!\n- The Kartcade Team\n    ';
+    const body = '\n🏎️ KARTCADE BOOKING CONFIRMATION\n\nBooking ID: ' + bookingId + '\nEquipment: ' + stationDisplay + '\nDate: ' + data.date + '\nTime: ' + data.time + '\nDuration: ' + durationLabel + '\nDrivers: ' + data.drivers + '\n\n📍 Location: West Linn, Oregon\n📧 Questions? Email info@kartcade.com\n\nNeed to cancel? Visit: ' + cancelUrl + '\n\nThank you for booking with Kartcade!\n- The Kartcade Team\n    ';
     MailApp.sendEmail(data.email, 'Kartcade Booking - ' + bookingId, body);
 }
 
@@ -447,7 +447,7 @@ function formatDurationLabel(hours) {
 
 function sendCancellationEmail(booking) {
     const subject = 'Kartcade Booking Cancelled - ' + booking.id;
-    const body = '\n🏎️ KARTCADE BOOKING CANCELLED\n\nHi ' + booking.name + ',\n\nYour booking has been successfully cancelled.\n\nBooking ID: ' + booking.id + '\nEquipment: ' + booking.station + '\nDate: ' + booking.date + '\nTime: ' + booking.time + '\n\nIf you\'d like to rebook, visit: \nhttps://www.kartcade.com/book\n\nQuestions? Call 503-490-9194\n\nThank you,\n- The Kartcade Team';
+    const body = '\n🏎️ KARTCADE BOOKING CANCELLED\n\nHi ' + booking.name + ',\n\nYour booking has been successfully cancelled.\n\nBooking ID: ' + booking.id + '\nEquipment: ' + booking.station + '\nDate: ' + booking.date + '\nTime: ' + booking.time + '\n\nIf you\'d like to rebook, visit: \nhttps://www.kartcade.com/book\n\nQuestions? Email info@kartcade.com\n\nThank you,\n- The Kartcade Team';
     MailApp.sendEmail(booking.email, subject, body);
 }
 

@@ -160,10 +160,10 @@ const CampaignLandingPage: React.FC = () => {
                         />
                     </Link>
                     <a 
-                        href="tel:503-490-9194" 
+                        href="mailto:info@kartcade.com" 
                         className="text-xs font-bold uppercase tracking-widest text-white/50 hover:text-[#2D9E49] transition-colors flex items-center gap-2"
                     >
-                        <Phone className="w-3.5 h-3.5" /> 503-490-9194
+                        <Mail className="w-3.5 h-3.5" /> info@kartcade.com
                     </a>
                 </div>
             </header>
@@ -333,10 +333,10 @@ const CampaignLandingPage: React.FC = () => {
                             </div>
                             
                             <a 
-                                href="tel:503-490-9194"
+                                href="mailto:info@kartcade.com"
                                 className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 bg-[#2D9E49] hover:bg-[#248C3E] text-white font-bold uppercase tracking-widest rounded-full transition-all duration-300 w-full sm:w-auto text-xs"
                             >
-                                <Phone className="w-4 h-4" /> Call 503-490-9194
+                                <Mail className="w-4 h-4" /> Email Us
                             </a>
                         </div>
                     </div>
@@ -388,9 +388,8 @@ const CampaignLandingPage: React.FC = () => {
                         <span className="flex items-center gap-1.5 text-white/60">
                             <MapPin className="w-3.5 h-3.5 text-[#D42428]" /> 18750 Willamette Dr, West Linn, OR 97068
                         </span>
-                        <span className="w-1.5 h-1.5 bg-white/20 rounded-full hidden sm:inline" />
                         <span className="flex items-center gap-1.5 text-white/60">
-                            <Phone className="w-3.5 h-3.5 text-[#2D9E49]" /> 503-490-9194
+                            <Mail className="w-3.5 h-3.5 text-[#2D9E49]" /> info@kartcade.com
                         </span>
                     </div>
                     <p className="max-w-xl mx-auto text-white/40 leading-relaxed font-sans">

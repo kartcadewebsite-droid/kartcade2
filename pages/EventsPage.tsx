@@ -207,22 +207,16 @@ const EventsPage: React.FC = () => {
                     </h2>
                     <p className="text-white/60 text-xl mb-12 max-w-2xl mx-auto">
                         Contact us at least 2 weeks in advance for private events.
-                        Call 503-490-9194 or email info@kartcade.com to discuss your needs and customize your experience.
+                        Email info@kartcade.com to discuss your needs and customize your experience.
                     </p>
 
                     <div className="flex flex-col md:flex-row gap-6 justify-center">
-                        <a
-                            href={`tel:${siteConfig.phone}`}
-                            className="flex items-center justify-center gap-3 px-10 py-5 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors"
-                        >
-                            <Phone className="w-5 h-5" /> {siteConfig.phone}
-                        </a>
-                        <a
-                            href={`mailto:${siteConfig.email}`}
-                            className="flex items-center justify-center gap-3 px-10 py-5 border border-white/20 text-white rounded-full font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+                        <Link
+                            to="/contact"
+                            className="flex items-center justify-center gap-3 px-12 py-5 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors"
                         >
                             Email Us <ArrowRight className="w-5 h-5" />
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </section>
