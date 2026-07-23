@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ChevronDown, Phone, ArrowRight } from 'lucide-react';
+import { ChevronDown, Phone, Mail, ArrowRight } from 'lucide-react';
 import siteConfig from '../config/site';
 
 const faqCategories = [

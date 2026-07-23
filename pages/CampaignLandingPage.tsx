@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, Phone, MapPin, Sparkles } from 'lucide-react';
+import { ArrowRight, Phone, Mail, MapPin, Sparkles } from 'lucide-react';
 import bookingConfig from '../config/booking';
 
 const CampaignLandingPage: React.FC = () => {
