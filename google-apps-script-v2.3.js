@@ -66,11 +66,11 @@ function parseStationString(stationStr) {
  */
 function getEquipmentPrice(equipmentType) {
     const normalizedType = String(equipmentType).toLowerCase();
-    if (normalizedType.indexOf('kart') !== -1) return 30;
-    if (normalizedType.indexOf('rig') !== -1) return 40;
-    if (normalizedType.indexOf('motion') !== -1) return 50;
-    if (normalizedType.indexOf('flight') !== -1) return 40;
-    return 30;
+    if (normalizedType.indexOf('kart') !== -1) return 15;
+    if (normalizedType.indexOf('rig') !== -1) return 20;
+    if (normalizedType.indexOf('motion') !== -1) return 25;
+    if (normalizedType.indexOf('flight') !== -1) return 20;
+    return 15;
 }
 
 /**
