@@ -200,7 +200,7 @@ const FAQPage: React.FC = () => {
                         Still Have Questions?
                     </h2>
                     <p className="text-white/60 text-lg mb-10">
-                        We're here to help! Give us a call or send us a message.
+                        We're here to help! Send us an email or message anytime.
                     </p>
 
                     <div className="flex flex-col md:flex-row gap-6 justify-center">

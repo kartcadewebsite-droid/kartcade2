@@ -298,7 +298,7 @@ const PricingPage: React.FC = () => {
                     <h2 className="font-display text-4xl md:text-5xl font-bold uppercase mb-6">
                         Ready to <span className="text-[#D42428]">Race?</span>
                     </h2>
-                    <p className="text-white/60 text-xl mb-12">Book your session or call us for availability</p>
+                    <p className="text-white/60 text-xl mb-12">Book your session online to check availability</p>
 
                     <div className="flex flex-col md:flex-row gap-6 justify-center">
                         <Link

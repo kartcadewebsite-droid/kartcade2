@@ -84,7 +84,7 @@ const Contact: React.FC = () => {
                             <Clock className="w-6 h-6 text-[#2D9E49] mt-1" />
                             <div>
                                 <span className="block font-mono text-xs uppercase text-white/40 mb-1">Hours</span>
-                                <p className="font-sans text-lg">Call for availability</p>
+                                <p className="font-sans text-lg">Email for availability</p>
                             </div>
                         </div>
                     </div>
