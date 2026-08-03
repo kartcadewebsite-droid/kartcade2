@@ -143,7 +143,12 @@ const BookingPage: React.FC = () => {
         // Handle timezone issues by treating date as local YYYY-MM-DD
         if (d) {
             const parts = d.split('-');
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            // Option B: Silently clear Mon (1) or Tue (2) dates from URL params
+            // (we are closed Mon/Tue so pre-filled closed dates should not load)
+            const day = date.getDay();
+            if (day === 1 || day === 2) return null;
+            return date;
         }
         return null;
     });
@@ -846,7 +851,13 @@ const BookingPage: React.FC = () => {
                                             minDate={(() => {
                                                 const min = new Date();
                                                 if (!isAdmin) {
-                                                    min.setHours(min.getHours() + bookingConfig.minAdvanceHours);
+                                                    // On weekends (Sat=6, Sun=0): no lead time, same-day booking allowed
+                                                    // On weekdays (Wed/Thu/Fri): keep standard 8h notice
+                                                    const todayDay = min.getDay();
+                                                    const isWeekend = todayDay === 0 || todayDay === 6;
+                                                    if (!isWeekend) {
+                                                        min.setHours(min.getHours() + bookingConfig.minAdvanceHours);
+                                                    }
                                                 }
                                                 return min;
                                             })()}
@@ -855,6 +866,11 @@ const BookingPage: React.FC = () => {
                                                 max.setDate(max.getDate() + bookingConfig.maxAdvanceDays);
                                                 return max;
                                             })()}
+                                            filterDate={(date) => {
+                                                // Block Mondays (1) and Tuesdays (2) — closed days
+                                                const day = date.getDay();
+                                                return day !== 1 && day !== 2;
+                                            }}
                                         />
                                     </div>
 

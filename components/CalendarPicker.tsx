@@ -9,13 +9,15 @@ interface CalendarPickerProps {
     onDateChange: (date: Date) => void;
     minDate: Date;
     maxDate: Date;
+    filterDate?: (date: Date) => boolean; // Optional: return false to disable a date
 }
 
 const CalendarPicker: React.FC<CalendarPickerProps> = ({
     selectedDate,
     onDateChange,
     minDate,
-    maxDate
+    maxDate,
+    filterDate
 }) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -95,6 +97,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
                             }}
                             minDate={minDate}
                             maxDate={maxDate}
+                            filterDate={filterDate}
                             inline
                             calendarClassName="kartcade-calendar"
                         />
