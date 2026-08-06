@@ -900,18 +900,20 @@ const BookingPage: React.FC = () => {
                                                         const exceedsCapacity = requestedQty > available;
 
                                                         // Check if time is in the past (Oregon Time)
-                                                        const now = new Date();
-                                                        // Convert current browser time to Oregon time
-                                                        const oregonNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
-
-                                                        // Check if selected date matches Oregon's today
-                                                        const isToday = selectedDate?.getDate() === oregonNow.getDate() &&
-                                                            selectedDate?.getMonth() === oregonNow.getMonth() &&
-                                                            selectedDate?.getFullYear() === oregonNow.getFullYear();
+                                                        // FIX: old toLocaleString+new Date() hack re-parses in browser's
+                                                        // local timezone, giving wrong hours for non-Oregon users (caused Gary bug).
+                                                        // Now using toLocaleDateString (same as formatDateForApi) + Intl.DateTimeFormat.
+                                                        const oregonDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+                                                        const selectedDateStr = selectedDate ? formatDateForApi(selectedDate) : '';
+                                                        const isToday = selectedDateStr === oregonDateStr;
 
                                                         const slotHour = parseInt(time.split(':')[0]);
-                                                        const currentHour = oregonNow.getHours();
-                                                        const isPast = isToday && slotHour <= currentHour;
+                                                        const oregonHour = parseInt(new Intl.DateTimeFormat('en-US', {
+                                                            timeZone: 'America/Los_Angeles',
+                                                            hour: 'numeric',
+                                                            hour12: false
+                                                        }).format(new Date()));
+                                                        const isPast = isToday && slotHour <= oregonHour;
 
                                                         // Disable if: no slots, past time, OR requested more than available
                                                         const isDisabled = available <= 0 || isPast || exceedsCapacity;
