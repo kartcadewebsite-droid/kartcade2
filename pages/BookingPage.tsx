@@ -21,7 +21,7 @@ const stationTypes = [
     {
         id: 'karts',
         name: 'Racing Karts',
-        price: 15,
+        price: 30,
         units: 4,
         icon: <Gauge className="w-8 h-8" />,
         description: 'Perfect for kids 5+, teens, and adults under 6\'3"',
@@ -31,7 +31,7 @@ const stationTypes = [
     {
         id: 'rigs',
         name: 'Full-Size Rigs',
-        price: 20,
+        price: 40,
         units: 4,
         icon: <Monitor className="w-8 h-8" />,
         description: 'Professional direct-drive simulators for adults',
@@ -41,7 +41,7 @@ const stationTypes = [
     {
         id: 'motion',
         name: 'Motion Simulator',
-        price: 25,
+        price: 50,
         units: 1,
         icon: <Zap className="w-8 h-8" />,
         description: 'Triple-screen with motion platform - the ultimate experience',
@@ -51,7 +51,7 @@ const stationTypes = [
     {
         id: 'flight',
         name: 'Flight Simulator',
-        price: 20,
+        price: 40,
         units: 1,
         icon: <Plane className="w-8 h-8" />,
         description: 'HOTAS setup for Star Wars Squadrons and more',

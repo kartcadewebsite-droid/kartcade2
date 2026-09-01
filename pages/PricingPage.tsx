@@ -12,7 +12,7 @@ const PricingPage: React.FC = () => {
         document.title = "Pricing | Kartcade Racing Simulator Lounge";
         const metaDesc = document.querySelector('meta[name="description"]');
         if (metaDesc) {
-            metaDesc.setAttribute('content', 'Kartcade pricing: $15-25/hour. Birthday party packages from $400. Book your racing simulator session today.');
+            metaDesc.setAttribute('content', 'Kartcade pricing: $30-50/hour. Birthday party packages from $400. Book your racing simulator session today.');
         }
     }, []);
 
@@ -27,7 +27,7 @@ const PricingPage: React.FC = () => {
         {
             title: "Racing Karts",
             subtitle: "Ages 5+ (Kids & Teens)",
-            price: "$15",
+            price: "$30",
             period: "/hour",
             features: [
                 "Dedicated racing karts",
@@ -42,7 +42,7 @@ const PricingPage: React.FC = () => {
         {
             title: "Full Sim Rig",
             subtitle: "Direct Drive (Ages 10+)",
-            price: "$20",
+            price: "$40",
             period: "/hour",
             features: [
                 "Professional direct-drive wheels",
@@ -57,7 +57,7 @@ const PricingPage: React.FC = () => {
         {
             title: "Motion Simulator",
             subtitle: "Full Motion (Ages 14+)",
-            price: "$25",
+            price: "$50",
             period: "/hour",
             features: [
                 "Full motion platform",
@@ -72,7 +72,7 @@ const PricingPage: React.FC = () => {
         {
             title: "Flight Simulator",
             subtitle: "HOTAS Setup (All Ages)",
-            price: "$20",
+            price: "$40",
             period: "/hour",
             features: [
                 "Detailed flight controls",
