@@ -96,6 +96,8 @@ const SignUpPage: React.FC = () => {
             }
 
             // Email sign up collects data inline, so go straight to dashboard
+            const hasPendingBooking = (() => { try { return !!sessionStorage.getItem('kartcade.pendingBooking'); } catch { return false; } })();
+            if (!partyId && hasPendingBooking) { navigate('/book'); return; }
             navigate('/dashboard', { state: { message: partyId ? 'Welcome to the party!' : 'Profile created successfully!' } });
         } catch (err: any) {
             if (err.code === 'auth/email-already-in-use') {
@@ -166,7 +168,7 @@ const SignUpPage: React.FC = () => {
 
                 // 2. Check if party is full
                 const currentGuestCount = partyData.registeredGuests?.length || 0;
-                const maxGuests = partyData.maxGuests || 15;
+                const maxGuests = partyData.maxGuests || 40;
                 if (currentGuestCount >= maxGuests) {
                     throw new Error('This party has reached its maximum guest capacity.');
                 }

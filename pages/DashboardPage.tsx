@@ -139,7 +139,7 @@ const DashboardPage: React.FC = () => {
     const [adminPartyTab, setAdminPartyTab] = useState<'active' | 'archive'>('active');
 
     //  Lap Times State 
-    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com', 'devansh7704patel@gmail.com'];
+    const SUPER_ADMIN_EMAILS = ['adamjames9@gmail.com'];
     const isSuperAdmin = !!(currentUser?.email && SUPER_ADMIN_EMAILS.includes(currentUser.email));
     const [myLapTimes, setMyLapTimes] = useState<any[]>([]);
     const [adminLapTimes, setAdminLapTimes] = useState<any[]>([]);
@@ -1503,7 +1503,7 @@ const DashboardPage: React.FC = () => {
                                                                         <div className="w-24 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
                                                                             <div
                                                                                 className="h-full bg-amber-500"
-                                                                                style={{ width: `${Math.min(100, ((party.registeredGuests?.length || 0) / (party.maxGuests || 15)) * 100)}%` }}
+                                                                                style={{ width: `${Math.min(100, ((party.registeredGuests?.length || 0) / (party.maxGuests || 40)) * 100)}%` }}
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -2828,11 +2828,11 @@ const DashboardPage: React.FC = () => {
                                                                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                                                     <div
                                                                         className="h-full bg-[#2D9E49] shadow-[0_0_10px_rgba(45,158,73,0.3)] transition-all duration-500"
-                                                                        style={{ width: `${Math.min(100, ((party.registeredGuests?.length || 0) / (party.maxGuests || 15)) * 100)}%` }}
+                                                                        style={{ width: `${Math.min(100, ((party.registeredGuests?.length || 0) / (party.maxGuests || 40)) * 100)}%` }}
                                                                     />
                                                                 </div>
                                                                 <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
-                                                                    <span className="text-[#2D9E49]">{(party.maxGuests || 15) - (party.registeredGuests?.length || 0)} SEATS LEFT</span>
+                                                                    <span className="text-[#2D9E49]">{(party.maxGuests || 40) - (party.registeredGuests?.length || 0)} SEATS LEFT</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -2936,7 +2936,7 @@ const DashboardPage: React.FC = () => {
                                                     ))}
 
                                                     {/* Available Slots (Empty Seats) */}
-                                                    {Array.from({ length: Math.max(0, (party.maxGuests || 15) - (party.registeredGuests?.length || 0)) }).map((_, idx) => (
+                                                    {Array.from({ length: Math.max(0, (party.maxGuests || 40) - (party.registeredGuests?.length || 0)) }).map((_, idx) => (
                                                         <div key={`empty-${idx}`} className="flex items-center gap-3 p-3 bg-white/[0.02] rounded-xl border border-dashed border-white/10 opacity-40">
                                                             <div className="w-8 h-8 rounded-full border border-dashed border-white/20 flex items-center justify-center">
                                                                 <Users className="w-3 h-3 text-white/20" />

@@ -1,5 +1,6 @@
+import { station } from '../config/business';
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
@@ -20,42 +21,42 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 const stationTypes = [
     {
         id: 'karts',
-        name: 'Racing Karts',
-        price: 30,
-        units: 4,
+        name: station('karts').name,
+        price: station('karts').price,
+        units: station('karts').units,
         icon: <Gauge className="w-8 h-8" />,
-        description: 'Perfect for kids 5+, teens, and adults under 6\'3"',
-        ageReq: '5+',
+        description: `Perfect for kids ${station('karts').ageLabel}, teens, and adults under 6'3"`,
+        ageReq: station('karts').ageLabel,
         color: '#2D9E49'
     },
     {
         id: 'rigs',
-        name: 'Full-Size Rigs',
-        price: 40,
-        units: 4,
+        name: station('rigs').name,
+        price: station('rigs').price,
+        units: station('rigs').units,
         icon: <Monitor className="w-8 h-8" />,
         description: 'Professional direct-drive simulators for adults',
-        ageReq: '10+',
+        ageReq: station('rigs').ageLabel,
         color: '#FFFFFF'
     },
     {
         id: 'motion',
-        name: 'Motion Simulator',
-        price: 50,
-        units: 1,
+        name: station('motion').name,
+        price: station('motion').price,
+        units: station('motion').units,
         icon: <Zap className="w-8 h-8" />,
         description: 'Triple-screen with motion platform - the ultimate experience',
-        ageReq: '14+',
+        ageReq: station('motion').ageLabel,
         color: '#D42428'
     },
     {
         id: 'flight',
-        name: 'Flight Simulator',
-        price: 40,
-        units: 1,
+        name: station('flight').name,
+        price: station('flight').price,
+        units: station('flight').units,
         icon: <Plane className="w-8 h-8" />,
         description: 'HOTAS setup for Star Wars Squadrons and more',
-        ageReq: 'All ages',
+        ageReq: station('flight').ageLabel,
         color: '#2D9E49'
     }
 ];
@@ -185,6 +186,38 @@ const BookingPage: React.FC = () => {
         phone: '',
         notes: ''
     });
+
+    // Anyone can browse availability; a driver profile is required to book.
+    // The selection survives the trip through login or sign-up.
+    const navigate = useNavigate();
+    const PENDING_KEY = 'kartcade.pendingBooking';
+    useEffect(() => {
+        if (!currentUser) return;
+        try {
+            const raw = sessionStorage.getItem(PENDING_KEY);
+            if (!raw) return;
+            sessionStorage.removeItem(PENDING_KEY);
+            const p = JSON.parse(raw);
+            if (p.cart) setEquipmentCart(p.cart);
+            if (p.duration) setDuration(p.duration);
+            if (p.station) setSelectedStation(p.station);
+            if (p.date) { const [y, m, d] = p.date.split('-').map(Number); setSelectedDate(new Date(y, m - 1, d)); }
+            if (p.time) setSelectedTime(p.time);
+            if (p.date && p.time) setStep(3);
+        } catch { /* storage unavailable: start fresh */ }
+    }, [currentUser]);
+
+    const continueToDetails = () => {
+        if (!selectedDate || !selectedTime) return;
+        if (currentUser) { setStep(3); return; }
+        try {
+            sessionStorage.setItem(PENDING_KEY, JSON.stringify({
+                cart: equipmentCart, duration, station: selectedStation,
+                date: formatDateForApi(selectedDate), time: selectedTime,
+            }));
+        } catch { /* ignore */ }
+        navigate('/login', { state: { from: '/book', reason: 'booking' } });
+    };
 
     const hasAnyEquipment = () => {
         return Object.values(equipmentCart).some(qty => qty > 0);
@@ -541,8 +574,26 @@ const BookingPage: React.FC = () => {
         setIsSubmitting(false);
     };
 
+    // Whole space = every unit of every station
+    const isFullSpace = () => stationTypes.every(s => (equipmentCart[s.id] || 0) === s.units);
+    const partyRateApplies = () => isFullSpace() && duration >= bookingConfig.partyMinHours;
+    const partyPrice = (hours: number) =>
+        bookingConfig.partyBasePrice + Math.max(0, hours - bookingConfig.partyMinHours) * bookingConfig.partyExtraHourPrice;
+    const selectFullSpace = () => {
+        const all: EquipmentCart = { karts: 0, rigs: 0, motion: 0, flight: 0 };
+        stationTypes.forEach(s => { (all as any)[s.id] = s.units; });
+        setEquipmentCart(all);
+        if (duration < bookingConfig.partyMinHours) setDuration(bookingConfig.partyMinHours);
+    };
+    const hourlyTotal = () => {
+        let t = 0;
+        stationTypes.forEach(station => { t += station.price * (equipmentCart[station.id] || 0) * duration; });
+        return t;
+    };
+
     // Calculate total - UPDATED for multi-booking
     const calculateTotal = () => {
+        if (partyRateApplies()) return partyPrice(duration);
         // If using legacy single-station mode
         if (selectedStation && !hasAnyEquipment()) {
             if (!selectedStationData) return 0;
@@ -710,6 +761,22 @@ const BookingPage: React.FC = () => {
                                         Select Equipment & Duration
                                     </h2>
 
+                                    {/* Whole space */}
+                                    <button
+                                        type="button"
+                                        onClick={selectFullSpace}
+                                        className={`w-full mb-6 p-5 rounded-2xl border-2 text-left transition-all flex items-center justify-between gap-4 ${isFullSpace()
+                                            ? 'border-[#D42428] bg-[#D42428]/10'
+                                            : 'border-white/10 bg-[#141414] hover:border-[#D42428]/60'
+                                            }`}
+                                    >
+                                        <div>
+                                            <div className="font-display text-lg font-bold uppercase">Book the entire space</div>
+                                            <div className="text-sm text-white/60">All 10 simulators, private, up to {bookingConfig.partyMaxGuests} people. ${bookingConfig.partyBasePrice} for 2 hours, ${bookingConfig.partyExtraHourPrice} each extra hour.</div>
+                                        </div>
+                                        {isFullSpace() ? <CheckCircle className="w-6 h-6 text-[#D42428] flex-shrink-0" /> : <ArrowRight className="w-6 h-6 text-white/40 flex-shrink-0" />}
+                                    </button>
+
                                     {/* Equipment Selection */}
                                     <div className="space-y-4 mb-8">
                                         {stationTypes.map((station) => {
@@ -779,6 +846,7 @@ const BookingPage: React.FC = () => {
                                                 { value: 2, label: '2 hrs' },
                                                 { value: 2.5, label: '2h 30m' },
                                                 { value: 3, label: '3 hrs' },
+                                                ...(isFullSpace() ? [{ value: 4, label: '4 hrs' }] : []),
                                             ].map(({ value, label }) => (
                                                 <button
                                                     key={value}
@@ -810,6 +878,15 @@ const BookingPage: React.FC = () => {
                                                     );
                                                 })}
                                             </div>
+                                            {partyRateApplies() && (
+                                                <div className="flex justify-between text-sm text-[#D42428] mb-2">
+                                                    <span>Private party rate ({duration} hrs)</span>
+                                                    <span>&minus;${hourlyTotal() - calculateTotal()}</span>
+                                                </div>
+                                            )}
+                                            {isFullSpace() && !partyRateApplies() && (
+                                                <p className="text-xs text-white/50 mb-2">Choose 2 hours or more for the private party rate (${bookingConfig.partyBasePrice} for 2 hours).</p>
+                                            )}
                                             <div className="flex justify-between border-t border-white/10 pt-4">
                                                 <span className="font-bold">Total ({duration}hr session)</span>
                                                 <span className="text-[#2D9E49] font-bold text-xl">${calculateTotal()}</span>
@@ -823,7 +900,7 @@ const BookingPage: React.FC = () => {
                                             disabled={!hasAnyEquipment()}
                                             className="flex items-center gap-3 px-10 py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            Continue <ArrowRight className="w-5 h-5" />
+                                            {currentUser ? 'Continue' : 'Sign in to book'} <ArrowRight className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </div>
@@ -988,7 +1065,7 @@ const BookingPage: React.FC = () => {
                                             <ArrowLeft className="w-5 h-5" /> Back
                                         </button>
                                         <button
-                                            onClick={() => selectedDate && selectedTime && setStep(3)}
+                                            onClick={continueToDetails}
                                             disabled={!selectedDate || !selectedTime}
                                             className="flex items-center gap-3 px-10 py-4 bg-[#D42428] text-white rounded-full font-bold uppercase tracking-widest hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >

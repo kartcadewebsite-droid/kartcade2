@@ -4,20 +4,24 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Calendar, Users, Trophy, Gift, Phone, ArrowRight, Cake, Building2, Gamepad2, ArrowUpRight } from 'lucide-react';
 import siteConfig from '../config/site';
+import business from '../config/business';
 
 const eventPackages = [
     {
         icon: <Cake className="w-10 h-10" />,
         title: "Birthday Party Package",
-        price: "Starting at $400 ($720 value)",
+        price: `Starting at $${business.party.basePrice}`,
         features: [
-            "2 hours of racing time",
-            "Up to 15 guests (Unlimited racing)",
+            `${business.party.minHours} hours of racing time`,
+            "Up to 40 guests (Unlimited racing)",
+            `Extra hours $${business.party.extraHourPrice} each`,
             "Entire facility reservation",
             "Bring your own decorations and cake",
             "Staff assistance throughout"
         ],
-        highlight: true
+        highlight: true,
+        link: "/book-party",
+        cta: "Book Your Party"
     },
     {
         icon: <Building2 className="w-10 h-10" />,
@@ -98,7 +102,7 @@ const EventsPage: React.FC = () => {
                     </h1>
                     <p className="event-hero-text text-lg md:text-xl text-white/70 max-w-md leading-relaxed">
                         Kartcade is the perfect venue for birthday parties, corporate team building, bachelor/bachelorette parties.
-                        We can accommodate up to 15 people with our full fleet of 10 simulators.
+                        We can accommodate up to 40 people with our full fleet of 10 simulators.
                     </p>
                 </div>
             </section>
@@ -163,13 +167,13 @@ const EventsPage: React.FC = () => {
                                     ))}
                                 </ul>
                                 <Link
-                                    to="/contact"
+                                    to={(pkg as any).link || "/contact"}
                                     className={`block text-center py-3 rounded-full font-bold uppercase tracking-widest text-sm transition-all ${pkg.highlight
                                         ? 'bg-[#D42428] text-white hover:bg-[#B91C1C]'
                                         : 'border border-white/20 text-white hover:bg-white/5'
                                         }`}
                                 >
-                                    Inquire Now
+                                    {(pkg as any).cta || "Inquire Now"}
                                 </Link>
                             </div>
                         ))}
